@@ -1,0 +1,288 @@
+---
+title: "Estimation of subnational fertility in SSA"
+author: "Oli Stevens"
+date: "`r Sys.Date()`"
+output: 
+  rmarkdown::html_vignette:
+  keep_md: true
+# vignette: >
+#   %\VignetteIndexEntry{Model-based smoothing of child mortality trends}
+# %\VignetteEngine{knitr::rmarkdown}
+# %\VignetteEncoding{UTF-8}
+---
+  
+  ```{r setup, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  cache = TRUE,
+  comment = "#>"
+)
+```
+This is some intro text about how I went and did the thing.
+
+## Load packages
+
+```{r load packages, results=FALSE, message=FALSE, warning=FALSE}
+library(tidyverse)
+library(dplyr)
+library(rdhs)
+library(haven)
+library(here)
+library(survey)
+library(reshape2)
+library(demogsurv)
+library(gridExtra)
+library(grid)
+library(effects)
+```
+
+
+## Calculate ASFR, TFR, and GFR
+
+Use `rdhs` and `demogsurv` to calculate ASFR, TFR, and GFR for Malawi. Code hidden. 
+
+TIPS set to 0-3
+
+```{r datasets, echo=FALSE, results=FALSE, message=FALSE, warning=FALSE}
+
+#' Identify country codes for desired countries
+cc <- rdhs::dhs_countries() %>%
+  filter(RegionName == "Sub-Saharan Africa") %>%
+  .$DHS_CountryCode
+
+#' SurveyCharacteristicID = 23 is HIV testing
+# dhs_survey_characteristics()
+
+#' Identify all surveys from SSA
+surveys <- dhs_surveys(countryIds = cc, surveyYearStart=1995) %>%
+  filter(RegionName == "Sub-Saharan Africa")
+
+
+#' Identify datasets for these surveys
+ird <- dhs_datasets(fileType = "IR", fileFormat = "flat", surveyIds = surveys$SurveyId) %>%
+  filter(CountryName == "Malawi" )
+ard <- dhs_datasets(fileType = "AR", fileFormat = "flat", surveyIds = surveys$SurveyId) %>%
+  filter(CountryName == "Malawi")
+
+#' Get local path to dataset (download if needed)
+ird$path <- unlist(get_datasets(ird))
+ard$path <- unlist(get_datasets(ard))
+
+#' Variables to extract from individual recode datasets
+#' * v213: currently pregnant
+#' * v525: age at first sex
+#' * v527: time since last sex
+#' 
+
+ir <- readRDS(tail(ird$path, 1))
+
+bvars <- expand.grid("b",
+                     c("idx", "ord", 1:7),
+                     "_",
+                     formatC(1:20, digits=1, format="d", flag="0")) %>%
+  unite(col="bvars", sep="") %>%
+  .$bvars
+
+#' 
+irvars <- c("caseid", "v001", "v002", "v003", "v005", "v008", "aidsex", "v011", "v012",
+            "v021", "v022", "v023", "v024", "v025", "v213", "v525", "v527", bvars)
+arvars <- c("hivclust", "hivnumb", "hivline", "hiv03", "hiv05", "shiv51")
+allvars <- c("surveyid", "country", "survyear", irvars, "hiv03", "hiv05", "shiv51")
+
+
+#' Load and merge datasets
+datlst <- list()
+for(survid in ird$SurveyId){
+  
+  # survid <- "MW2015DHS"
+  
+  print(survid)
+  
+  ir <- filter(ird, SurveyId == survid)$path %>% readRDS
+  
+  if(survid == "CI2005AIS"){
+    ## For Cote d'Ivoire 2005 AIS, individuals are uniquely identified by
+    ## four variables {cluster, structure, household, line}.
+    ir$v002 <- 100*ir$sstruct + ir$v002
+  }
+  
+  if(!exists("aidsex", ir)){
+    ir$aidsex <- haven::labelled(2, c("men" = 1, "women" = 2), label = "Sex")
+  }
+  
+  dat <- ir %>%
+    select(intersect(irvars, names(ir))) %>%
+    filter(aidsex == 2)
+  dat[setdiff(irvars, names(ir))] <- NA #What does this do? If you've selected the intersect they must be the same?
+  
+  if (nrow(ard %>%
+         filter(SurveyId == survid))) {
+    ar <- filter(ard, SurveyId == survid)$path %>% readRDS
+    
+    if(survid == "CI2005AIS")
+      ar$hivnumb <- 100*ar$hivstruct + ar$hivnumb
+    ar[setdiff(arvars, names(ar))] <- NA
+    
+    dat <- dat %>%
+      left_join(ar %>% select(arvars),
+                by=c("v001" = "hivclust",
+                     "v002" = "hivnumb",
+                     "v003" = "hivline"))
+  }
+
+  dat[setdiff(allvars, names(dat))] <- NA
+  
+  dat$surveyid <- survid
+  dat$country <- filter(ird, SurveyId == survid)$CountryName
+  dat$survyear <- filter(ird, SurveyId == survid)$SurveyYear
+  
+  datlst[[survid]] <- dat %>% select(allvars)
+}
+
+## Replace results for Zambia 2013-14 with confirmed test results
+
+datlst[["ZM2013DHS"]]$hiv03 <- datlst[["ZM2013DHS"]]$shiv51
+
+## Create HIV, pregnancy status, and sexual history indicators
+
+datlst <- lapply(datlst, mutate,
+                 prev = if_else(hiv03 %in% 0:3, as.integer(hiv03 > 0), NA_integer_),
+                 hivstatus = factor(prev, 0:1, c("negative", "positive")),
+                 currpreg = if_else(v213 %in% 0:1, v213, NA_integer_),
+                 eversex = as.integer(v525 != 0),
+                 recentsex = as.integer(eversex & if_else(!v527 %in% 997:999, v527 <= 204 | v527 == 995, NA)),
+                 sex12m = as.integer(eversex & if_else(!v527 %in% 997:999, v527 <= 400 | v527 == 995, NA)))
+
+#' Calculate indicators
+
+library(parallel)
+options(mc.cores = parallel::detectCores())
+
+## Surveys with birth histories
+hasbh <- !names(datlst) %in% c("TZ2003AIS", "UG2011AIS", "CG2009AIS", "MZ2009AIS")
+
+
+tfr <- mclapply(datlst[hasbh], calc_tfr,
+                by=~surveyid + country + survyear,
+                tips=c(0, 4), strata=NULL)
+
+asfr <- mclapply(datlst[hasbh], calc_asfr,
+                 by=~surveyid + country + survyear,
+                 tips=c(0, 4), strata=NULL, counts=TRUE)
+
+gfr <- mclapply(datlst[hasbh], calc_asfr,
+                by=~surveyid + country + survyear,
+                tips=0:6, agegr=c(15, 60), strata=NULL, counts=TRUE)
+```
+
+## Transform ASFRs for regression
+
+Remove country from dataset (single factor - throws an error in regression?)
+
+```{r}
+asfr_mod_data <- asfr %>%
+  plyr::ldply(bind_rows, .id=NULL) %>%
+  select(-c(country, asfr, se_asfr)) %>%
+  mutate(births = round(births),
+         pys = round(pys)
+  )
+```
+
+Regress births against year and age group
+```{r}
+
+m2 <- glm(births ~ survyear + agegr, data=asfr_mod_data, family = poisson(), offset=log(pys))
+```
+
+Age-adjusted fertility against time. Left hand plot - 2000 is base reference year. Right hand plot - multiplied by TFR in 2000
+
+``` {r echo=FALSE, message=FALSE, warning=FALSE, fig.width=7}
+
+glm.RR <- function(GLM.RESULT, digits = 2) {
+
+  COEF      <- stats::coef(GLM.RESULT)
+  CONFINT   <- stats::confint(GLM.RESULT)
+  TABLE     <- cbind(coef=COEF, CONFINT)
+  TABLE.EXP <- round(exp(TABLE), digits)
+  
+  colnames(TABLE.EXP)[1] <- "RR"
+  
+  TABLE.EXP
+}
+
+p2 <- data.frame(glm.RR(m2)) 
+p2a <- p2 %>%
+  `colnames<-`(c("RR", "lower", "upper")) %>%
+  mutate(var = rownames(.)) %>%
+  separate(var, into=c("var", "year"), sep="(?<=[A-Za-z])(?=[0-9])") %>%
+  filter(var=="survyear") %>%
+  rbind(c(1, NA, NA, "survyear", 2000)) %>%
+  mutate_at(c("RR", "lower", "upper", "year"), as.numeric)
+
+p2a.1 <- p2a %>%
+  ggplot(aes(x=year, y=RR, ymin=lower, ymax=upper)) +
+    geom_line() +
+    geom_errorbar(width = 0.25) +
+    labs(y="FRR")
+
+p2a.2 <- p2a %>%
+  mutate_at(c("RR", "lower", "upper"), ~(.*tfr[["MW2000DHS"]][["tfr"]])) %>%
+  ggplot(aes(x=year, y=RR, ymin=lower, ymax=upper)) +
+    geom_line() +
+    geom_errorbar(width = 0.25) +
+    labs(y="TFR")
+
+grid.arrange(p2a.1, p2a.2, ncol=2)
+
+```
+
+Fertility by age group adjusted by time. Left hand plot - 15-19 is base reference year. Right hand plot - multiplied by ASFR for 15-19 calculated from all surveys.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, fig.width=7}
+
+p3a <- p2 %>%
+  `colnames<-`(c("RR", "lower", "upper")) %>%
+  mutate(var = rownames(.)) %>%
+  separate(var, into=c("var", "age"), sep="(?<=[A-Za-z])(?=[0-9])") %>%
+  filter(var=="agegr") %>%
+  rbind(c(1, NA, NA, "agegr", "15-19")) %>%
+  mutate(age = factor(age, levels = c( "15-19", "20-24", "25-29", "30-34", "35-39", "40-44", "45-49"))) %>%
+  mutate_at(c("RR", "lower", "upper"), as.numeric)
+
+p3a.1 <- p3a %>%
+  ggplot(aes(x=age, y=RR, ymin=lower, ymax=upper, group=1)) +
+    stat_summary(fun.y=sum, geom="line") +
+    geom_errorbar(width = 0.25) +
+    labs(y="FRR")
+
+# Calculating ASFR for 15-19 across all survey years = 0.15
+
+# avg_base_asfr <- asfr_mod_data %>%
+#   group_by(tips, agegr) %>%
+#   summarise(births = sum(births),
+#             pys = sum(pys)) %>%
+#   mutate(asfr = births/pys) %>%
+#   .[1,5]
+
+p3a.2 <- p3a %>%
+  mutate_at(c("RR", "lower", "upper"), ~(.*0.15)) %>%
+  ggplot(aes(x=age, y=RR, ymin=lower, ymax=upper, group=1)) +
+    stat_summary(fun.y=sum, geom="line") +
+    geom_errorbar(width = 0.25) +
+    labs(y="ASFR")
+
+grid.arrange(p3a.1, p3a.2, ncol=2)
+```
+
+With interaction between survey year and age group
+
+``` {r}
+
+m1 <- glm(births ~ survyear*agegr, data=asfr_mod_data, family = poisson(), offset=log(pys))
+
+```
+```{r echo=FALSE, message=FALSE, warning=FALSE, fig.width=7, fig.height=6}
+
+plot(effect(term="survyear:agegr", mod=m1), multiline=TRUE)
+
+```
