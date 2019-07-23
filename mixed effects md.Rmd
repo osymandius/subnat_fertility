@@ -1,0 +1,178 @@
+---
+title: "Estimation of subnational fertility in SSA"
+author: "Oli Stevens"
+date: "`r Sys.Date()`"
+output: 
+  rmarkdown::html_vignette:
+  keep_md: true
+# vignette: >
+#   %\VignetteIndexEntry{Model-based smoothing of child mortality trends}
+# %\VignetteEngine{knitr::rmarkdown}
+# %\VignetteEncoding{UTF-8}
+---
+  
+  ```{r setup, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  cache = TRUE,
+  comment = "#>"
+)
+```
+This is some intro text about how I went and did the thing.
+
+## Load packages
+
+```{r load packages, results=FALSE, message=FALSE, warning=FALSE}
+library(tidyverse)
+library(rdhs)
+library(demogsurv)
+library(lme4)
+```
+
+
+## Calculate ASFR, TFR, and GFR
+
+Use `rdhs` and `demogsurv` to calculate ASFR & TFR for Malawi.
+
+```{r datasets}
+
+##+ datasets
+surveys <- dhs_surveys(countryIds = "MW", surveyYearStart=1995)
+ird <- dhs_datasets(fileType = "IR", fileFormat = "flat", surveyIds = surveys$SurveyId)
+ird$path <- unlist(get_datasets(ird))
+```
+
+## Load the datasets into R as a list and asssign survey-level variables
+
+```{r}
+ir <- lapply(ird$path, readRDS) %>%
+  Map(data.frame,
+      surveyid = surveys$SurveyId,
+      country = surveys$CountryName,
+      survyear = surveys$SurveyYear,
+      survtype = surveys$SurveyType,
+      .,
+      stringsAsFactors = FALSE)
+      
+```
+## Calculate TFR 
+
+Calculate annual (calendar periods) TFR estimates for 0-10 years preceding each DHS survey or 0 to 5 years preceding each MIS.
+
+Shorten the TIPS for 2015 DHS to 0-8 due to outliers in urban for 10 year recall.
+
+```{r}
+tips_surv <- ifelse(surveys$SurveyId == "MW2015DHS", list(c(0, 9)), 
+                         ifelse(surveys$SurveyType == "DHS", list(c(0, 10)), list(c(0, 5))))
+
+names(tips_surv) <- unique(surveys$SurveyId)
+```
+
+tips_surv2 <- list(c(0,5))
+
+Calculate TFR by survey year & urban/rural (`v025`)
+
+```{r}
+tfr <- Map(calc_tfr, ir,
+           by = list(~surveyid + country + survyear + v025),
+           tips = tips_surv,
+           period = list(1995:2017))
+
+tfr <- tfr %>%
+  bind_rows %>%
+  type.convert %>% 
+  filter(period <= survyear) %>%
+  mutate(lower = tfr - qnorm(0.975) * se_tfr,
+         upper = tfr + qnorm(0.975) * se_tfr)
+```
+
+## Plot annual TFR estimates
+
+```{r echo=FALSE, fig.show='hold', fig.height=3.8, fig.width=5.0, fig.align = "center"}
+ggplot(tfr, aes(period, tfr, ymin = lower, ymax = upper,
+                color=surveyid, fill=surveyid)) +
+  geom_point() +
+  geom_line() +
+  geom_ribbon(alpha=0.2, linetype="blank") +
+  ggtitle("TFR") +
+  theme(legend.position="bottom") +
+  ylim(0, 12.5) +
+  facet_grid(~v025)
+```
+## FIXED EFFECTS ONLY
+
+#Calculate ASFR and births / PYs
+
+Calculate annual (calendar periods) TFR estimates for 0-10 years preceding each DHS survey or 0 to 5 years preceding each MIS. Argument `counts = TRUE`indicates to return the counts of weighted births and person-years.
+
+
+```{r warning = FALSE}
+asfr <- Map(calc_asfr, ir,
+            by = list(~surveyid + country + survyear+ v025),
+            tips = tips_surv,
+            period = list(1995:2017),
+            counts = TRUE)
+
+
+asfr <- asfr %>%
+  bind_rows %>%
+  type.convert %>%
+  filter(period <= survyear)
+
+## Combine births and pys from 40-44 and 45-49 age groups to reduce 0 counts?
+  mutate(births = round(births),
+         pys = round(pys),
+         sum_var = ifelse(agegr=="40-44" | agegr=="45-49", TRUE, FALSE)) %>%
+  group_by(surveyid, country,  survyear,tips,  v025, period, sum_var) %>%
+  mutate(births = ifelse(sum_var, sum(births), births), 
+         pys = ifelse(sum_var, sum(pys), pys),
+         asfr = births/pys
+  ) %>%
+  ungroup() %>%
+  select(-sum_var) %>%
+  distinct(surveyid, country, survyear, tips,v025, period, births, pys, asfr, .keep_all=TRUE)
+```
+
+## Fit model
+
+Fit Poisson GLM with log-linear time trend for each age group
+
+``` {r warning = FALSE}
+mod <- glm(births ~ agegr*period + v025, family = poisson, data = asfr, offset = log(pys))
+```
+
+## Generate predictions for ASFR
+
+Create a data frame for values to predict---all age groups in each year from 1995 through 2017.
+
+``` {r}
+df_pred <- crossing(period = 1995:2017,
+                    agegr = levels(asfr$agegr),
+                    pys = 1,
+                    v025 = unique(asfr$v025))
+```
+
+Generate predictions log ASFR and return standard error
+
+```{r}
+pred<- predict(mod, newdata = df_pred, se.fit = TRUE)
+
+
+df_pred <- data.frame(df_pred, pred) %>%
+  mutate(asfr = exp(fit),
+         lower = exp(fit - qnorm(0.975) * se.fit),
+         upper = exp(fit + qnorm(0.975) * se.fit))
+
+```
+
+Plot predicted vs. observed ASFR
+
+``` {r echo=FALSE, fig.show='hold', fig.height=5.0, fig.width=7, fig.align = "center"}
+ggplot(asfr, aes(period, asfr, color = surveyid)) +
+  geom_point() +
+  geom_line() +
+  geom_ribbon(aes(ymin = lower, ymax = upper), data = df_pred, color = NA, fill = "darkred", alpha = 0.3) +
+  geom_line(data = df_pred, color = "darkred") +
+  #ylim(0, 0.5) +
+  facet_grid(v025~agegr)
+```

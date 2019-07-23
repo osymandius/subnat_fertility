@@ -53,12 +53,11 @@ ir <- lapply(ird$path, readRDS) %>%
 
 ##+ warning = FALSE
 ## Shorten the TIPS for 2015 DHS to 0-8 due to outliers in urban for 10 year recall.
-tips_surv <- ifelse(surveys$SurveyId == "MW2015DHS", list(c(0, 9)), 
-                         ifelse(surveys$SurveyType == "DHS", list(c(0, 10)), list(c(0, 5))))
+tips_surv <- list("DHS" = c(0, 7), "MIS" = c(0, 5))[surveys$SurveyType]
 
-names(tips_surv) <- unique(surveys$SurveyId)
+# names(tips_surv) <- unique(surveys$SurveyId)
 
-tips_surv2 <- list(c(0,5))
+# tips_surv2 <- list(c(0,5))
 
 
 tfr <- Map(calc_tfr, ir,
@@ -69,6 +68,7 @@ tfr <- Map(calc_tfr, ir,
 tfr <- tfr %>%
   bind_rows %>%
   type.convert %>% 
+  mutate(v025 = factor(v025, levels= c(1,2), labels = c("Urban", "Rural"))) %>%
   filter(period <= survyear) %>%
   mutate(lower = tfr - qnorm(0.975) * se_tfr,
          upper = tfr + qnorm(0.975) * se_tfr)
@@ -96,36 +96,27 @@ ggplot(tfr, aes(period, tfr, ymin = lower, ymax = upper,
 ### FIXED EFFECTS ONLY
 {
 ##+ warning = FALSE
-foo <- Map(calc_asfr, ir,
+asfr <- Map(calc_asfr, ir,
             by = list(~surveyid + country + survyear+ v025),
             tips = tips_surv,
             period = list(1995:2017),
             counts = TRUE)
-
-## Combine births and pys from 40-44 and 45-49 age groups to reduce 0 counts?
-asfr <- foo %>%
+  
+asfr <- asfr %>%
   bind_rows %>%
   type.convert %>%
+  mutate(v025 = factor(v025, levels= c(1,2), labels = c("Urban", "Rural"))) %>%
   filter(period <= survyear)
-
-  mutate(births = round(births),
-         pys = round(pys),
-         sum_var = ifelse(agegr=="40-44" | agegr=="45-49", TRUE, FALSE)) %>%
-  group_by(surveyid, country,  survyear,tips,  v025, period, sum_var) %>%
-  mutate(births = ifelse(sum_var, sum(births), births), 
-         pys = ifelse(sum_var, sum(pys), pys),
-         asfr = births/pys
-  ) %>%
-  ungroup() %>%
-  select(-sum_var) %>%
-  distinct(surveyid, country, survyear, tips,v025, period, births, pys, asfr, .keep_all=TRUE)
 
 #' ## Fit model
 #'
 #' Fit Poisson GLM with log-linear time trend for each age group
 
 ##+ warning = FALSE
-mod <- glm(births ~ agegr*period + v025, family = poisson, data = asfr, offset = log(pys))
+mod <- glm(births ~ agegr +  period + v025, family = poisson, data = asfr, offset = log(pys))
+mod.inter <- glm(births ~ agegr*period + v025, family = poisson, data = asfr, offset = log(pys))
+
+anova(mod, mod.inter, test="LRT")
 
 summary(mod)
 summary(mod2)
@@ -135,7 +126,7 @@ summary(mod2)
 
 #' Create a data frame for values to predict---all age groups in each year from 1995 through 2017.
 df_pred <- crossing(period = 1995:2017,
-                    agegr = c("15-19", "20-24", "25-29", "30-34", "35-39", "40-44", "45-49"),
+                    agegr = levels(asfr$agegr),
                     pys = 1,
                     v025 = unique(asfr$v025))
 
@@ -152,14 +143,16 @@ df_pred <- data.frame(df_pred, pred) %>%
 #' Plot predicted vs. observed ASFR
 
 ##+ fig.show='hold', fig.height=5.0, fig.width=7, fig.align = "center"
-ggplot(asfr, aes(period, asfr, color = surveyid)) +
+plot <- ggplot(asfr, aes(period, asfr, color = surveyid)) +
   geom_point() +
   geom_line() +
   geom_ribbon(aes(ymin = lower, ymax = upper), data = df_pred, color = NA, fill = "darkred", alpha = 0.3) +
   geom_line(data = df_pred, color = "darkred") +
-  ylim(0, 0.5) +
+  #ylim(0, 0.5) +
   facet_grid(v025~agegr)
   }
+
+gridExtra::grid.arrange(plot, plot.inter, ncol=2)
 
 ### MIXED EFFECTS
 {
@@ -174,6 +167,7 @@ ggplot(asfr, aes(period, asfr, color = surveyid)) +
   asfr2 <- foo2 %>%
     bind_rows %>%
     type.convert %>%
+    mutate(v025 = factor(v025, levels= c(1,2), labels = c("Urban", "Rural"))) %>%
     filter(period <= survyear) %>%
     mutate(births = round(births),
            pys = round(pys),
@@ -190,19 +184,24 @@ ggplot(asfr, aes(period, asfr, color = surveyid)) +
     select(-sum_var) %>%
     distinct(surveyid, country, survyear, tips,v025, period, births, pys, asfr, .keep_all=TRUE)
   
+  asfr %>%
+    filter(surveyid == "MW2010DHS") %>%
+    arrange(survyear, v025)
+  
   unique(asfr2$agegr)
   
-  mod2 <- glmer(births ~ agegr*period + v025 + (1 +agegr | period) , family = poisson, data = asfr2, offset = log(pys))
-  summary(mod2)
+  mod2 <- glmer(births ~ agegr + period + v025 + (1 |agegr) , family = poisson, data = asfr2, offset = log(pys))
+  mod2.int <- glmer(births ~ agegr*period + v025 + (1 + period | agegr), family = poisson, data = asfr2, offset = log(pys))
+  janova(mod2.int, mod2)
   
-  ranef(mod2, condVar=TRUE)[[1]]
-  
-  df_pred2 <- crossing(period = 1995:2016,
+  View(coef(mod2.int))
+
+  df_pred2 <- crossing(period = 1995:2017,
                        agegr = levels(asfr2$agegr),
                        pys = 1,
-                       v025 = unique(asfr$v025))
+                       v025 = levels(asfr2$v025))
   
-  pred2 <- predict(mod2, newdata = df_pred2)
+  pred2 <- predict(mod2.int, newdata = df_pred2)
   
   df_pred2 <- data.frame(df_pred2, pred2) %>%
     mutate(asfr = exp(pred2))
@@ -210,8 +209,9 @@ ggplot(asfr, aes(period, asfr, color = surveyid)) +
   ggplot(asfr2, aes(period, asfr, color = surveyid)) +
     geom_point() +
     geom_line() +
-    # geom_ribbon(aes(ymin = lower, ymax = upper), data = df_pred, color = NA, fill = "darkred", alpha = 0.3) +
+    #geom_ribbon(aes(ymin = lower, ymax = upper), data = df_pred, color = NA, fill = "darkred", alpha = 0.3) +
     geom_line(data = df_pred2, aes(y=asfr), color = "darkred") +
+    # facet_wrap(~v025)
     facet_grid(v025~agegr)
   
   
