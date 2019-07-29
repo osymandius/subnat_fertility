@@ -1,0 +1,336 @@
+---
+title: "Estimation of subnational fertility in SSA"
+author: "Oli Stevens"
+date: "`r Sys.Date()`"
+output: 
+  rmarkdown::html_vignette:
+  keep_md: true
+# vignette: >
+#   %\VignetteIndexEntry{Model-based smoothing of child mortality trends}
+# %\VignetteEngine{knitr::rmarkdown}
+# %\VignetteEncoding{UTF-8}
+---
+  
+  ```{r setup, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  cache = TRUE,
+  comment = "#>"
+)
+```
+
+```{r set-options, echo=FALSE, cache=FALSE}
+options(width = 600)
+```
+
+## Load packages
+
+```{r load packages, results=FALSE, message=FALSE, warning=FALSE}
+library(tidyverse)
+library(rdhs)
+library(demogsurv)
+library(INLA)
+library(reshape2)
+```
+
+
+## Calculate ASFR, TFR
+``` {r calculate ASFRs, warning=FALSE}
+surveys <- dhs_surveys(countryIds = "MW", surveyYearStart=1995)
+ird <- dhs_datasets(fileType = "IR", fileFormat = "flat", surveyIds = surveys$SurveyId)
+ird$path <- unlist(get_datasets(ird))
+
+
+ir <- lapply(ird$path, readRDS) %>%
+  Map(data.frame,
+      surveyid = surveys$SurveyId,
+      country = surveys$CountryName,
+      survyear = surveys$SurveyYear,
+      survtype = surveys$SurveyType,
+      .,
+      stringsAsFactors = FALSE)
+
+tips_surv <- list("DHS" = c(0, 7), "MIS" = c(0, 5))[surveys$SurveyType]
+
+tfr <- Map(calc_tfr, ir,
+           by = list(~surveyid + country + survyear + v025),
+           tips = tips_surv,
+           period = list(1995:2017))
+
+tfr <- tfr %>%
+  bind_rows %>%
+  type.convert %>% 
+  mutate(v025 = factor(v025, levels= c(1,2), labels = c("Urban", "Rural"))) %>%
+  filter(period <= survyear) %>%
+  mutate(lower = tfr - qnorm(0.975) * se_tfr,
+         upper = tfr + qnorm(0.975) * se_tfr)
+
+asfr <- Map(calc_asfr, ir,
+            by = list(~surveyid + country + survyear+ v025),
+            tips = tips_surv,
+            period = list(1995:2017),
+            counts = TRUE)
+```
+## Create id indicies for age, period, and age.period.
+``` {r manip, warning=FALSE}
+asfr1 <- asfr %>%
+  bind_rows %>%
+  type.convert %>%
+  mutate(v025 = factor(v025, levels= c(1,2), labels = c("Urban", "Rural"))) %>%
+  filter(period <= survyear) %>%
+  mutate(id.period = group_indices(., period),
+         id.period2 = id.period,
+         id.agegr = group_indices(., agegr),
+         id.agegr2 = id.agegr,
+         id.agegr.period = group_indices(., period, agegr),
+         id = 1:nrow(.))
+```
+
+# Models
+
+## Age as iid
+
+``` {r mod1}
+formula.1 <- births ~ v025 + period + f(id.agegr, model="iid")
+
+mod <- inla(formula.1, family="poisson", data=asfr_pred, offset=log(pys),
+            control.family=list(link='log'),
+            control.predictor=list(compute=TRUE, link=1),
+            control.compute=list(config = TRUE, dic= TRUE, cpo=TRUE))
+summary(mod)
+```
+
+``` {r transforming functions, echo=FALSE}
+t_emarg <- function(x){
+  inla.emarginal(exp, x)
+}
+
+t_tmarg <- function(x) {
+  inla.tmarginal(exp, x)
+}
+
+t_qmarg <- function(x){
+  inla.qmarginal(c(0.025, 0.975), x)
+}
+
+run_mod <- function(formula) {
+  inla(formula, family="poisson", data=asfr1, offset=log(pys),
+                control.family=list(link='log'),
+                control.predictor=list(compute=TRUE, link=1),
+                control.compute=list(config = TRUE, dic= TRUE, cpo=TRUE))
+}
+
+agegr_plot <- function(mod) {
+
+  mod$marginals.random$id.agegr %>%
+    lapply(t_emarg) %>%
+    melt() %>%
+    mutate(agegr = factor(as.numeric(factor(L1)), labels=unique(asfr1$agegr))) %>%
+    left_join(mod$marginals.random$id.agegr %>%
+                lapply(t_qmarg) %>%
+                lapply(exp) %>%
+                bind_rows() %>%
+                t() %>%
+                `colnames<-`(value=c("lower", "upper")) %>%
+                data.frame() %>%
+                mutate(agegr = unique(asfr1$agegr)), by = "agegr")
+}
+```
+
+Posterior distribution from age group random effect
+``` {r echo=FALSE, fig.width=7, fig.height=4, warning=FALSE}
+
+mod$marginals.random$id.agegr %>%
+  lapply(t_tmarg) %>%
+  melt() %>%
+  mutate(Var2 = as.character(Var2)) %>%
+  pivot_wider(names_from=Var2) %>%
+  mutate(agegr = factor(as.numeric(factor(L1)), labels=unique(asfr1$agegr))) %>%
+  ggplot(aes(x=x, y=y, group=agegr)) +
+    geom_line(aes(color=agegr)) +
+    xlab("ASFR") +
+    ylab("")+
+    xlim(0,3)
+
+mod$marginals.random$id.agegr %>%
+  lapply(t_emarg) %>%
+  melt() %>%
+  mutate(agegr = factor(as.numeric(factor(L1)), labels=unique(asfr1$agegr))) %>%
+  left_join(mod$marginals.random$id.agegr %>%
+              lapply(t_qmarg) %>%
+              lapply(exp) %>%
+              bind_rows() %>%
+              t() %>%
+              `colnames<-`(value=c("lower", "upper")) %>%
+              data.frame() %>%
+              mutate(agegr = unique(asfr1$agegr)), by = "agegr") %>%
+  ggplot(aes(x=agegr, y=value, ymin=lower, ymax=upper)) +
+  geom_point() +
+  geom_errorbar(width=0.3) +
+  labs(title="Age group iid random effect", y="ASFR relative to 15-19", x="Age group")
+
+```
+
+## Comparing models
+
+1) Age as iid random effect
+2) Age as iid random effect, and 2nd order random walk on year
+3) Age as iid random effect and as 1st order random walk, and 2nd order random effect on year
+4) Age as iid random effect and as 1st order random walk, iid random effect on age/period unique ID, and 2nd order random effect on year
+
+(Matt recommended a 1st order random walk on age if only 7 groups, but a 2nd order random walk with 22 years)
+
+``` {r models}
+formula.2 <- births ~ v025 + period + f(id.agegr, model="iid")
+formula.3 <- births ~ v025 + f(id.period, model="rw2") + f(id.agegr, model="iid")
+formula.4 <- births ~ v025 + f(id.period, model="rw2") + f(id.agegr2, model="iid") + f(id.agegr, model="rw1")
+formula.5 <- births ~ v025 + f(id.period, model="rw2") + f(id.agegr.period, model="iid") + f(id.agegr, model="rw1")
+
+form_list <- list(formula.2, formula.3, formula.4, formula.5)
+names(form_list) <- c("age_iid", "age_iid_period_rw2", "age_iid_rw1_period_rw2", "age_rw1_period_rw2_ageperiod_iid")
+```
+
+
+``` {r echo=FALSE, fig.width=7, fig.height=5}
+
+mod_list <- lapply(form_list, run_mod)
+
+lapply(mod_list, agegr_plot) %>%
+  melt() %>%
+  pivot_wider(names_from=variable) %>%
+  ggplot(aes(x=agegr, y=value, ymin=lower, ymax=upper, group=L1)) +
+  geom_point(aes(color=L1), position = position_dodge(width=0.6)) +
+  geom_errorbar(aes(color=L1), width=0.3, position = position_dodge(width=0.6)) +
+  labs(y="ASFR relative to 15-19", x="Age group")
+
+```
+
+## Append prediction dataframe (NA for births, pys=1)
+``` {r warning=FALSE}
+asfr_pred <- asfr %>%
+  bind_rows %>%
+  type.convert %>%
+  mutate(v025 = factor(v025, levels= c(1,2), labels = c("Urban", "Rural"))) %>%
+  filter(period <= survyear) %>%
+  mutate(births = NA_integer_,
+         pys = 1,
+         asfr = NA_integer_,
+         se_asfr = NA_integer_)%>%
+  select("v025", "agegr", "period", "pys") %>%
+  group_by_all() %>%
+  summarise() %>%
+  ungroup() %>%
+  bind_rows(asfr %>%
+              bind_rows %>%
+              type.convert %>%
+              mutate(v025 = factor(v025, levels= c(1,2), labels = c("Urban", "Rural"))) %>%
+              filter(period <= survyear)) %>%
+  mutate(id.period = group_indices(., period),
+         id.agegr = group_indices(., agegr),
+         id.agegr.period = group_indices(., period, agegr),
+         id = 1:nrow(.))
+
+head(asfr_pred %>%
+       select("v025", "agegr", "period", "births", "pys", "id.agegr", "id.period", "id.agegr.period", "id"))
+```
+
+## Run model 5 with prediction data frame
+
+
+``` {r fig.width=7, fig.height=5}
+
+mod <- inla(formula.5, family="poisson", data=asfr_pred, offset=log(pys),
+                control.family=list(link='log'),
+                control.predictor=list(compute=TRUE, link=1),
+                control.compute=list(config = TRUE, dic= TRUE, cpo=TRUE))
+
+summary(mod)
+
+asfr_pred %>%
+  filter(id<309) %>%
+  select("v025", "agegr", "period","pys", "id") %>%
+  left_join(mod$summary.fitted.values[1:308, ] %>%
+              mutate(id = 1:308), by="id") %>%
+  arrange(period, v025, agegr) %>%
+  ggplot(aes(x=period, y=`0.5quant`, ymin=`0.025quant`, ymax=`0.975quant`, group=agegr))+
+  geom_line(aes(color=agegr)) +
+  facet_wrap(~v025)
+```
+
+## Plotting id.agegrp.period iid random effect
+
+Bit of a mess - also not sure about this. This should allow an interaction between age group and period & give discernable trends? Matt wondered whether this was overfitting.
+
+```{r echo=FALSE, fig.width=7, fig.height=6}
+mod$marginals.random$id.agegr.period %>%
+  lapply(t_emarg) %>%
+  melt() %>%
+  mutate(id=1:nrow(.)) %>%
+  left_join(asfr1 %>%
+              group_by(period, agegr, id.agegr.period) %>%
+              summarise() %>%
+              ungroup(), by = c("id" = "id.agegr.period")) %>%
+  ggplot(aes(x=period, y=value, group=agegr)) +
+  geom_line(aes(color=agegr))
+```
+
+## Comparing RW1 with RW2 on period
+
+`births ~ v025 + f(id.agegr, model="rw1") + f(id.period, model="rw1") + f(id.agegr.period, model="iid")`
+
+`births ~ v025 + f(id.agegr, model="rw1") + f(id.period, model="rw2") + f(id.agegr.period, model="iid")`
+
+Very similar - is this because of the amount of data dominating the prior?
+
+``` {r echo=FALSE, fig.width=7, fig.height=6}
+
+formula.1 <- births ~ v025 + f(id.agegr, model="rw1") + f(id.period, model="rw1") + f(id.agegr.period, model="iid")
+formula.2 <- births ~ v025 + f(id.agegr, model="rw1") + f(id.period, model="rw2") + f(id.agegr.period, model="iid")
+
+mod_rw1 <- inla(formula.1, family="poisson", data=asfr1, offset=log(pys),
+                control.family=list(link='log'),
+                control.predictor=list(compute=TRUE, link=1),
+                control.compute=list(config = TRUE, dic= TRUE, cpo=TRUE))
+
+mod_rw2 <- inla(formula.2, family="poisson", data=asfr1, offset=log(pys),
+                control.family=list(link='log'),
+                control.predictor=list(compute=TRUE, link=1),
+                control.compute=list(config = TRUE, dic= TRUE, cpo=TRUE))
+
+rw2_mod <- mod_rw2$marginals.random$id.period %>%
+  lapply(t_emarg) %>%
+  melt() %>%
+  mutate(period = 1995:2016) %>%
+  left_join(mod_rw2$marginals.random$id.period %>%
+              lapply(t_qmarg) %>%
+              lapply(exp) %>%
+              bind_rows() %>%
+              t() %>%
+              `colnames<-`(value=c("lower", "upper")) %>%
+              data.frame() %>%
+              mutate(period = 1995:2016), by = "period") %>%
+  ggplot(aes(x=period, y=value, ymin=lower, ymax=upper)) +
+  geom_line() +
+  geom_ribbon(alpha=0.5) +
+  labs(title = "Period with RW2", x = element_blank(), y = element_blank())
+
+
+rw1_mod <- mod$marginals.random$id.period %>%
+  lapply(t_emarg) %>%
+  melt() %>%
+  mutate(period = 1995:2016) %>%
+  left_join(mod$marginals.random$id.period %>%
+              lapply(t_qmarg) %>%
+              lapply(exp) %>%
+              bind_rows() %>%
+              t() %>%
+              `colnames<-`(value=c("lower", "upper")) %>%
+              data.frame() %>%
+              mutate(period = 1995:2016), by = "period") %>%
+  ggplot(aes(x=period, y=value, ymin=lower, ymax=upper)) +
+  geom_line() +
+  geom_ribbon(alpha=0.5) +
+  labs(title = "Period with RW1", x = element_blank(), y = element_blank())
+
+gridExtra::grid.arrange(rw1_mod, rw2_mod)
+```

@@ -110,45 +110,51 @@ summary(lme_mod)
 vc0<-as.data.frame(VarCorr(lme_mod))
 vc0$init<-log(1/vc0$vcov); vc0
 
-formula.1 <- births ~ v025 + f(id.agegr, model="rw1") + f(id.period, model="rw2") + f(id.agegr.period, model="iid")
-formula.1 <- births ~ v025 + period + f(id.agegr, model="rw2")
-formula.2 <- births ~ agegr + period + v025 + f(agegr, model="iid", hyper=list(prec=list(prior="loggamma", param=c(1, 0.00001))))
-formula.3 <- births ~ agegr + period + v025 + f(agegr, model="rw1")
-formula.4 <- births ~ agegr + period + v025 + f(agegr, model="rw1") + f(agegr2, model="iid")
-formula.5 <- births ~ agegr + period + v025 + f(agegr, model="rw1") + f(agegr2, model="iid") + f(agegr3, period, model="iid")
+ f(id.agegr, model="rw1") + f(id.period, model="rw1") + f(id.agegr.period, model="iid")
+formula.2 <- births ~ v025 + f(id.agegr, model="rw1") + f(id.period, model="rw2") + f(id.agegr.period, model="iid")
 
-mod <- inla(formula.1, family="poisson", data=asfr1, offset=log(pys),
+formula.5 <- births ~ v025 + f(id.period, model="rw2") + f(id.agegr.period, model="iid") + f(id.agegr, model="rw1")
+
+mod <- inla(formula.5, family="poisson", data=asfr_pred, offset=log(pys),
             control.family=list(link='log'),
             control.predictor=list(compute=TRUE, link=1),
             control.compute=list(config = TRUE, dic= TRUE, cpo=TRUE))
             # control.fixed=list(mean=0, prec=0.00001,
                               # mean.intercept=0, prec.intercept=0.00001))
 
-summary(mod)
-
-mod$summary.random$id.agegr.period %>%
-  select(ID, mean, `0.025quant`,  `0.975quant`) %>%
-  mutate(mean = exp(mean),
-         `0.025quant` = exp(`0.025quant`),
-         `0.975quant` = exp(`0.975quant`)
-         )
-  rename(lower = "0.025quant", upper = "0.975quant") %>%
-  mutate(agegr = unique(asfr1$agegr)) %>%
-  ggplot(aes(x=agegr, y=mean)) +
-    geom_point()+
-    geom_errorbar(aes(ymin=lower, ymax=upper, width=0.5))
-
-mod$summary.random$id.agegr.period
+mod_rw2 <- inla(formula.2, family="poisson", data=asfr1, offset=log(pys),
+                control.family=list(link='log'),
+                control.predictor=list(compute=TRUE, link=1),
+                control.compute=list(config = TRUE, dic= TRUE, cpo=TRUE))
+# control.fixed=list(mean=0, prec=0.00001,
+# mean.intercept=0, prec.intercept=0.00001))
 
 summary(mod)
-round(exp(mod$summary.fixed), 3)
 
-foo <- asfr_pred %>%
+
+asfr_pred %>%
   filter(id<309) %>%
-  select("v025", "agegr", "period", "id") %>%
+  select("v025", "agegr", "period","pys", "id") %>%
   left_join(exp(mod$summary.fitted.values[1:308,]) %>%
               mutate(id=1:nrow(.)), by="id") %>%
-  arrange(period, v025, agegr)
+  arrange(period, v025, agegr) %>%
+  ggplot(aes(x=period, y=mean, ymin=`0.025quant`, max=`0.975quant`, group=agegr))+
+  geom_line(aes(color=agegr)) +
+  facet_wrap(~v025)
+
+t_emarg <- function(x){
+  inla.emarginal(exp, x)
+}
+
+t_tmarg <- function(x) {
+  inla.tmarginal(exp, x)
+}
+
+t_qmarg <- function(x){
+  inla.qmarginal(c(0.025, 0.975), x)
+}
+
+### Age group iid random effect
 
 mod$marginals.random$id.agegr %>%
   lapply(t_tmarg) %>%
@@ -162,6 +168,25 @@ mod$marginals.random$id.agegr %>%
     ylab("")+
     xlim(0,3)
 
+mod$marginals.random$id.agegr %>%
+  lapply(t_emarg) %>%
+  melt() %>%
+  mutate(agegr = factor(as.numeric(factor(L1)), labels=unique(asfr1$agegr))) %>%
+  left_join(mod$marginals.random$id.agegr %>%
+              lapply(t_qmarg) %>%
+              lapply(exp) %>%
+              bind_rows() %>%
+              t() %>%
+              `colnames<-`(value=c("lower", "upper")) %>%
+              data.frame() %>%
+              mutate(agegr = unique(asfr1$agegr)), by = "agegr") %>%
+  ggplot(aes(x=agegr, y=value, ymin=lower, ymax=upper)) +
+  geom_point() +
+  geom_errorbar(width=0.3) +
+  labs(title="Age group iid random effect", y="ASFR relative to 15-19", x="Age group")
+
+### Attempt at agegr.period interaction - what is this doing? No idea.
+
 mod$marginals.random$id.agegr.period %>%
   lapply(t_emarg) %>%
   melt() %>%
@@ -172,16 +197,10 @@ mod$marginals.random$id.agegr.period %>%
               ungroup(), by = c("id" = "id.agegr.period")) %>%
   ggplot(aes(x=period, y=value, group=agegr)) +
   geom_line(aes(color=agegr))
-  
-  mutate(L1 = factor(L1)) %>%
-  str()
-  left_join(asfr1 %>%
-              group_by(period, agegr, id.agegr.period) %>%
-              summarise() %>%
-              ungroup(), by = c("L1" = "id.agegr.period")) %>%
-  head()
 
-mod$marginals.random$id.period %>%
+#### Period random effect
+  
+rw2_mod <- mod$marginals.random$id.period %>%
   lapply(t_emarg) %>%
   melt() %>%
   mutate(period = 1995:2016) %>%
@@ -196,17 +215,29 @@ mod$marginals.random$id.period %>%
   ggplot(aes(x=period, y=value, ymin=lower, ymax=upper)) +
   geom_line() +
   geom_ribbon(alpha=0.5) +
-  xlab("ASFR") +
+  xlab("") +
   ylab("")
 
-mod$marginals.random$id.period %>%
-  lapply(t_qmarg) %>%
-  lapply(exp) %>%
-  bind_rows() %>%
-  t() %>%
-  `colnames<-`(value=c("lower", "upper")) %>%
-  data.frame() %>%
-  mutate(period = 1995:2016)
+
+rw1_mod <- mod$marginals.random$id.period %>%
+  lapply(t_emarg) %>%
+  melt() %>%
+  mutate(period = 1995:2016) %>%
+  left_join(mod$marginals.random$id.period %>%
+              lapply(t_qmarg) %>%
+              lapply(exp) %>%
+              bind_rows() %>%
+              t() %>%
+              `colnames<-`(value=c("lower", "upper")) %>%
+              data.frame() %>%
+              mutate(period = 1995:2016), by = "period") %>%
+  ggplot(aes(x=period, y=value, ymin=lower, ymax=upper)) +
+  geom_line() +
+  geom_ribbon(alpha=0.5) +
+  xlab("") +
+  ylab("")
+
+gridExtra::grid.arrange(rw1_mod, rw2_mod)
 
 asfr1 %>%
   group_by(period, agegr, id.agegr.period) %>%
@@ -221,17 +252,7 @@ asfr1 %>%
     ylab("")+
     xlim(0,3)
 
-t_emarg <- function(x){
-  inla.emarginal(exp, x)
-}
 
-t_tmarg <- function(x) {
-  inla.tmarginal(exp, x)
-}
-
-t_qmarg <- function(x){
-  inla.qmarginal(c(0.025, 0.975), x)
-}
 
 lapply(tmp, t_tmarg)
 
