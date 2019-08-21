@@ -9,7 +9,7 @@ library(spdep)
 
 setwd("~/Documents/GitHub/subnat_fertility")
 # load("~/Documents/GitHub/subnat_fertility/asfr_singleage.Rda")
-load("~/Documents/GitHub/naomi-dev/data/shapefile.rda")
+load("~/Downloads/shapefile.rda")
 
 calc_asfr1 <- function(data,
                       by = NULL,
@@ -151,7 +151,7 @@ calc_asfr1 <- function(data,
 set_rdhs_config(email="o.stevens@imperial.ac.uk", project="Subnational fertility", config_path = "~/.rdhs.json")
 
 ##+ datasets
-surveys <- dhs_surveys(countryIds = c("MW", "ZW", "KE"), surveyYearStart=1995)
+surveys <- dhs_surveys(countryIds = c("MW"), surveyYearStart=1995)
 ird <- dhs_datasets(fileType = "IR", fileFormat = "flat", surveyIds = surveys$SurveyId)
 ird$path <- unlist(get_datasets(ird))
 # 
@@ -168,7 +168,7 @@ ir <- lapply(ird$path, readRDS) %>%
 
 geo_2000_dhs <- rdhs::get_datasets("MWGE43FL.zip")[[1]] %>% readRDS %>% st_as_sf
 geo_2000_dhs <- st_join(geo_2000_dhs, sh32, join = st_intersects, suffix = c("", "_sh32")) %>%
-  mutate(district_32 = ifelse(district %in% c("Blantyre", "Lilongwe", "Mzimba", "Zomba"), 
+  mutate(district32 = ifelse(district %in% c("Blantyre", "Lilongwe", "Mzimba", "Zomba"), 
                               ifelse(URBAN_RURA == "U", paste(district, "City"), as.character(district)), as.character(district)))
 
 ir[["MW2000DHS"]] <- ir[["MW2000DHS"]] %>%
@@ -177,7 +177,11 @@ ir[["MW2000DHS"]] <- ir[["MW2000DHS"]] %>%
 ir[["MW2004DHS"]] <- ir[["MW2004DHS"]] %>%
   mutate(district = as_factor(sdist2) %>%
            sub("nkhota kota", "nkhotakota", .) %>%
-           str_to_title)
+           str_to_title,
+         district32 = ifelse(district %in% c("Blantyre", "Lilongwe", "Mzimba", "Zomba"), 
+                                     ifelse(v025 == 1, paste(district, "City"), as.character(district)), as.character(district)
+         )
+  )
 
 
 ir[["MW2010DHS"]] <- ir[["MW2010DHS"]] %>%
@@ -189,7 +193,7 @@ ir[["MW2010DHS"]] <- ir[["MW2010DHS"]] %>%
     ),
     by = c("sdistrict" = "distcode")
   ) %>%
-  mutate(district_32 = ifelse(district %in% c("Blantyre", "Lilongwe", "Mzimba", "Zomba"), 
+  mutate(district32 = ifelse(district %in% c("Blantyre", "Lilongwe", "Mzimba", "Zomba"), 
                               ifelse(v025 == 1, paste(district, "City"), as.character(district)), as.character(district)))
 
 ir[["MW2015DHS"]] <- ir[["MW2015DHS"]] %>%
@@ -197,16 +201,20 @@ ir[["MW2015DHS"]] <- ir[["MW2015DHS"]] %>%
          district = fct_recode(district,
                                "nkhotakota" = "nkhota kota",
                                "nkhata bay" = "nkhatabay") %>%
-           str_to_title)
+           str_to_title,
+         district32 = ifelse(district %in% c("Blantyre", "Lilongwe", "Mzimba", "Zomba"), 
+                              ifelse(v025 == 1, paste(district, "City"), as.character(district)), as.character(district)
+         )
+  )
 
 geo_2012_mis<- rdhs::get_datasets("MWGE6AFL.ZIP")[[1]] %>% readRDS %>% st_as_sf
 geo_2012_mis <- st_join(geo_2012_mis, sh32, join = st_intersects, suffix = c("", "_sh32")) %>%
   type.convert() ## Check you haven't fucked this factor conversion up like last time.
 
-geo_2012_mis %>%
-  mutate(district_32 = ifelse(district %in% c("Blantyre", "Lilongwe", "Mzimba", "Zomba"), 
-                              ifelse(URBAN_RURA == "U", paste(district, "City"), as.character(district)), as.character(district))) %>%
-  dplyr::select(district, district32)
+# geo_2012_mis %>%
+#   mutate(district_32 = ifelse(district %in% c("Blantyre", "Lilongwe", "Mzimba", "Zomba"), 
+#                               ifelse(URBAN_RURA == "U", paste(district, "City"), as.character(district)), as.character(district))) %>%
+#   dplyr::select(district, district32)
 
 ir[["MW2012MIS"]] <- ir[["MW2012MIS"]] %>%
   left_join(geo_2012_mis, by = c("v001" = "DHSCLUST"))
@@ -251,12 +259,14 @@ ir[["MW2017MIS"]] <- ir[["MW2017MIS"]] %>%
 # 
 tips_surv <- list("DHS" = c(0, 7), "MIS" = c(0, 5))[surveys$SurveyType]
 
-asfr <- Map(calc_asfr1, ir,
-            by = list(~surveyid + country + survyear + v024),
+asfr_32 <- Map(calc_asfr1, ir,
+            by = list(~surveyid + country + survyear + district32),
             tips = tips_surv,
             agegr= list(15:50),
             period = list(1995:2017),
             counts = TRUE)
+
+load("foobar.rda")
 
 region_names <- lapply(ir, function(x) {x %>%
     dplyr::select(surveyid, v024) %>%
@@ -266,67 +276,38 @@ region_names <- lapply(ir, function(x) {x %>%
 }) %>%
   bind_rows()
 
-asfr_int <- lapply(asfr, function(x) {
-  x %>%
-    type.convert %>%
-    left_join(region_names, by=c("v024", "surveyid")) %>%
-    mutate(region_name = fct_recode(region_name, 
-                                    "Central" = "Central Region",
-                                    "South" = "Southern",
-                                    "South" = "Southern Region",
-                                    "North" = "Northern",
-                                    "North" = "Northern Region",
-                                    "Matabeleland North" = "Matebeleland North",
-                                    "Matabeleland South" = "Matebeleland South",
-                                    "North Eastern" = "Northeastern"
-          )
-    )
-})
-
-asfr1 <- asfr_int %>%
+asfr1 <- asfr %>%
   bind_rows() %>%
-  group_by(country) %>%
-  group_split() %>%
-  lapply(function(x) {
-    x %>%
-      mutate(id.region = group_indices(., region_name))
-  }) %>%
-  bind_rows() %>%
-  filter(period <= survyear) %>%
+  type.convert() %>%
+  left_join(region_names, by=c("v024", "surveyid")) %>%
+  mutate(region_name = fct_recode(region_name,
+                                  "Central" = "Central Region",
+                                  "South" = "Southern",
+                                  "South" = "Southern Region",
+                                  "North" = "Northern",
+                                  "North" = "Northern Region",
+                                  "Matabeleland North" = "Matebeleland North",
+                                  "Matabeleland South" = "Matebeleland South",
+                                  "North Eastern" = "Northeastern"
+  )
+) %>%
+  filter(country== "Malawi") %>%
+  droplevels() %>%
   mutate(id.period = group_indices(., period),
          id.period2 = id.period,
          id.agegr = group_indices(., agegr),
          id.agegr2 = id.agegr,
          id.agegr.period = group_indices(., period, agegr),
-         # id.district = group_indices(., district),
+         id.district = group_indices(., district),
+         # id.agegr.period.district = group_indices(., agegr, period, district),
+         id.region = group_indices(., region_name),
          id = 1:nrow(.))
 
-
-#   
-# View(lapply(foo, function(x){x %>%
-#   mutate(new_v024_fac = as.numeric(new_v024))}
-# ) %>%
-#   bind_rows() %>%
-#   select(country, v024, new_v024, new_v024_fac) %>%
-#   arrange(country, new_v024_fac) %>%
-#   unique()
-# )
-# 
-# foo[[1]] %>%
-#   mutate(new_v024_fac = as.numeric(region_name)) %>%
-#   dplyr::select(v024, region_name, new_v024_fac)
-
-  
-
-
-
-asfr_pred <- crossing(period = asfr1$period, agegr = asfr1$agegr, v024 = asfr1$v024, pys=1) %>%
-  bind_rows(asfr %>%
-              bind_rows %>%
-              type.convert %>%
-              mutate(v025 = factor(v025, levels= c(1,2), labels = c("Urban", "Rural"))) %>%
-              mutate(v024 = factor(v024, levels= c(1,2,3), labels = c("North", "Central", "South"))) %>%
-              filter(period <= survyear)) %>%
+## If district and no region:
+asfr1 <- asfr %>%
+  bind_rows() %>%
+  type.convert() %>%
+  filter(country== "Malawi") %>%
   mutate(id.period = group_indices(., period),
          id.period2 = id.period,
          id.agegr = group_indices(., agegr),
@@ -334,6 +315,57 @@ asfr_pred <- crossing(period = asfr1$period, agegr = asfr1$agegr, v024 = asfr1$v
          id.agegr.period = group_indices(., period, agegr),
          id.district = group_indices(., district),
          id.agegr.period.district = group_indices(., agegr, period, district),
+         # id.region = group_indices(., region_name),
+         id = 1:nrow(.))
+
+# asfr_int <- lapply(asfr, function(x) {
+#   x %>%
+#     type.convert %>%
+#     left_join(region_names, by=c("v024", "surveyid")) %>%
+#     mutate(region_name = fct_recode(region_name,
+#                                     "Central" = "Central Region",
+#                                     "South" = "Southern",
+#                                     "South" = "Southern Region",
+#                                     "North" = "Northern",
+#                                     "North" = "Northern Region",
+#                                     "Matabeleland North" = "Matebeleland North",
+#                                     "Matabeleland South" = "Matebeleland South",
+#                                     "North Eastern" = "Northeastern"
+#           )
+#     )
+# })
+
+# asfr1 <- asfr_int %>%
+#   bind_rows() %>%
+#   group_by(country) %>%
+#   group_split() %>%
+#   lapply(function(x) {
+#     x %>%
+#       mutate(id.region = group_indices(., region_name))
+#   }) %>%
+#   bind_rows() %>%
+#   filter(country == "Malawi") %>%
+#   filter(period <= survyear) %>%
+#   mutate(id.period = group_indices(., period),
+#          id.period2 = id.period,
+#          id.agegr = group_indices(., agegr),
+#          id.agegr2 = id.agegr,
+#          id.agegr.period = group_indices(., period, agegr),
+#          # id.district = group_indices(., district),
+#          id = 1:nrow(.))
+
+
+asfr_pred <- crossing(period = asfr1$period, agegr = asfr1$agegr, district = asfr1$district, pys=1) %>%
+  bind_rows(asfr1)%>%
+  # mutate(v025 = factor(v025, levels= c(1,2), labels = c("Urban", "Rural"))) %>%
+  mutate(id.period = group_indices(., period),
+         id.period2 = id.period,
+         id.agegr = group_indices(., agegr),
+         id.agegr2 = id.agegr,
+         id.agegr.period = group_indices(., period, agegr),
+         id.district = group_indices(., district),
+         id.agegr.period.district = group_indices(., agegr, period, district),
+         # id.region = group_indices(., region_name),
          id = 1:nrow(.))
 
 # asfr_pred <- asfr %>%
@@ -366,64 +398,116 @@ asfr_pred <- crossing(period = asfr1$period, agegr = asfr1$agegr, v024 = asfr1$v
 # - Stratify the data by single-year of age and make a RW2 over age
 # - Fit an interaction of RW2 on age and RW2 on period
 # - Get the district-level data sorted out and start doing space
+# %>% filter(!area_id %in% c(7, 17, 31, 32))
 
-test <- poly2nb(sh32 %>% filter(!area_id %in% c(7, 17, 31, 32)), row.names = sh32$area_id, queen = TRUE)
+
+
+test <- poly2nb(sh32, row.names = sh32$area_id, queen = TRUE)
 nb2INLA("mw.adj", test)
 
 formula.0 <- births ~ v025 + f(id.agegr.period, model="rw2") + f(id.agegr, model="rw2", group=id.period, control.group=list(model="rw2"))
+
 formula.1 <- births ~ v025 + f(id.agegr.period, model="rw2", group=id.agegr, control.group=list(model="rw2")) + f(id.agegr, model="rw2", group=id.period, control.group=list(model="rw2"))
 
-formula.2 <- births ~ f(id.district, model="bym2", graph="mw.adj") + f(id.agegr.period, model="rw2") + f(id.agegr, model="rw2", group=id.period, control.group=list(model="rw2"))
+formula.2 <- births ~ f(id.district, model="bym2", graph="mw.adj") + f(id.agegr.period, model="iid") + f(id.agegr, model="rw2", group=id.period, control.group=list(model="rw2"))
 ## 21561
+
+formula.2.1 <- births ~ f(id.district, model="bym2", graph="mw.adj") + f(id.agegr2, model="rw2") + f(id.period, model="rw2") + f(id.agegr.period, model="iid") + f(id.agegr, model="rw2", group=id.period, control.group=list(model="rw2"))
 
 formula.3 <- births ~ f(id.district, model="bym2", graph="mw.adj") + f(id.agegr.period, model="rw2", group=id.agegr, control.group=list(model="rw2")) + f(id.agegr, model="rw2", group=id.period, control.group=list(model="rw2"))
 ## 21561
 
-formula.4 <- births ~ f(id.period, model="rw2") + f(id.agegr, model="rw2") + f(id.agegr2, model="rw2", group=id.period, control.group=list(model="rw2"))
+formula.4 <- births ~ region_name + f(id.period, model="rw2") + f(id.agegr, model="rw2")
 
-formula.5 <- births ~ f(id.period, model="rw2") + f(id.agegr, model="rw2")
+formula.5 <- births ~ region_name + f(id.period, model="rw2") + f(id.agegr, model="rw2") + f(id.agegr2, model="rw2", group=id.period, control.group=list(model="rw2"))
 
-mod <- inla(formula.4, family="poisson", data=asfr_pred, E=pys,
+formula.1 <- births ~ region_name + f(id.period, model="rw2") + f(id.agegr, model="rw2")
+formula.2 <- births ~ region_name + f(id.period, model="rw2") + f(id.agegr, model="rw2") + f(id.agegr2, model="rw2", group=id.period, control.group=list(model="rw2"))
+formula.3 <- births ~ f(id.period, model="rw2", group=id.region) + f(id.agegr, model="rw2",  group=id.region)
+formula.4 <- births ~ f(id.period, model="rw2", group=id.region) + f(id.agegr, model="rw2",  group=id.region) + f(id.agegr2, model="rw2", group=id.period, control.group=list(model="rw2"))
+
+mod1 <- inla(formula.1, family="poisson", data=asfr_pred, E=pys,
             control.family=list(link='log'),
             control.predictor=list(compute=TRUE, link=1),
             control.inla = list(strategy = "gaussian", int.strategy = "eb"),
             control.compute=list(config = TRUE, dic= TRUE, cpo=TRUE))
-            # control.fixed=list(mean=0, prec=0.00001,
-                              # mean.intercept=0, prec.intercept=0.00001))
 
-summary(mod5)
+mod2 <- inla(formula.2, family="poisson", data=asfr_pred, E=pys,
+            control.family=list(link='log'),
+            control.predictor=list(compute=TRUE, link=1),
+            control.inla = list(strategy = "gaussian", int.strategy = "eb"),
+            control.compute=list(config = TRUE, dic= TRUE, cpo=TRUE))
 
-pred_size <- nrow(crossing(period = asfr1$period, agegr = asfr1$agegr, region = asfr1$v024, pys=1))
+mod3 <- inla(formula.3, family="poisson", data=asfr_pred, E=pys,
+            control.family=list(link='log'),
+            control.predictor=list(compute=TRUE, link=1),
+            control.inla = list(strategy = "gaussian", int.strategy = "eb"),
+            control.compute=list(config = TRUE, dic= TRUE, cpo=TRUE))
 
-pred5 <- asfr_pred %>%
+mod4 <- inla(formula.4, family="poisson", data=asfr_pred, E=pys,
+            control.family=list(link='log'),
+            control.predictor=list(compute=TRUE, link=1),
+            control.inla = list(strategy = "gaussian", int.strategy = "eb"),
+            control.compute=list(config = TRUE, dic= TRUE, cpo=TRUE))
+
+summary(mod2)
+summary(mod2.1)
+
+pred_size <- nrow(crossing(period = asfr1$period, agegr = asfr1$agegr, district = asfr1$district, pys=1))
+
+pred <- asfr_pred %>%
   filter(id<pred_size+1) %>%
-  dplyr::select("agegr", "period", "pys", "v024","id") %>%
-  left_join(mod$summary.fitted.values[1:pred_size, ] %>%
+  dplyr::select("agegr", "period", "pys", "district","id") %>%
+  left_join(mod2.1$summary.fitted.values[1:pred_size, ] %>%
               mutate(id = 1:pred_size), by="id") %>%
   arrange(period, agegr) %>%
   mutate(agegroup = rep(1:7, each=5, times=pred_size/35),
          agegroup = factor(agegroup, levels=1:7, labels=c("15-19", "20-24", "25-29", "30-34", "35-39", "40-44", "45-49")))
-  ggplot(aes(x=period, y=`0.5quant`, ymin=`0.025quant`, ymax=`0.975quant`, group=agegr))+
-  geom_line(aes(color=agegroup)) +
-  labs(title="Without period/age interaction")
-  ylim(0,0.4) 
-  facet_wrap(~district)
-  
-pred4 <- pred4 %>%
-  mutate(source="With interaction")
-  
-pred5 <- pred5 %>%
-  mutate(source="Without interaction")
 
-pred4 %>%
-  bind_rows(pred5) %>%
+pred %>%
+  left_join(sh32 %>% filter(!area_id %in% c(7, 17, 31, 32)), by="district") %>%
+  filter(period==2016, agegr %in% c(17, 22, 27, 32, 35, 42, 47))
+
+
+ggplot() +
+  geom_sf(data=sh32)
+
+ggplot(data=pred) +
+  geom_sf(data=sh32$geometry, aes(fill=pred$`0.5quant`))
+  
+pred %>%
+  ggplot(aes(x=period, y=`0.5quant`, ymin=`0.025quant`, ymax=`0.975quant`, group=agegr))+
+  geom_line(aes(color=agegr)) +
+  facet_wrap(~district)
+
+plot1 %>%
   filter(period %in% c(2000, 2005, 2010, 2015)) %>%
   ggplot(aes(x=agegr, y=log(`0.5quant`), group=source))+
-    geom_line(aes(color=source)) +
-    facet_grid(v024~period)
-    
+  geom_line(aes(color=source)) +
+  facet_grid(region_name~period+model_type)+
+  ylim(-5, -0.5)
+
+summary(mod1)
+summary(mod2)
+summary(mod3)
+summary(mod4)
+
+ke_fixed <- ke + ylim(-5, -0.8) + facet_grid(period~region_name)
+
+mw_fixed <- mw + ylim(-5, -1) + facet_grid(period~region_name)
+
+zw_fixed <- zw + ylim(-5, -1) + facet_grid(period~region_name)
+
+zw_bw_fixed <- pred4 %>%
+  bind_rows(pred5) %>%
+  filter(region_name == "Bulawayo") %>%
+  ggplot(aes(x=period, y=`0.5quant`, group=agegr))+
+  geom_line(aes(color=agegroup))+
+  ylim(0,0.3) +
+  facet_wrap(~source)
+
   
-gridExtra::grid.arrange(p4, p5)
+gridExtra::grid.arrange(mw, zw, ke)
 
 foo <- mod$summary.random$id.agegr
 
