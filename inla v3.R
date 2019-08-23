@@ -1,4 +1,5 @@
 library(tidyverse)
+library(magrittr)
 library(rdhs)
 library(demogsurv)
 library(INLA)
@@ -144,41 +145,80 @@ calc_asfr1 <- function(data,
   return(pred)
 }
 
+ir_to_area <- function(ir, areas2) {
+  ir %>%
+    left_join(areas2, by=c("v001" = "cluster_id")) %>%
+    filter(!is.na(area_id))
+}
+
 setwd("~/Documents/GitHub/subnat_fertility")
+set_rdhs_config(email="o.stevens@imperial.ac.uk", project="Subnational fertility", config_path = "~/.rdhs.json")
 
-clusters <- readRDS("~/Documents/GitHub/naomi-data/data/survey/survey_clusters.rds")
-areas <- readRDS("~/Documents/GitHub/naomi-data/data/areas/areas_long.rds")
-boundaries <- readRDS("~/Documents/GitHub/naomi-data/data/areas/boundaries.rds")
-
-clusters %>%
-  filter(iso3 =="MWI") %>%
-  select(survey_id) %>%
+oli_surveys <- readRDS("~/Documents/GitHub/naomi-data-edit/oli_cluster.rds") %>%
+  dplyr::select(survey_id) %>%
+  mutate(iso3 = survey_id) %>%
+  separate(col="iso3", into="iso3", sep=3) %>%
   distinct
 
 #' Choose a country
-iso2_code <- "ET"
-iso3_code <- "ETH"
+iso2_code <- "UG"
+iso3_code <- "UGA"
 
-clusters <- clusters %>%
+clusters <- readRDS("~/Documents/GitHub/naomi-data-edit/oli_cluster.rds") %>%
   mutate(iso3 = survey_id) %>%
-  separate(col="iso3", into="iso3", sep=3)
+  separate(col="iso3", into="iso3", sep=3) %>%
+  filter(iso3 == iso3_code)
 
-areas <- areas %>%
-  filter(area_level == 2) %>% 
-  filter(iso3 %in% c(iso3_code)) %>%
-  left_join(clusters, by=c("area_id" = "geoloc_area_id", "iso3"))
+admin1_areas <- readRDS("~/Documents/GitHub/naomi-data/data/areas/areas_wide.rds") %>%
+  filter(iso3 == iso3_code) %>%
+  left_join(clusters, by=c("id2" = "geoloc_area_id", "iso3")) %>%
+  dplyr::select(iso3, id1, name1, survey_id, cluster_id) %>%
+  distinct
+
+# areas <- readRDS("~/Documents/GitHub/naomi-data/data/areas/areas_long.rds") %>%
+#   filter(iso3 ==iso3_code) %>%
+#   #filter(parent_area_id %in% c("ZWE")) %>%
+#   left_join(clusters, by=c("area_id" = "geoloc_area_id", "iso3"))
+# 
+
+#Don't think this is required anymore - was bad attempt at clusters --> admin1.
+# areas <- areas %>%
+#   filter(parent_area_id == iso3_code) %>%
+#   dplyr::select(area_name, area_id) %>%
+#   left_join(areas %>%
+#               dplyr::select(-c(area_name, area_id, area_level)) %>%
+#               filter(!parent_area_id == iso3_code),
+#             by=c("area_id" = "parent_area_id"))
 
 
 
-set_rdhs_config(email="o.stevens@imperial.ac.uk", project="Subnational fertility", config_path = "~/.rdhs.json")
+# areas <- readRDS("~/Documents/GitHub/naomi-data/data/areas/areas_long.rds") %>%
+#   filter(iso3 ==iso3_code) %>%
+#   filter(area_level==1) %>%
+#   #filter(area_level == ifelse(iso3_code=="MWI", 4, max(area_level))) %>%
+#   left_join(clusters, by=c("area_id" = "geoloc_area_id", "iso3"))
+
+boundaries <- readRDS("~/Documents/GitHub/naomi-data/data/areas/boundaries.rds")
 
 ##+ datasets
-surveys <- dhs_surveys(countryIds = c(iso2_code), surveyYearStart=2000)
-ird <- dhs_datasets(fileType = "IR", fileFormat = "flat", surveyIds = surveys$SurveyId)
-#ged <- dhs_datasets(fileType = "GE", fileFormat = "flat", surveyIds = surveys$SurveyId)
+surveys <- dhs_surveys(countryIds = c(iso2_code), surveyYearStart=2005) %>%
+  filter(SurveyType == "DHS")
 
+foo <- surveys %>%
+  separate(SurveyId, into=c("cc", "year", "type"), sep = c(2,6)) %>%
+  type.convert %>%
+  dplyr::select(year)
+
+admin1_areas <- admin1_areas %>%
+  separate(survey_id, into=c("cc", "year", "type"), sep = c(3,7), remove=FALSE) %>%
+  mutate(year = as.numeric(year)) %>%
+  filter(year %in% foo$year) %>%
+  dplyr::select(-c(cc, year, type)) %>%
+  rename(area_id = id1, area_name = name1)
+  
+
+ird <- dhs_datasets(fileType = "IR", fileFormat = "flat", surveyIds = surveys$SurveyId)
 ird$path <- unlist(get_datasets(ird))
-#ged$path <- unlist(get_datasets(ged))
 
 # 
 # 
@@ -191,56 +231,66 @@ ir <- lapply(ird$path, readRDS) %>%
       .,
       stringsAsFactors = FALSE) 
 
-areas2 <- areas %>%
-  # mutate(survey_id = recode(survey_id, 
-  #                           "ZWE2005DHS" = "ZW2005DHS",
-  #                           "ZWE2010DHS" = "ZW2010DHS",
-  #                           "ZWE2015DHS" = "ZW2015DHS",)
-  # ) %>% 
+if (iso3_code == "ETH") {
+  ir[[3]]$v007 <- floor(ir[[3]]$v007+92/12) %>% as.integer()
+  ir[[3]]$v008 <- ir[[3]]$v008+92 %>% as.integer()
+  ir[[3]]$v010 <- floor(ir[[3]]$v007+92/12) %>% as.integer()
+  ir[[3]]$v011 <- ir[[3]]$v011+92 %>% as.integer()
+  
+  ir[[2]]$v008 <- ir[[2]]$v008+92 %>% as.integer()
+  ir[[3]]$v008 <- ir[[3]]$v008+92 %>% as.integer()
+  ir[[4]]$v008 <- ir[[4]]$v008+92 %>% as.integer()
+}
+
+# Tanzania 2017 MIS- shock because TIPS going back too far
+
+
+areas2 <- admin1_areas %>%
   group_by(survey_id) %>%
   group_split(keep=TRUE)
 
- # names(areas2) <-sapply(areas2,  function(x) {
- #    paste(x[1,2], x[1,6])
- #  })
+# areas2 <- areas %>%
+#   group_by(survey_id) %>%
+#   group_split(keep=TRUE)
 
-
-ir_to_area <- function(ir, areas2) {
-  ir %>%
-    left_join(areas2, by=c("v001" = "cluster_id")) %>%
-    filter(!is.na(area_id))
-}
-
-ir <- Map(ir_to_area, ir, areas2) %>% 
+ir_area <- Map(ir_to_area, ir, areas2) %>% 
   bind_rows() %>%
   group_by(survey_id, area_id) %>%
   group_split(keep = TRUE)
 
-  names(ir) <- sapply(ir,  function(x) {
+names(ir_area) <- sapply(ir_area,  function(x) {
     paste(x[["area_id"]][1], x[["survey_id"]][1])
-  })
+})
 
-tips_surv <- list("DHS" = c(0, 7), "MIS" = c(0, 5))[surveys$SurveyType]
+tips_surv <- list("DHS" = c(0, 7), "MIS" = c(0, 5), "AIS" = c(0, 5))[surveys$SurveyType]
 
-asfr <- Map(calc_asfr1, ir[1:250],
+# asfr <- Map(calc_asfr1, ir,
+#             by = list(~surveyid + survyear),
+#             tips = tips_surv,
+#             agegr= list(3:10*5),
+#             period = list(1995:2017),
+#             counts = TRUE)
+
+asfr <- Map(calc_asfr1, ir_area,
                by = list(~surveyid + survyear + area_id + area_name),
                tips = tips_surv,
-               agegr= list(15:50),
-               period = list(1995:2017),
+               agegr= list(3:10*5),
+               period = list(2005:2017),
                counts = TRUE)
 
+### Plot ASFR data at national level as check:
+# asfr %>%
+#   bind_rows() %>%
+#   type.convert() %>%
+#   ggplot(aes(period, asfr, group=surveyid)) +
+#     geom_point(aes(color=surveyid)) +
+#     geom_line(aes(color=surveyid)) +
+#     #ylim(0,0.5) +
+#     facet_wrap(~agegr)
+
 asfr1 <- asfr %>%
-  bind_rows() %>%
-  type.convert() %>%
-  mutate(id.period = group_indices(., period),
-         id.period2 = id.period,
-         id.agegr = group_indices(., agegr),
-         id.agegr2 = id.agegr,
-         id.agegr.period = group_indices(., period, agegr),
-         id.district = group_indices(., area_name),
-         # id.agegr.period.district = group_indices(., agegr, period, district),
-         # id.region = group_indices(., region_name),
-         id = 1:nrow(.))
+  bind_rows %>%
+  type.convert
 
 asfr_pred <- crossing(period = asfr1$period, agegr = asfr1$agegr, area_name = asfr1$area_name, pys=1) %>%
   bind_rows(asfr1)%>%
@@ -250,20 +300,20 @@ asfr_pred <- crossing(period = asfr1$period, agegr = asfr1$agegr, area_name = as
          id.agegr2 = id.agegr,
          id.agegr.period = group_indices(., period, agegr),
          id.district = group_indices(., area_name),
+         id.district2 = id.district,
+         id.district3 = id.district,
          # id.agegr.period.district = group_indices(., agegr, period, district),
          # id.region = group_indices(., region_name),
          id = 1:nrow(.))
 
-# adj_data <- areas %>%
-#   filter(iso3 == "MWI", area_level == 2) %>%
-#   select(area_id) %>%
-#   distinct() %>%
-#   left_join(boundaries, by="area_id") %>%
-#   st_as_sf
+# sh <- areas %>%
+#   # filter(parent_area_id %in% c("ZWE")) %>%
+#   #filter(iso3 == iso3_code, area_level == ifelse(iso3_code=="MWI", 3, max(area_level))) %>%
+#   # select(-parent_area_id) %>%
+#   mutate(area_idx = row_number())
 
-sh <- areas %>%
-  filter(iso3 == iso3_code, area_level == 2) %>%
-  select(-parent_area_id) %>%
+sh <- readRDS("~/Documents/GitHub/naomi-data/data/areas/areas_long.rds") %>%
+  filter(parent_area_id == iso3_code) %>%
   mutate(area_idx = row_number())
 
 #' Neighbor list
@@ -277,30 +327,68 @@ nb <- sh %>%
 # adj <- poly2nb(adj_data, row.names = adj_data$area_id, queen = TRUE)
 nb2INLA(paste0(iso3_code, ".adj"), nb)
 
-formula.1 <- births ~ f(id.district, model="bym2", graph=paste0(iso3_code, ".adj")) + f(id.agegr.period, model="iid") + f(id.agegr, model="rw2", group=id.period, control.group=list(model="rw2"))
+formulae <- list()
+formulae[[1]] <- births ~  f(id.district, model="bym2", graph=paste0(iso3_code, ".adj")) + f(id.agegr, model="rw1") + f(id.period, model="rw2") + f(id.agegr2, model="rw1", group=id.period, control.group=list(model="rw2")) + f(id.agegr.period, model="iid")
 
-mod1 <- inla(formula.1, family="poisson", data=asfr_pred, E=pys,
-             control.family=list(link='log'),
-             control.predictor=list(compute=TRUE, link=1),
-             control.inla = list(strategy = "gaussian", int.strategy = "eb"),
-             control.compute=list(config = TRUE, dic= TRUE, cpo=TRUE))
+formulae[[2]] <- formula.2 <- births ~  f(id.district, model="bym2", graph=paste0(iso3_code, ".adj")) + f(id.agegr, model="rw1") + f(id.period, model="rw2") + f(id.agegr2, model="rw1", group=id.period, control.group=list(model="rw2")) + f(id.agegr.period, model="iid") + f(id.district2, model="bym2", graph=paste0(iso3_code, ".adj"), group=id.period, control.group=list(model="rw1"))
 
-pred_size <- nrow(asfr_pred) - nrow(asfr1)
+formulae[[3]] <- formula.3 <- births ~ f(id.district, model="bym2", graph=paste0(iso3_code, ".adj")) + f(id.agegr, model="rw1") + f(id.period, model="rw2") + f(id.agegr2, model="rw1", group=id.period, control.group=list(model="rw2")) + f(id.agegr.period, model="iid") + f(id.district2, model="bym2", graph=paste0(iso3_code, ".adj"), group=id.period, control.group=list(model="rw1")) +f(id.district3, model="bym2", graph=paste0(iso3_code, ".adj"), group=id.agegr, control.group=list(model="rw1"))
 
-pred <- asfr_pred %>%
-  filter(id<pred_size+1) %>%
-  dplyr::select("agegr", "period", "pys", "area_name","id") %>%
-  left_join(mod1$summary.fitted.values[1:pred_size, ] %>%
-              mutate(id = 1:pred_size), by="id") %>%
-  arrange(period, agegr) %>%
-  mutate(agegroup = rep(1:7, each=5, times=pred_size/35),
-         agegroup = factor(agegroup, levels=1:7, labels=c("15-19", "20-24", "25-29", "30-34", "35-39", "40-44", "45-49")))
-head(
-pred %>%
-  filter(agegr==22, period==2016)
-)
+# formulae[1] <- births ~  
+#   f(id.district, model="bym2", graph=paste0(iso3_code, ".adj")) + 
+#   f(id.agegr, model="rw1") +
+#   f(id.period, model="rw2") +
+#   f(id.agegr2, model="rw1", group=id.period, control.group=list(model="rw2")) +
+#   f(id.agegr.period, model="iid")
+# 
+# formulae[2] <- births ~  
+#   f(id.district, model="bym2", graph=paste0(iso3_code, ".adj")) + 
+#   f(id.agegr, model="rw1") +
+#   f(id.period, model="rw2") +
+#   f(id.agegr2, model="rw1", group=id.period, control.group=list(model="rw2")) +
+#   f(id.agegr.period, model="iid") +
+#   f(id.district2, model="bym2", graph=paste0(iso3_code, ".adj"), group=id.period, control.group=list(model="rw1")) 
+# 
+# formula[3] <- births ~  
+#   f(id.district, model="bym2", graph=paste0(iso3_code, ".adj")) + 
+#   f(id.agegr, model="rw1") +
+#   f(id.period, model="rw2") +
+#   f(id.agegr2, model="rw1", group=id.period, control.group=list(model="rw2")) +
+#   f(id.agegr.period, model="iid") +
+#   f(id.district2, model="bym2", graph=paste0(iso3_code, ".adj"), group=id.period, control.group=list(model="rw1")) +
+#   f(id.district3, model="bym2", graph=paste0(iso3_code, ".adj"), group=id.agegr, control.group=list(model="rw1"))
 
-pred %>%
-  ggplot(aes(x=period, y=`0.5quant`, group=agegr))+
-  geom_line(aes(color=agegr)) +
-  facet_wrap(~area_name)
+
+  # f(id.agegr2, id.period2, model="rw2", constr = TRUE) +
+  # f(id.district2, model="bym2", graph=paste0(iso3_code, ".adj"), group=id.period, control.group=list(model="rw1")) +
+  # f(id.district3, model="bym2", graph=paste0(iso3_code, ".adj"), group=id.agegr, control.group=list(model="rw1")) +
+  
+  mod1 <- inla(formulae[[3]], family="poisson", data=asfr_pred, E=pys,
+               control.family=list(link='log'),
+               control.predictor=list(compute=TRUE, link=1),
+               control.inla = list(strategy = "gaussian", int.strategy = "eb"),
+               control.compute=list(config = TRUE, dic= TRUE, cpo=TRUE),
+               verbose=TRUE)
+  
+  pred_size <- nrow(asfr_pred) - nrow(asfr1)
+  
+  pred <- asfr_pred %>%
+    filter(id<pred_size+1) %>%
+    dplyr::select("agegr", "period", "pys", "area_name" ,"id") %>%
+    left_join(mod1$summary.fitted.values[1:pred_size, ] %>%
+                mutate(id = 1:pred_size), by="id") %>%
+    arrange(period, agegr) 
+  # mutate(agegroup = rep(1:7, each=5, times=pred_size/35),
+  #        agegroup = factor(agegroup, levels=1:7, labels=c("15-19", "20-24", "25-29", "30-34", "35-39", "40-44", "45-49")))
+  
+  UGA_form3 <- pred %>%
+    ggplot(aes(x=period, y=`0.5quant`, group=agegr))+
+    geom_line(aes(color=agegr))+
+    #labs(title="Age x period") +
+    facet_wrap(~area_name)
+
+  UGA_form3
+  
+  UGA_plots <- list(UGA_form1, UGA_form2, UGA_form3)
+  
+  save(UGA_plots, file="UGAplots.rds")
