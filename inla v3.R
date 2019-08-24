@@ -161,8 +161,8 @@ oli_surveys <- readRDS("~/Documents/GitHub/naomi-data-edit/oli_cluster.rds") %>%
   distinct
 
 #' Choose a country
-iso2_code <- "UG"
-iso3_code <- "UGA"
+iso2_code <- "MW"
+iso3_code <- "MWI"
 
 clusters <- readRDS("~/Documents/GitHub/naomi-data-edit/oli_cluster.rds") %>%
   mutate(iso3 = survey_id) %>%
@@ -171,7 +171,7 @@ clusters <- readRDS("~/Documents/GitHub/naomi-data-edit/oli_cluster.rds") %>%
 
 admin1_areas <- readRDS("~/Documents/GitHub/naomi-data/data/areas/areas_wide.rds") %>%
   filter(iso3 == iso3_code) %>%
-  left_join(clusters, by=c("id2" = "geoloc_area_id", "iso3")) %>%
+  left_join(clusters, by=c("id5" = "geoloc_area_id", "iso3")) %>%
   dplyr::select(iso3, id1, name1, survey_id, cluster_id) %>%
   distinct
 
@@ -201,8 +201,7 @@ admin1_areas <- readRDS("~/Documents/GitHub/naomi-data/data/areas/areas_wide.rds
 boundaries <- readRDS("~/Documents/GitHub/naomi-data/data/areas/boundaries.rds")
 
 ##+ datasets
-surveys <- dhs_surveys(countryIds = c(iso2_code), surveyYearStart=2005) %>%
-  filter(SurveyType == "DHS")
+surveys <- dhs_surveys(countryIds = c(iso2_code), surveyYearStart=1995)
 
 foo <- surveys %>%
   separate(SurveyId, into=c("cc", "year", "type"), sep = c(2,6)) %>%
@@ -271,12 +270,19 @@ tips_surv <- list("DHS" = c(0, 7), "MIS" = c(0, 5), "AIS" = c(0, 5))[surveys$Sur
 #             period = list(1995:2017),
 #             counts = TRUE)
 
-asfr <- Map(calc_asfr1, ir_area,
+asfr_15to19 <- Map(calc_asfr1, ir_area,
                by = list(~surveyid + survyear + area_id + area_name),
                tips = tips_surv,
-               agegr= list(3:10*5),
-               period = list(2005:2017),
+               agegr= list(15:20),
+               period = list(1995:2017),
                counts = TRUE)
+
+asfr_20to49 <- Map(calc_asfr1, ir_area,
+            by = list(~surveyid + survyear + area_id + area_name),
+            tips = tips_surv,
+            agegr= list(4:10*5),
+            period = list(1995:2017),
+            counts = TRUE)
 
 ### Plot ASFR data at national level as check:
 # asfr %>%
@@ -288,9 +294,16 @@ asfr <- Map(calc_asfr1, ir_area,
 #     #ylim(0,0.5) +
 #     facet_wrap(~agegr)
 
-asfr1 <- asfr %>%
+asfr1 <- asfr_15to19 %>%
   bind_rows %>%
-  type.convert
+  type.convert %>%
+  bind_rows(asfr_20to49 %>%
+              bind_rows %>%
+              type.convert %>%
+              mutate(agegr = as.character(agegr)) %>%
+              separate(agegr, into = c("agegr", "rest"), sep="-") %>%
+              dplyr::select(-rest) %>%
+              type.convert)
 
 asfr_pred <- crossing(period = asfr1$period, agegr = asfr1$agegr, area_name = asfr1$area_name, pys=1) %>%
   bind_rows(asfr1)%>%
@@ -298,6 +311,7 @@ asfr_pred <- crossing(period = asfr1$period, agegr = asfr1$agegr, area_name = as
          id.period2 = id.period,
          id.agegr = group_indices(., agegr),
          id.agegr2 = id.agegr,
+         agegr2 = agegr,
          id.agegr.period = group_indices(., period, agegr),
          id.district = group_indices(., area_name),
          id.district2 = id.district,
@@ -334,12 +348,8 @@ formulae[[2]] <- formula.2 <- births ~  f(id.district, model="bym2", graph=paste
 
 formulae[[3]] <- formula.3 <- births ~ f(id.district, model="bym2", graph=paste0(iso3_code, ".adj")) + f(id.agegr, model="rw1") + f(id.period, model="rw2") + f(id.agegr2, model="rw1", group=id.period, control.group=list(model="rw2")) + f(id.agegr.period, model="iid") + f(id.district2, model="bym2", graph=paste0(iso3_code, ".adj"), group=id.period, control.group=list(model="rw1")) +f(id.district3, model="bym2", graph=paste0(iso3_code, ".adj"), group=id.agegr, control.group=list(model="rw1"))
 
-# formulae[1] <- births ~  
-#   f(id.district, model="bym2", graph=paste0(iso3_code, ".adj")) + 
-#   f(id.agegr, model="rw1") +
-#   f(id.period, model="rw2") +
-#   f(id.agegr2, model="rw1", group=id.period, control.group=list(model="rw2")) +
-#   f(id.agegr.period, model="iid")
+formulae[[4]] <- births ~ f(agegr, model="rw2", scale.model=TRUE, values=c(15:49)) + f(id.period, model="rw2")
+
 # 
 # formulae[2] <- births ~  
 #   f(id.district, model="bym2", graph=paste0(iso3_code, ".adj")) + 
@@ -363,7 +373,7 @@ formulae[[3]] <- formula.3 <- births ~ f(id.district, model="bym2", graph=paste0
   # f(id.district2, model="bym2", graph=paste0(iso3_code, ".adj"), group=id.period, control.group=list(model="rw1")) +
   # f(id.district3, model="bym2", graph=paste0(iso3_code, ".adj"), group=id.agegr, control.group=list(model="rw1")) +
   
-  mod1 <- inla(formulae[[3]], family="poisson", data=asfr_pred, E=pys,
+  mod1 <- inla(formulae[[4]], family="poisson", data=asfr_pred, E=pys,
                control.family=list(link='log'),
                control.predictor=list(compute=TRUE, link=1),
                control.inla = list(strategy = "gaussian", int.strategy = "eb"),
@@ -377,17 +387,34 @@ formulae[[3]] <- formula.3 <- births ~ f(id.district, model="bym2", graph=paste0
     dplyr::select("agegr", "period", "pys", "area_name" ,"id") %>%
     left_join(mod1$summary.fitted.values[1:pred_size, ] %>%
                 mutate(id = 1:pred_size), by="id") %>%
-    arrange(period, agegr) 
+    arrange(period, agegr) %>%
+    #filter(agegr <20) %>%
+    mutate(agegr = factor(agegr))
   # mutate(agegroup = rep(1:7, each=5, times=pred_size/35),
   #        agegroup = factor(agegroup, levels=1:7, labels=c("15-19", "20-24", "25-29", "30-34", "35-39", "40-44", "45-49")))
   
-  UGA_form3 <- pred %>%
+  pred %>%
     ggplot(aes(x=period, y=`0.5quant`, group=agegr))+
-    geom_line(aes(color=agegr))+
+    geom_line(aes(color=agegr)) +
+    geom_vline(data=foo, aes(xintercept=year), linetype=3)
+    #geom_point(data=asfr1 %>%
+                 filter(agegr < 20) %>%
+                 mutate(agegr=factor(agegr)), aes(y=asfr, color=agegr))
+  
+  TZA_form3 <- pred %>%
+    ggplot(aes(x=period, y=`0.5quant`, group=agegr))+
+    geom_line()+
     #labs(title="Age x period") +
-    facet_wrap(~area_name)
+    facet_grid(agegr~area_name) +
+    geom_point(data=asfr1, aes(y=asfr, color=surveyid)) +
+    ylim(0,0.5)
+  
+  TZA_form3
 
-  UGA_form3
+  UGA_form3 +
+    facet_grid(agegr~area_name) +
+    geom_point(data=asfr1, aes(y=asfr, color=surveyid)) +
+    ylim(0,0.4)
   
   UGA_plots <- list(UGA_form1, UGA_form2, UGA_form3)
   
