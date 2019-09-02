@@ -1,3 +1,6 @@
+install.packages("sf")
+devtools::install_github("mrc-ide/demogsurv")
+
 library(tidyverse)
 library(rdhs)
 library(demogsurv)
