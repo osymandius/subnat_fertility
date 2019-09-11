@@ -161,8 +161,8 @@ oli_surveys <- readRDS("~/Documents/GitHub/naomi-data-edit/oli_cluster.rds") %>%
   distinct
 
 #' Choose a country
-iso2_code <- "MW"
-iso3_code <- "MWI"
+iso2_code <- "KE"
+iso3_code <- "KEN"
 
 clusters <- readRDS("~/Documents/GitHub/naomi-data-edit/oli_cluster.rds") %>%
   mutate(iso3 = survey_id) %>%
@@ -191,7 +191,7 @@ boundaries <- readRDS("~/Documents/GitHub/naomi-data/data/areas/boundaries.rds")
 
 ##+ datasets
 surveys <- dhs_surveys(countryIds = c(iso2_code), surveyYearStart=1995) %>%
-  filter(SurveyType != "AIS")
+  filter(SurveyType == "DHS")
 
 foo <- surveys %>%
   separate(SurveyId, into=c("cc", "year", "type"), sep = c(2,6)) %>%
@@ -220,7 +220,19 @@ ir <- lapply(ird$path, readRDS) %>%
       .,
       stringsAsFactors = FALSE) 
 
+head(ir[["ET2005DHS"]]$v008)
+
+test_ir <- ir[["ET2005DHS"]]
+test_ir$v008 <- ir[["ET2005DHS"]]$v008+92
+test_ir$v011 <- ir[["ET2005DHS"]]$v011+92
+
 if (iso3_code == "ETH") {
+  
+  calc_asfr
+  
+  ## 2005 DHS
+  ## 2011 DHS
+  ## 2016 DHS
   ir[[3]]$v007 <- floor(ir[[3]]$v007+92/12) %>% as.integer()
   ir[[3]]$v008 <- ir[[3]]$v008+92 %>% as.integer()
   ir[[3]]$v010 <- floor(ir[[3]]$v007+92/12) %>% as.integer()
@@ -251,13 +263,24 @@ names(ir_area) <- sapply(ir_area,  function(x) {
     paste(x[["area_id"]][1], x[["survey_id"]][1])
 })
 
-tips_surv <- list("DHS" = c(0, 7), "MIS" = c(0, 5), "AIS" = c(0, 5))[surveys$SurveyType]
+tips_surv <- list("DHS" = c(0:10), "MIS" = c(0:5), "AIS" = c(0:5))[surveys$SurveyType]
+
+debugonce(demog_pyears)
+
+## ETH testing - why are there 0 births?
+# asfr <- calc_asfr1(test_ir, by = ~surveyid + survyear,
+#                    tips = c(0,7),
+#                    agegr= 3:10*5,
+#                    #period = list(seq(1995, 2017, by=0.5)),
+#                    period = c(1995:2017),
+#                    counts = TRUE)
 
 asfr <- Map(calc_asfr1, ir,
             by = list(~surveyid + survyear),
             tips = tips_surv,
             agegr= list(3:10*5),
-            period = list((1995*4):(2017*4)*(1/4)),
+            #period = list(seq(1995, 2017, by=0.5)),
+            period = list((1995*1):(2017*1)*(1/1)),
             counts = TRUE)
 
 # asfr_15to19 <- Map(calc_asfr1, ir_area,
@@ -286,7 +309,7 @@ asfr <- Map(calc_asfr1, ir,
 
 asfr1 <- asfr %>%
   bind_rows %>%
-  separate(period, into=c("stuff", "period"), sep="-") %>%
+  separate(period, into=c("period", "stuff"), sep="-") %>%
   dplyr::select(-stuff) %>%
   type.convert
 
@@ -313,8 +336,10 @@ asfr_pred <- crossing(surveyid = asfr1$surveyid, period = asfr1$period, agegr = 
          id.period2 = id.period,
          id.agegr = group_indices(., agegr),
          id.agegr2 = id.agegr,
-         agegr2 = agegr,
          id.agegr.period = group_indices(., period, agegr),
+         id.tips = (group_indices(., tips)),
+         dummy_step = ifelse(tips>5, 1, 0),
+         tips.iid = ifelse(tips>5, 2, 1),
          # id.district = group_indices(., area_name),
          # id.district2 = id.district,
          # id.district3 = id.district,
@@ -322,17 +347,7 @@ asfr_pred <- crossing(surveyid = asfr1$surveyid, period = asfr1$period, agegr = 
          # id.agegr.period.district = group_indices(., agegr, period, district),
          # id.region = group_indices(., region_name),
          id = 1:nrow(.),
-         split_period = as.character(period)) %>%
-  separate(split_period, into=c("quot", "remainder"), sep=5, remove=TRUE) %>% 
-  mutate(id.quarter = ifelse(remainder==25, 2, 
-                             ifelse(remainder==5, 3, 
-                                    ifelse(remainder==75, 4, 1
-                            
-                          )
-  )),
-        id.quarter = factor(id.quarter)
-  ) %>%
-  dplyr::select(-c(quot, remainder))
+  )
 
 # sh <- areas %>%
 #   # filter(parent_area_id %in% c("ZWE")) %>%
@@ -369,7 +384,18 @@ formulae[[6]] <- births ~ f(agegr, model="rw2", scale.model=TRUE, values=c(30:10
 
 ## Smaller period testing
 formulae[[7]] <- births ~ f(id.agegr, model="rw1") + f(id.period, model="rw2") + f(id.agegr2, model="rw1", group=id.period, control.group=list(model="rw2")) + f(id.agegr.period, model="iid")
+## Quarter fixed effects
 formulae[[8]] <- births ~ id.quarter + f(id.agegr, model="rw1") + f(id.period, model="rw2") + f(id.agegr2, model="rw1", group=id.period, control.group=list(model="rw2"))
+
+formulae[[9]] <- births ~ f(id.agegr, model="rw1") + f(id.period, model="rw2") + f(id.agegr2, model="rw1", group=id.period, control.group=list(model="rw2"))
+
+formulae[[1]] <- births ~ f(id.agegr, model="rw1") + f(id.period, model="rw2") + f(id.agegr2, model="rw1", group=id.period, control.group=list(model="rw2")) + f(id.tips, model="rw1")
+
+formulae[[2]] <- births ~ f(id.agegr, model="rw1") + f(id.period, model="rw2") + f(id.agegr2, model="rw1", group=id.period, control.group=list(model="rw2")) + f(id.tips, dummy_step, model="rw1")
+
+formulae[[3]] <- births ~ dummy_step + f(id.agegr, model="rw1") + f(id.period, model="rw2") + f(id.agegr2, model="rw1", group=id.period, control.group=list(model="rw2")) + f(id.tips, model="rw1")
+
+formulae[[4]] <- births ~ f(id.agegr, model="rw1") + f(id.period, model="rw2") + f(id.agegr2, model="rw1", group=id.period, control.group=list(model="rw2")) + f(id.tips, model="rw1", group=dummy_step, control.group=list(model="iid"))
 
 # 
 # formulae[2] <- births ~  
@@ -393,8 +419,10 @@ formulae[[8]] <- births ~ id.quarter + f(id.agegr, model="rw1") + f(id.period, m
   # f(id.agegr2, id.period2, model="rw2", constr = TRUE) +
   # f(id.district2, model="bym2", graph=paste0(iso3_code, ".adj"), group=id.period, control.group=list(model="rw1")) +
   # f(id.district3, model="bym2", graph=paste0(iso3_code, ".adj"), group=id.agegr, control.group=list(model="rw1")) +
+
+plots <- lapply(formulae, function(formulae) {
   
-  mod1 <- inla(formulae[[8]], family="poisson", data=asfr_pred, E=pys,
+  mod1 <- inla(formulae, family="poisson", data=asfr_pred, E=pys,
                control.family=list(link='log'),
                control.predictor=list(compute=TRUE, link=1),
                control.inla = list(strategy = "gaussian", int.strategy = "eb"),
@@ -414,14 +442,43 @@ formulae[[8]] <- births ~ id.quarter + f(id.agegr, model="rw1") + f(id.period, m
   # mutate(agegroup = rep(1:7, each=5, times=pred_size/35),
   #        agegroup = factor(agegroup, levels=1:7, labels=c("15-19", "20-24", "25-29", "30-34", "35-39", "40-44", "45-49")))
   
+  plot <- ggplot()+
+    geom_line(data = pred, aes(x=period, y=`0.5quant`, group=agegr, color=agegr)) +
+    geom_vline(aes(xintercept=1995:2016), linetype=3) +
+    geom_rect(data=foo, aes(xmin = year-1, xmax = year, ymin = -Inf, ymax=Inf), fill="blue", alpha=0.2) +
+    labs(y="ASFR", x=element_blank(), title="") +
+    ylim(0, 0.34)
   
+  return(plot)
+  
+})
+
+  
+gridExtra::grid.arrange(plots[[1]], plots[[2]], plots[[3]], plots[[4]])
 
   ggplot()+
     geom_line(data = pred, aes(x=period, y=`0.5quant`, group=agegr, color=agegr)) +
     geom_vline(aes(xintercept=1995:2016), linetype=3) +
     geom_rect(data=foo, aes(xmin = year-1, xmax = year, ymin = -Inf, ymax=Inf), fill="blue", alpha=0.2) +
-    labs(y="ASFR", x=element_blank(), title="Malawi, 0.25 year periods, without iid")
+    labs(y="ASFR", x=element_blank(), title=paste(formula))
     ylim(0, 0.34)
+    
+    
+  form12 <- exp(mod1$summary.random$id.tips) %>% 
+      mutate(id = 1:11) %>%
+      ggplot(aes(x=id)) +
+      geom_point(aes(y=`0.5quant`)) +
+      geom_errorbar(aes(ymin = `0.025quant`, ymax=`0.975quant`), width=0.2)
+    
+  quarter_summary <- exp(mod1$summary.fixed) %>%
+    mutate(country = "ZW") %>%
+    bind_rows(quarter_summary2)
+  
+  quarter_summary %>%
+    mutate(id = rownames(.)) %>%
+    ggplot(aes(x=id)) +
+    geom_point(aes(y=`0.5quant`)) +
+    geom_errorbar(aes(ymin = `0.025quant`, ymax=`0.975quant`), width=0.2)
     
     int_mnth <- ir %>%
       bind_rows
