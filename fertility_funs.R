@@ -135,8 +135,14 @@ calc_asfr1 <- function(data,
   return(pred)
 }
 
+ir_by_area <- function(ir, area_list) {
+  ir %>%
+    left_join(area_list, by=c("v001" = "cluster_id")) %>%
+    filter(!is.na(area_id))
+}
 
-repeat_formulae <- function(formulae, formulae_number) {
+
+repeat_formulae <- function(formulae, country_number) {
   
   form1 <- list()
   
@@ -155,10 +161,10 @@ repeat_formulae <- function(formulae, formulae_number) {
   form4[[1]] <- formulae[[4]]
     
   
-  form1 <- rep(form1, formulae_number)
-  form2 <- rep(form2, formulae_number)
-  form3 <- rep(form3, formulae_number)
-  form4 <- rep(form4, formulae_number)
+  form1 <- rep(form1, country_number)
+  form2 <- rep(form2, country_number)
+  form3 <- rep(form3, country_number)
+  form4 <- rep(form4, country_number)
   
   formulae <- c(form1, form2, form3, form4)
   
@@ -169,21 +175,34 @@ get_pred <- function(mod_list, asfr_pred, asfr1) {
   
   pred_size <- nrow(asfr_pred) - nrow(asfr1)
   
-  if(multicountry==FALSE) {
-  
-  pred <- asfr_pred %>%
-    filter(id<pred_size+1) %>%
-    dplyr::select("country", "agegr", "period", "pys","id") %>%
-    left_join(mod_list$summary.fitted.values[1:pred_size, ] %>%
-                mutate(id = 1:pred_size), by="id") %>%
-    arrange(country, period, agegr) %>%
-    mutate(agegr = factor(agegr))
-  
+  if(subnational == FALSE) {
+    
+    if(multicountry==FALSE) {
+    
+    pred <- asfr_pred %>%
+      filter(id<pred_size+1) %>%
+      dplyr::select("country", "agegr", "period", "pys","id") %>%
+      left_join(mod_list$summary.fitted.values[1:pred_size, ] %>%
+                  mutate(id = 1:pred_size), by="id") %>%
+      arrange(country, period, agegr) %>%
+      mutate(agegr = factor(agegr))
+    
+    } else {
+      
+      pred <- asfr_pred %>%
+        filter(id<pred_size+1) %>%
+        dplyr::select("agegr", "period", "pys","id") %>%
+        left_join(mod_list$summary.fitted.values[1:pred_size, ] %>%
+                    mutate(id = 1:pred_size), by="id") %>%
+        arrange(period, agegr) %>%
+        mutate(agegr = factor(agegr))
+      
+    }
   } else {
     
     pred <- asfr_pred %>%
       filter(id<pred_size+1) %>%
-      dplyr::select("agegr", "period", "pys","id") %>%
+      dplyr::select("area_name", "agegr", "period", "pys","id") %>%
       left_join(mod_list$summary.fitted.values[1:pred_size, ] %>%
                   mutate(id = 1:pred_size), by="id") %>%
       arrange(period, agegr) %>%
