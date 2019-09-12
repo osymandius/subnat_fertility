@@ -135,6 +135,36 @@ calc_asfr1 <- function(data,
   return(pred)
 }
 
+
+repeat_formulae <- function(formulae, formulae_number) {
+  
+  form1 <- list()
+  
+  form1[[1]] <- formulae[[1]]
+  
+  form2 <- list()
+  
+  form2[[1]] <- formulae[[2]]
+  
+  form3 <- list()
+  
+  form3[[1]] <- formulae[[3]]
+  
+  form4 <- list()
+  
+  form4[[1]] <- formulae[[4]]
+    
+  
+  form1 <- rep(form1, formulae_number)
+  form2 <- rep(form2, formulae_number)
+  form3 <- rep(form3, formulae_number)
+  form4 <- rep(form4, formulae_number)
+  
+  formulae <- c(form1, form2, form3, form4)
+  
+  return(formulae)
+}
+
 get_pred <- function(mod_list, asfr_pred, asfr1) {
   
   pred_size <- nrow(asfr_pred) - nrow(asfr1)
