@@ -1,4 +1,26 @@
+iso3_to_dhs <- function(iso3) {
+  
+  if (is.list(iso3)) {
+    
+    lapply(iso3, function(iso3) {
+      
+      dhs_countries(returnFields=c("CountryName", "DHS_CountryCode")) %>%
+        filter(CountryName %in% sub("Swaziland", "Eswatini", countrycode(iso3, "iso3c", "country.name"))) %>%
+        .$DHS_CountryCode
+    })
+    
+  } else {
+    
+    dhs_countries(returnFields=c("CountryName", "DHS_CountryCode")) %>%
+      filter(CountryName %in% sub("Swaziland", "Eswatini", countrycode(iso3, "iso3c", "country.name"))) %>% 
+      .$DHS_CountryCode
+    
+  }
+  
+}
+
 calc_asfr1 <- function(data,
+                       y=NULL,
                        by = NULL,
                        agegr = NULL,
                        period = NULL,
@@ -18,6 +40,8 @@ calc_asfr1 <- function(data,
                        bhdata = NULL,
                        counts=FALSE,
                        clustcounts = FALSE){
+  
+  print(y)
   
   data$id <- data[[id]]
   data$dob <- data[[dob]]
@@ -214,8 +238,8 @@ get_pred <- function(mod_list, asfr_pred, asfr1) {
   
 }
 #iso3_list, multicountry
-run_mod <- function(formulae, asfr_pred) {
-  mod <- inla(formulae, family="poisson", data=asfr_pred, E=pys,
+run_mod <- function(formulae, asfr_pred, model_family) {
+  mod <- inla(formulae, family=model_family, data=asfr_pred, E=pys,
               control.family=list(link='log'),
               control.predictor=list(compute=TRUE, link=1),
               control.inla = list(strategy = "gaussian", int.strategy = "eb"),
