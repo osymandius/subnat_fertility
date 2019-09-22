@@ -22,7 +22,7 @@ set_rdhs_config(email="o.stevens@imperial.ac.uk", project="Subnational fertility
 source("fertility_funs.R")
 
 ## Set flags. Multicountry == TRUE for running several countries in a single model. Subnational currently only set up for running 1 country at a time, setting the iso codes as strings manually {see lines 62-69 and 131-198 for ZWE admin 1 example}
-subnational <- FALSE
+subnational <- TRUE
 multicountry <- FALSE
 
 # ## If Namibia is in this list, ensure it's first. Crap but it'll do for now.
@@ -65,6 +65,11 @@ surveys <- dhs_surveys(surveyIds = unique(clusters$DHS_survey_id)) %>%
   filter(CountryName != "Malawi") %>%
   group_split(CountryName)
 
+## NATIONAL
+surveys <- dhs_surveys(surveyIds = unique(clusters$DHS_survey_id)) %>%
+  filter(!SurveyId %in% c("MZ2015AIS", "TZ2007AIS", "UG2014MIS"), CountryName != "Malawi")
+  group_split(CountryName)
+
 
 # surveys <- dhs_surveys(countryIds = iso3_to_dhs(unique(clusters$iso3)), surveyYearStart=1995) %>%
 #   separate(SurveyId, into=c(NA, "surv"), sep =2, remove=FALSE) %>%
@@ -94,6 +99,20 @@ boundaries <- readRDS("~/Documents/GitHub/naomi-data/data/areas/boundaries.rds")
 ird <- lapply(surveys, function(surveys) {
   dhs_datasets(fileType = "IR", fileFormat = "flat", surveyIds = surveys$SurveyId)
 })
+
+### FOR WHEN API IS DOWN ####
+
+dhs_datasets_cached <- readRDS("~/Downloads/dhs_datasets_cached.rds")
+
+dhs_datasets_cached <- dhs_datasets_cached %>%
+  filter(SurveyId %in% surveys$SurveyId, FileType == "Individual Recode", FileFormat == "Flat ASCII data (.dat)") %>%
+  separate(FileName, into=c("FileName", NA), sep=-4, remove=TRUE) %>%
+  mutate(path = paste0("/Users/os210/Library/Caches/rdhs/datasets/", FileName, ".rds"))
+
+ird <- dhs_datasets_cached %>%
+  group_split(DHS_CountryCode)
+
+###########
 
 ird <- lapply(ird, function(x) {
   x %>%
@@ -131,14 +150,7 @@ ir_area <- Map(ir_by_area2, ir, area_list) %>%
   unlist(recursive = FALSE)
 
 save(ir_area, file="ir_area.RData")
-
-test <- Map(function(x, y){
-  print(y)
-  x_int <- x %>%
-    .$survtype %>%
-    unique
-  return(x_int)
-}, x=ir_area, y=1:length(ir_area))
+load("ir_area.RData")
 
 test <- lapply(ir_area, function(x) {
   x$foo <- x %>%
@@ -166,6 +178,8 @@ tips_surv <- list("DHS" = c(0:10), "MIS" = c(0:5), "AIS" = c(0:5))[surveys %>%
 
 run_length <- c(1:835, 963:1147, 1149:1213, 1215:1302, 1456:2471, 2589:length(ir_area))
 
+
+
 asfr <- Map(calc_asfr1, ir_area[run_length],
             y=run_length,
             by = list(~country + surveyid + survtype + survyear + area_name + area_id),
@@ -175,16 +189,24 @@ asfr <- Map(calc_asfr1, ir_area[run_length],
             period = list((1995*1):(2017*1)*(1/1)),
             counts = TRUE)
 
-debugonce(calc_asfr1)
 
-# calc_asfr1(ir_area[[963]], y=836, by = ~country + surveyid + survtype + survyear,
-#            tips = tips_surv[[2580]],
-#            agegr= 3:10*5,
-#            #period = list(seq(1995, 2017, by=0.5)),
-#            period = 1995:2017,
-#            counts = TRUE)
 
-save(asfr, file="asfr.RData")
+asfr_national <- Map(calc_asfr1, ir[-c(13, 18, 19, 28)],
+            y=c(1:12, 14:17, 20:27, 29:length(ir)),
+            by = list(~country + surveyid + survtype + survyear),
+            tips = tips_surv[-c(13, 18, 19, 28)],
+            agegr= list(3:10*5),
+            #period = list(seq(1995, 2017, by=0.5)),
+            period = list((1995*1):(2017*1)*(1/1)),
+            counts = TRUE)
+
+
+calc_asfr1(ir[[28]], y=836, by = ~country + surveyid + survtype + survyear,
+           tips = tips_surv[[28]],
+           agegr= 3:10*5,
+           #period = list(seq(1995, 2017, by=0.5)),
+           period = 1995:2017,
+           counts = TRUE)
 
 #### ZWE ADMIN 1 TEST #####
 
@@ -320,6 +342,8 @@ ggsave("ZWE admin 1, formula 4.png", plot=plots[[4]], device="png")
     ggsave("Together, formula 4.png", plot=plots[[4]], device="png")
     
 ##### COUNTRIES RUN SEPARATELY #####
+    
+  load("asfr_subnational.RData")
   
   asfr1_country <- asfr %>%
     bind_rows %>%
@@ -329,6 +353,8 @@ ggsave("ZWE admin 1, formula 4.png", plot=plots[[4]], device="png")
     type.convert %>%
     group_split(country, keep=TRUE) %>%
     lapply(droplevels)
+  
+  
   
   asfr_pred_country <- lapply(asfr1_country, function(asfr1_country) {
     crossing(country = asfr1_country$country, area_name = asfr1_country$area_name, period = asfr1_country$period, agegr = asfr1_country$agegr,  pys=1) %>%
@@ -346,9 +372,9 @@ ggsave("ZWE admin 1, formula 4.png", plot=plots[[4]], device="png")
              tips_dummy = ifelse(tips>5, 1, 0),
              # survey_dummy = (group_indices(., survtype)),
              # survey_dummy = ifelse(is.na(survtype), NA, survey_dummy),
-             id.district = group_indices(., area_name),
-             id.district2 = id.district,
-             id.district3 = id.district,
+             # id.district = group_indices(., area_name),
+             # id.district2 = id.district,
+             # id.district3 = id.district,
              # id.survey = group_indices(., surveyid),
              # id.agegr.period.district = group_indices(., agegr, period, district),
              # id.region = group_indices(., region_name),
@@ -357,11 +383,21 @@ ggsave("ZWE admin 1, formula 4.png", plot=plots[[4]], device="png")
       )
   })
   
+  asfr_pred_country <- lapply(asfr_pred_country, function(x) {
+    x %>%
+      mutate_if(is.factor, as.character)
+  })
+  
+  saveRDS(asfr_pred_country, file="asfr_pred_country_subnat.rds")
+  
   # formulae <- repeat_formulae(formulae, length(iso2))
   #  formulae <- rep(formulae, length(iso2))
   #formulae <- formulae[-10]
   
-  max_level <- areas %>% group_by(iso3) %>% summarise(max_level = max(area_level)) %>% ungroup %>% .$max_level %>% as.list
+  max_level <- areas %>% group_by(iso3) %>% summarise(max_level = max(area_level)) %>%
+    mutate(max_level = ifelse(iso3 == "MWI", 4, max_level))
+  
+  saveRDS(max_level, file="max_level.rds")
   
   iso3_list <- as.list(max_area %>% .$iso3)
   
