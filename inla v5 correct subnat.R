@@ -133,3 +133,51 @@ asfr_pred_country <- lapply(asfr_pred_country, function(x) {
 })
 
 saveRDS(asfr_pred_country, file="asfr_pred_country_subnat.rds")
+
+ZWE_poisson <- stats[[4]]
+RWA_poisson <- stats[[3]]
+
+saveRDS(RWA_poisson, file="RWA_poisson_mod.rds")
+saveRDS(ZWE_poisson, file="ZWE_poisson_mod.rds")
+saveRDS(mod, file="ZWE_0inflate.rds")
+saveRDS(mod2, file="RWA_0inflate.rds")
+
+rwa_mod <- readRDS("RWA_poisson_mod.rds")
+
+pred <- asfr_pred_country_subnat[[3]] %>%
+  filter(id<5460+1) %>%
+  dplyr::select("area_name", "agegr", "period", "pys","id") %>%
+  left_join(mod2$summary.fitted.values[1:5460, ] %>%
+              mutate(id = 1:5460), by="id") %>%
+  arrange(area_name, period, agegr) %>%
+  mutate(agegr = factor(agegr))
+
+pred %>%
+  ggplot()+
+  geom_line(aes(x=period, y=`0.5quant`, group=agegr, color=agegr)) +
+  #geom_vline(aes(xintercept=SurveyYear), linetype=3) +
+  labs(y="ASFR", x=element_blank(), title="Zim admin-2") +
+  facet_wrap(~area_name)
+
+pred %>%
+  filter(agegr == "20-24", as.integer(factor(area_name))<20) %>%
+  ggplot() +
+  geom_line(aes(x=period, y=`0.5quant`, group=agegr, color=agegr)) +
+  geom_point(data=asfr_pred_country_subnat[[3]] %>% filter(agegr == "20-24", as.integer(factor(area_name))<20), aes(x=period, y=asfr, group=surveyid, color=surveyid), size=1) +
+  labs(y="ASFR", x=element_blank(), title="Zim admin-2") +
+  facet_wrap(~area_name)+
+  ylim(0,0.35)
+
+plots <- lapply(pred_split, function(pred_split) {
+  pred_split %>%
+    left_join(
+      lapply(surveys, function(surveys) surveys %>% bind_rows %>% select(CountryName, SurveyYear)) %>% bind_rows,
+      by = c("country" = "CountryName")
+    ) %>%
+    ggplot()+
+    geom_line(aes(x=period, y=`0.5quant`, group=agegr, color=agegr)) +
+    geom_vline(aes(xintercept=SurveyYear), linetype=3) +
+    labs(y="ASFR", x=element_blank(), title="Estimated ASFR from MIS only") +
+    facet_wrap(~country)
+  
+})
