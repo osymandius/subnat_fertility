@@ -10,19 +10,19 @@ clusters <- readRDS("~/Documents/GitHub/naomi-data-edit/oli_cluster.rds") %>%
   separate(survey_id, into=c(NA, "surv"), sep=3, remove=FALSE) %>%
   mutate(DHS_survey_id = paste0(DHS_CountryCode, surv)) %>%
   select(-surv) %>%
-  filter(survey_id != "CIV2005AIS")
+  filter(survey_id != "UGA2011AIS")
 
 iso3 <- as.list(clusters %>% .$iso3 %>% unique)
 
 ## Get surveys for which we have clusters. Split into country list.
 surveys <- dhs_surveys(surveyIds = unique(clusters$DHS_survey_id)) %>%
   left_join(clusters %>% select(c(DHS_survey_id, survey_id)) %>% distinct, by=c("SurveyId" = "DHS_survey_id")) %>%
-  #filter(CountryName == "Malawi") %>%
+  filter(CountryName == "Lesotho") %>%
   group_split(CountryName)
 
 areas <- readRDS("~/Documents/GitHub/naomi-data/data/areas/areas_long.rds") %>%
   inner_join(clusters, by=c("area_id" = "geoloc_area_id", "iso3")) %>%
-  filter(iso3 == "MWI") %>%
+  filter(iso3 == "LSO")
   left_join(readRDS("~/Documents/GitHub/naomi-data/data/areas/areas_wide.rds") %>% select(area_id, name4, id4), by=c("area_id")) %>%
   select(-c(area_id, area_name, parent_area_id, area_level)) %>%
   rename(area_name = name4, area_id = id4)
@@ -86,7 +86,7 @@ names(ir_area) <- sapply(ir_area,  function(x) {
 
 tips_surv <- list("DHS" = c(0:10), "MIS" = c(0:5), "AIS" = c(0:5))[test$survtype]
 
-asfr_mwi <- Map(calc_asfr1, ir_area,
+asfr_lso<- Map(calc_asfr1, ir_area,
             y=1:length(ir_area),
             by = list(~country + surveyid + survtype + survyear + area_name + area_id),
             tips = tips_surv,
@@ -96,7 +96,7 @@ asfr_mwi <- Map(calc_asfr1, ir_area,
             counts = TRUE) %>%
   bind_rows
 
-asfr1_country <- list(asfr_mwi, asfr_lso, asfr_rwa, asfr_zwe)
+asfr1_country <- list(asfr_uga, asfr_lso)
 
 asfr1_country <- lapply(asfr1_country, type.convert)
 
@@ -132,23 +132,26 @@ asfr_pred_country <- lapply(asfr_pred_country, function(x) {
     mutate_if(is.factor, as.character)
 })
 
-saveRDS(asfr_pred_country, file="asfr_pred_country_subnat.rds")
+saveRDS(asfr_pred_country, file="asfr_pred_country_subnat2.rds")
 
 ZWE_poisson <- stats[[4]]
 RWA_poisson <- stats[[3]]
 
+saveRDS(MWI_poisson, file="MWI_poisson_mod.rds")
 saveRDS(RWA_poisson, file="RWA_poisson_mod.rds")
 saveRDS(ZWE_poisson, file="ZWE_poisson_mod.rds")
 saveRDS(mod, file="ZWE_0inflate.rds")
 saveRDS(mod2, file="RWA_0inflate.rds")
 
 rwa_mod <- readRDS("RWA_poisson_mod.rds")
+mwi_mod <- readRDS("MWI_poisson_mod.rds")
+zwe_mod <- readRDS("ZWE_poisson_mod.rds")
 
-pred <- asfr_pred_country_subnat[[3]] %>%
-  filter(id<5460+1) %>%
+pred <- asfr_pred_country_subnat[[4]] %>%
+  filter(id<10920+1) %>%
   dplyr::select("area_name", "agegr", "period", "pys","id") %>%
-  left_join(mod2$summary.fitted.values[1:5460, ] %>%
-              mutate(id = 1:5460), by="id") %>%
+  left_join(zwe_mod$summary.fitted.values[1:10920, ] %>%
+              mutate(id = 1:10920), by="id") %>%
   arrange(area_name, period, agegr) %>%
   mutate(agegr = factor(agegr))
 
@@ -163,7 +166,7 @@ pred %>%
   filter(agegr == "20-24", as.integer(factor(area_name))<20) %>%
   ggplot() +
   geom_line(aes(x=period, y=`0.5quant`, group=agegr, color=agegr)) +
-  geom_point(data=asfr_pred_country_subnat[[3]] %>% filter(agegr == "20-24", as.integer(factor(area_name))<20), aes(x=period, y=asfr, group=surveyid, color=surveyid), size=1) +
+  geom_point(data=asfr_pred_country_subnat[[1]] %>% filter(agegr == "20-24", as.integer(factor(area_name))<20), aes(x=period, y=asfr, group=surveyid, color=surveyid), size=1) +
   labs(y="ASFR", x=element_blank(), title="Zim admin-2") +
   facet_wrap(~area_name)+
   ylim(0,0.35)
