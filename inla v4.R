@@ -421,7 +421,7 @@ ggsave("ZWE admin 1, formula 4.png", plot=plots[[4]], device="png")
   }, iso3_list, max_level, list(areas_long), list(boundaries))
   
   sh <- readRDS("~/Documents/GitHub/naomi-data/data/areas/areas_long.rds") %>%
-    filter(parent_area_id == iso3_code) %>%
+    filter(iso3 == "LSO", area_level == 2) %>%
     mutate(area_idx = row_number())
   
   #' Neighbor list
@@ -432,7 +432,7 @@ ggsave("ZWE admin 1, formula 4.png", plot=plots[[4]], device="png")
     spdep::poly2nb() %>%
     `names<-`(sh$area_idx)
   
-  nb2INLA(paste0(iso3_code, ".adj"), nb)
+  nb2INLA(paste0("LSO", ".adj"), nb)
   
   mod_list <- Map(run_mod, formulae, asfr_pred = rep(asfr_pred_country, formulae_number), model_family="poisson")
   

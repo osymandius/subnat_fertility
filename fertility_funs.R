@@ -252,3 +252,283 @@ run_mod <- function(formulae, asfr_pred, model_family) {
     
   return(mod)
 }
+
+
+get_mod_results <- function(mod, asfr_pred_country_subnat, pop_areas, areas_long, worldpop_rep) {
+  
+  asfr1_country_subnat <- asfr_pred_country_subnat %>%
+    filter(!is.na(surveyid))
+  
+  iso3 <- countrycode(unique(asfr_pred_country_subnat$country), "country.name", "iso3c")
+  
+  print("Sampling..")
+  samples <- inla.posterior.sample(1000, mod)
+  print("Done sampling")
+  contents = mod$misc$configs$contents
+  effect = "Predictor"
+  id.effect = which(contents$tag==effect)
+  ind.effect = contents$start[id.effect]-1 + (1:contents$length[id.effect])
+  
+  ind.effect <- 1:(nrow(asfr_pred_country_subnat) - nrow(asfr1_country_subnat))
+  
+  samples.effect = lapply(samples, function(x) x$latent[ind.effect] %>% exp)
+  
+  ident <- asfr_pred_country_subnat[ind.effect, ] %>%
+    select(area_name, agegr, period) %>%
+    mutate(iso3 = iso3) %>%
+    left_join(pop_areas %>% filter(startage>=15, startage<50, agespan==5), by=c("area_name" = "name", "period" = "year", "agegr" = "age", "iso3")) %>%
+    filter(period>1999) %>%
+    mutate(ratio0 = population/id0_agepop,
+           ratio1 = population/id1_agepop,
+           ratio2 = population/id2_agepop,
+           ratio3 = population/id3_agepop,
+           ratio4 = population/id4_agepop
+    ) %>%
+    rename(area_id = id)
+  
+  samples_ident <- sapply(samples.effect, cbind) %>%
+    data.frame %>%
+    mutate(id = 1:nrow(.)) %>%
+    left_join(asfr_pred_country_subnat[ind.effect , c(1:4, 25)], by="id") %>%
+    select(-id) %>%
+    left_join(ident) %>%
+    filter(period >1999)
+  
+  #####
+  
+  admin0  <- samples_ident
+  admin0[,1:1000] <- samples_ident[,1:1000] * samples_ident$ratio0
+  
+  admin0_asfr <- admin0 %>%
+    select(1:1000, id0, period, agegr) %>%
+    group_by(id0, period, agegr) %>%
+    summarise_all(funs(sum))
+  
+  admin0_asfr$mean <- apply(admin0_asfr[, 4:1003], 1, mean)
+  admin0_asfr$median <- apply(admin0_asfr[, 4:1003], 1, median)
+  admin0_asfr$sd <- apply(admin0_asfr[, 4:1003], 1, sd)
+  
+  admin0_asfr <- admin0_asfr %>%
+    mutate(lower = mean-(qnorm(0.95)*sd),
+           upper = mean+(qnorm(0.95)*sd)
+    ) %>%
+    select(id0, period, agegr, mean, median, sd, lower, upper) %>%
+    rename(area_id = id0)
+  
+  ###########
+  
+  admin1  <- samples_ident
+  admin1[,1:1000] <- samples_ident[,1:1000] * samples_ident$ratio1
+  
+  admin1_asfr <- admin1 %>%
+    select(1:1000, id1, period, agegr) %>%
+    group_by(id1, period, agegr) %>%
+    summarise_all(funs(sum))
+  
+  admin1_asfr$mean <- apply(admin1_asfr[, 4:1003], 1, mean)
+  admin1_asfr$median <- apply(admin1_asfr[, 4:1003], 1, median)
+  admin1_asfr$sd <- apply(admin1_asfr[, 4:1003], 1, sd)
+  
+  admin1_asfr <- admin1_asfr %>%
+    mutate(lower = mean-(qnorm(0.95)*sd),
+           upper = mean+(qnorm(0.95)*sd)
+    ) %>%
+    select(id1, period, agegr, mean, median, sd, lower, upper) %>%
+    rename(area_id = id1)
+  
+  ##########
+  admin2  <- samples_ident
+  admin2[,1:1000] <- samples_ident[,1:1000] * samples_ident$ratio2
+  
+  admin2_asfr <- admin2 %>%
+    select(1:1000, id2, period, agegr) %>%
+    group_by(id2, period, agegr) %>%
+    summarise_all(funs(sum))
+  
+  admin2_asfr$mean <- apply(admin2_asfr[, 4:1003], 1, mean)
+  admin2_asfr$median <- apply(admin2_asfr[, 4:1003], 1, median)
+  admin2_asfr$sd <- apply(admin2_asfr[, 4:1003], 1, sd)
+  
+  admin2_asfr  <- admin2_asfr %>%
+    mutate(lower = mean-(qnorm(0.95)*sd),
+           upper = mean+(qnorm(0.95)*sd)
+    ) %>%
+    select(id2, period, agegr, mean, median, sd, lower, upper) %>%
+    rename(area_id = id2)
+  
+  
+  ##############
+  
+  
+  admin3  <- samples_ident
+  admin3[,1:1000] <- samples_ident[,1:1000] * samples_ident$ratio3
+  
+  admin3_asfr <- admin3 %>%
+    select(1:1000, id3, period, agegr) %>%
+    group_by(id3, period, agegr) %>%
+    summarise_all(funs(sum))
+  
+  admin3_asfr$mean <- apply(admin3_asfr[, 4:1003], 1, mean)
+  admin3_asfr$median <- apply(admin3_asfr[, 4:1003], 1, median)
+  admin3_asfr$sd <- apply(admin3_asfr[, 4:1003], 1, sd)
+  
+  admin3_asfr  <- admin3_asfr %>%
+    mutate(lower = mean-(qnorm(0.95)*sd),
+           upper = mean+(qnorm(0.95)*sd)
+    ) %>%
+    select(id3, period, agegr, mean, median, sd, lower, upper) %>%
+    rename(area_id = id3)
+  
+  #############
+  
+  admin4  <- samples_ident
+  admin4[,1:1000] <- samples_ident[,1:1000] * samples_ident$ratio4
+  
+  admin4_asfr <- admin4 %>%
+    select(1:1000, id4, period, agegr) %>%
+    group_by(id4, period, agegr) %>%
+    summarise_all(funs(sum))
+  
+  admin4_asfr$mean <- apply(admin4_asfr[, 4:1003], 1, mean)
+  admin4_asfr$median <- apply(admin4_asfr[, 4:1003], 1, median)
+  admin4_asfr$sd <- apply(admin4_asfr[, 4:1003], 1, sd)
+  
+  admin4_asfr  <- admin4_asfr %>%
+    mutate(lower = mean-(qnorm(0.95)*sd),
+           upper = mean+(qnorm(0.95)*sd)
+    ) %>%
+    select(id4, period, agegr, mean, median, sd, lower, upper) %>%
+    rename(area_id = id4)
+  
+  
+  ####################################
+  
+  admin0_tfr <- admin0 %>%
+    select(1:1000, id0, period) %>%
+    group_by(id0, period) %>%
+    summarise_all(function(x){5*sum(x)})
+  
+  admin0_tfr$mean <- apply(admin0_tfr[, 4:1002], 1, mean)
+  admin0_tfr$median <- apply(admin0_tfr[, 4:1002], 1, median)
+  admin0_tfr$sd <- apply(admin0_tfr[, 4:1002], 1, sd)
+  
+  admin0_tfr <- admin0_tfr %>%
+    mutate(lower = mean-(qnorm(0.95)*sd),
+           upper = mean+(qnorm(0.95)*sd)
+    ) %>%
+    select(id0, period, mean, median, sd, lower, upper) %>%
+    rename(area_id = id0)
+  
+  ###########
+  
+  admin1_tfr <- admin1 %>%
+    select(1:1000, id1, period) %>%
+    group_by(id1, period) %>%
+    summarise_all(function(x){5*sum(x)})
+  
+  
+  admin1_tfr$mean <- apply(admin1_tfr[, 4:1002], 1, mean)
+  admin1_tfr$median <- apply(admin1_tfr[, 4:1002], 1, median)
+  admin1_tfr$sd <- apply(admin1_tfr[, 4:1002], 1, sd)
+  
+  admin1_tfr <- admin1_tfr %>%
+    mutate(lower = mean-(qnorm(0.95)*sd),
+           upper = mean+(qnorm(0.95)*sd)
+    ) %>%
+    select(id1, period, mean, median, sd, lower, upper) %>%
+    rename(area_id = id1)
+  
+  #############
+  
+  admin2_tfr <- admin2 %>%
+    select(1:1000, id2, period) %>%
+    group_by(id2, period) %>%
+    summarise_all(function(x){5*sum(x)})
+  
+  admin2_tfr$mean <- apply(admin2_tfr[, 4:1002], 1, mean)
+  admin2_tfr$median <- apply(admin2_tfr[, 4:1002], 1, median)
+  admin2_tfr$sd <- apply(admin2_tfr[, 4:1002], 1, sd)
+  
+  admin2_tfr  <- admin2_tfr %>%
+    mutate(lower = mean-(qnorm(0.95)*sd),
+           upper = mean+(qnorm(0.95)*sd)
+    ) %>%
+    select(id2, period, mean, median, sd, lower, upper) %>%
+    rename(area_id = id2)
+  
+  ##############
+  
+  admin3_tfr <- admin3 %>%
+    select(1:1000, id3, period) %>%
+    group_by(id3, period) %>%
+    summarise_all(function(x){5*sum(x)})
+  
+  admin3_tfr$mean <- apply(admin3_tfr[, 4:1002], 1, mean)
+  admin3_tfr$median <- apply(admin3_tfr[, 4:1002], 1, median)
+  admin3_tfr$sd <- apply(admin3_tfr[, 4:1002], 1, sd)
+  
+  admin3_tfr  <- admin3_tfr %>%
+    mutate(lower = mean-(qnorm(0.95)*sd),
+           upper = mean+(qnorm(0.95)*sd)
+    ) %>%
+    select(id3, period, mean, median, sd, lower, upper) %>%
+    rename(area_id = id3)
+  
+  
+  ##########
+  
+  admin4_tfr <- admin4 %>%
+    select(1:1000, id4, period) %>%
+    group_by(id4, period) %>%
+    summarise_all(function(x){5*sum(x)})
+  
+  admin4_tfr$mean <- apply(admin4_tfr[, 4:1002], 1, mean)
+  admin4_tfr$median <- apply(admin4_tfr[, 4:1002], 1, median)
+  admin4_tfr$sd <- apply(admin4_tfr[, 4:1002], 1, sd)
+  
+  admin4_tfr  <- admin4_tfr %>%
+    mutate(lower = mean-(qnorm(0.95)*sd),
+           upper = mean+(qnorm(0.95)*sd)
+    ) %>%
+    select(id4, period, mean, median, sd, lower, upper) %>%
+    rename(area_id = id4)
+  
+  mod_results <- list()
+  
+  mod_results$asfr <- admin0_asfr %>%
+    bind_rows(admin1_asfr, admin2_asfr, admin3_asfr, admin4_asfr) %>%
+    left_join(areas_long %>% select(-parent_area_id), by="area_id") %>%
+    mutate(source = "Model",
+           variable = "asfr") %>%
+    select(-c(mean, sd)) %>%
+    filter(!is.na(area_id))
+  
+  mod_results$tfr <- admin0_tfr %>%
+    bind_rows(admin1_tfr, admin2_tfr, admin3_tfr, admin4_tfr) %>%
+    left_join(areas_long %>% select(-parent_area_id), by="area_id") %>%
+    mutate(source = "Model",
+           variable = "tfr") %>%
+    select(-c(mean, sd)) %>%
+    filter(!is.na(area_id))
+  
+  
+  mod_results$births_by_age <- mod_results$asfr %>%
+    #select(-variable) %>%
+    left_join(worldpop_rep %>% select(c(id, age, population, year)), by=c("agegr" = "age", "period" = "year", "area_id" = "id")) %>%
+    mutate(val = median*population,
+           lower = lower*population,
+           upper = upper*population,
+           variable = "births",
+           source = "Model"
+    ) %>%
+    select(-c(population, median))
+  
+  mod_results$births <- mod_results$births_by_age %>%
+    group_by(iso3, area_id, area_name, area_level, period, source, variable) %>%
+    summarise(val = sum(val),
+              lower = sum(lower),
+              upper = sum(upper))
+  
+  return(mod_results)
+  
+}
