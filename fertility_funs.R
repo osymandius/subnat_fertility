@@ -159,10 +159,17 @@ calc_asfr1 <- function(data,
   return(pred)
 }
 
-ir_by_area <- function(ir, area_list) {
-  ir %>%
+ir_by_area2 <- function(ir, area_list, n, total) {
+  
+  print(paste(n, "of", total))
+  
+  ir_int <- ir %>%
     left_join(area_list, by=c("v001" = "cluster_id")) %>%
-    filter(!is.na(area_id))
+    filter(!is.na(area_id)) %>%
+    group_split(area_id)
+  
+  return(ir_int)
+  
 }
 
 
@@ -195,7 +202,7 @@ repeat_formulae <- function(formulae, country_number) {
   return(formulae)
 }
 
-get_pred <- function(mod_list, asfr_pred, asfr1) {
+get_pred <- function(mod_list, asfr_pred, asfr1, ...) {
   
   pred_size <- nrow(asfr_pred) - nrow(asfr1)
   
@@ -254,12 +261,12 @@ run_mod <- function(formulae, asfr_pred, model_family) {
 }
 
 
-get_mod_results <- function(mod, asfr_pred_country_subnat, pop_areas, areas_long, worldpop_rep) {
+get_mod_results <- function(mod, asfr_pred_country_subnat, pop_areas, areas_long, population_age_female) {
   
   asfr1_country_subnat <- asfr_pred_country_subnat %>%
     filter(!is.na(surveyid))
   
-  iso3 <- countrycode(unique(asfr_pred_country_subnat$country), "country.name", "iso3c")
+  iso3 <- ifelse(unique(asfr_pred_country_subnat$country) == "Eswatini", "SWZ", countrycode(unique(asfr_pred_country_subnat$country), "country.name", "iso3c"))
   
   print("Sampling..")
   samples <- inla.posterior.sample(1000, mod)
@@ -274,17 +281,17 @@ get_mod_results <- function(mod, asfr_pred_country_subnat, pop_areas, areas_long
   samples.effect = lapply(samples, function(x) x$latent[ind.effect] %>% exp)
   
   ident <- asfr_pred_country_subnat[ind.effect, ] %>%
-    select(area_name, agegr, period) %>%
+    select(area_id, agegr, period) %>%
     mutate(iso3 = iso3) %>%
-    left_join(pop_areas %>% filter(startage>=15, startage<50, agespan==5), by=c("area_name" = "name", "period" = "year", "agegr" = "age", "iso3")) %>%
+    left_join(pop_areas) %>%
     filter(period>1999) %>%
     mutate(ratio0 = population/id0_agepop,
            ratio1 = population/id1_agepop,
            ratio2 = population/id2_agepop,
            ratio3 = population/id3_agepop,
-           ratio4 = population/id4_agepop
-    ) %>%
-    rename(area_id = id)
+           ratio4 = population/id4_agepop,
+           ratio5 = population/id5_agepop
+    )
   
   samples_ident <- sapply(samples.effect, cbind) %>%
     data.frame %>%
@@ -300,8 +307,8 @@ get_mod_results <- function(mod, asfr_pred_country_subnat, pop_areas, areas_long
   admin0[,1:1000] <- samples_ident[,1:1000] * samples_ident$ratio0
   
   admin0_asfr <- admin0 %>%
-    select(1:1000, id0, period, agegr) %>%
-    group_by(id0, period, agegr) %>%
+    select(1:1000, area_id0, period, agegr) %>%
+    group_by(area_id0, period, agegr) %>%
     summarise_all(funs(sum))
   
   admin0_asfr$mean <- apply(admin0_asfr[, 4:1003], 1, mean)
@@ -312,8 +319,8 @@ get_mod_results <- function(mod, asfr_pred_country_subnat, pop_areas, areas_long
     mutate(lower = mean-(qnorm(0.95)*sd),
            upper = mean+(qnorm(0.95)*sd)
     ) %>%
-    select(id0, period, agegr, mean, median, sd, lower, upper) %>%
-    rename(area_id = id0)
+    select(area_id0, period, agegr, mean, median, sd, lower, upper) %>%
+    rename(area_id = area_id0)
   
   ###########
   
@@ -321,8 +328,8 @@ get_mod_results <- function(mod, asfr_pred_country_subnat, pop_areas, areas_long
   admin1[,1:1000] <- samples_ident[,1:1000] * samples_ident$ratio1
   
   admin1_asfr <- admin1 %>%
-    select(1:1000, id1, period, agegr) %>%
-    group_by(id1, period, agegr) %>%
+    select(1:1000, area_id1, period, agegr) %>%
+    group_by(area_id1, period, agegr) %>%
     summarise_all(funs(sum))
   
   admin1_asfr$mean <- apply(admin1_asfr[, 4:1003], 1, mean)
@@ -333,16 +340,16 @@ get_mod_results <- function(mod, asfr_pred_country_subnat, pop_areas, areas_long
     mutate(lower = mean-(qnorm(0.95)*sd),
            upper = mean+(qnorm(0.95)*sd)
     ) %>%
-    select(id1, period, agegr, mean, median, sd, lower, upper) %>%
-    rename(area_id = id1)
+    select(area_id1, period, agegr, mean, median, sd, lower, upper) %>%
+    rename(area_id = area_id1)
   
   ##########
   admin2  <- samples_ident
   admin2[,1:1000] <- samples_ident[,1:1000] * samples_ident$ratio2
   
   admin2_asfr <- admin2 %>%
-    select(1:1000, id2, period, agegr) %>%
-    group_by(id2, period, agegr) %>%
+    select(1:1000, area_id2, period, agegr) %>%
+    group_by(area_id2, period, agegr) %>%
     summarise_all(funs(sum))
   
   admin2_asfr$mean <- apply(admin2_asfr[, 4:1003], 1, mean)
@@ -353,8 +360,8 @@ get_mod_results <- function(mod, asfr_pred_country_subnat, pop_areas, areas_long
     mutate(lower = mean-(qnorm(0.95)*sd),
            upper = mean+(qnorm(0.95)*sd)
     ) %>%
-    select(id2, period, agegr, mean, median, sd, lower, upper) %>%
-    rename(area_id = id2)
+    select(area_id2, period, agegr, mean, median, sd, lower, upper) %>%
+    rename(area_id = area_id2)
   
   
   ##############
@@ -364,8 +371,8 @@ get_mod_results <- function(mod, asfr_pred_country_subnat, pop_areas, areas_long
   admin3[,1:1000] <- samples_ident[,1:1000] * samples_ident$ratio3
   
   admin3_asfr <- admin3 %>%
-    select(1:1000, id3, period, agegr) %>%
-    group_by(id3, period, agegr) %>%
+    select(1:1000, area_id3, period, agegr) %>%
+    group_by(area_id3, period, agegr) %>%
     summarise_all(funs(sum))
   
   admin3_asfr$mean <- apply(admin3_asfr[, 4:1003], 1, mean)
@@ -376,8 +383,8 @@ get_mod_results <- function(mod, asfr_pred_country_subnat, pop_areas, areas_long
     mutate(lower = mean-(qnorm(0.95)*sd),
            upper = mean+(qnorm(0.95)*sd)
     ) %>%
-    select(id3, period, agegr, mean, median, sd, lower, upper) %>%
-    rename(area_id = id3)
+    select(area_id3, period, agegr, mean, median, sd, lower, upper) %>%
+    rename(area_id = area_id3)
   
   #############
   
@@ -385,8 +392,8 @@ get_mod_results <- function(mod, asfr_pred_country_subnat, pop_areas, areas_long
   admin4[,1:1000] <- samples_ident[,1:1000] * samples_ident$ratio4
   
   admin4_asfr <- admin4 %>%
-    select(1:1000, id4, period, agegr) %>%
-    group_by(id4, period, agegr) %>%
+    select(1:1000, area_id4, period, agegr) %>%
+    group_by(area_id4, period, agegr) %>%
     summarise_all(funs(sum))
   
   admin4_asfr$mean <- apply(admin4_asfr[, 4:1003], 1, mean)
@@ -397,15 +404,36 @@ get_mod_results <- function(mod, asfr_pred_country_subnat, pop_areas, areas_long
     mutate(lower = mean-(qnorm(0.95)*sd),
            upper = mean+(qnorm(0.95)*sd)
     ) %>%
-    select(id4, period, agegr, mean, median, sd, lower, upper) %>%
-    rename(area_id = id4)
+    select(area_id4, period, agegr, mean, median, sd, lower, upper) %>%
+    rename(area_id = area_id4)
+  
+  #############
+  
+  admin5  <- samples_ident
+  admin5[,1:1000] <- samples_ident[,1:1000] * samples_ident$ratio5
+  
+  admin5_asfr <- admin5 %>%
+    select(1:1000, area_id5, period, agegr) %>%
+    group_by(area_id5, period, agegr) %>%
+    summarise_all(funs(sum))
+  
+  admin5_asfr$mean <- apply(admin5_asfr[, 4:1003], 1, mean)
+  admin5_asfr$median <- apply(admin5_asfr[, 4:1003], 1, median)
+  admin5_asfr$sd <- apply(admin5_asfr[, 4:1003], 1, sd)
+  
+  admin5_asfr  <- admin5_asfr %>%
+    mutate(lower = mean-(qnorm(0.95)*sd),
+           upper = mean+(qnorm(0.95)*sd)
+    ) %>%
+    select(area_id5, period, agegr, mean, median, sd, lower, upper) %>%
+    rename(area_id = area_id5)
   
   
   ####################################
   
   admin0_tfr <- admin0 %>%
-    select(1:1000, id0, period) %>%
-    group_by(id0, period) %>%
+    select(1:1000, area_id0, period) %>%
+    group_by(area_id0, period) %>%
     summarise_all(function(x){5*sum(x)})
   
   admin0_tfr$mean <- apply(admin0_tfr[, 4:1002], 1, mean)
@@ -416,14 +444,14 @@ get_mod_results <- function(mod, asfr_pred_country_subnat, pop_areas, areas_long
     mutate(lower = mean-(qnorm(0.95)*sd),
            upper = mean+(qnorm(0.95)*sd)
     ) %>%
-    select(id0, period, mean, median, sd, lower, upper) %>%
-    rename(area_id = id0)
+    select(area_id0, period, mean, median, sd, lower, upper) %>%
+    rename(area_id = area_id0)
   
   ###########
   
   admin1_tfr <- admin1 %>%
-    select(1:1000, id1, period) %>%
-    group_by(id1, period) %>%
+    select(1:1000, area_id1, period) %>%
+    group_by(area_id1, period) %>%
     summarise_all(function(x){5*sum(x)})
   
   
@@ -435,14 +463,14 @@ get_mod_results <- function(mod, asfr_pred_country_subnat, pop_areas, areas_long
     mutate(lower = mean-(qnorm(0.95)*sd),
            upper = mean+(qnorm(0.95)*sd)
     ) %>%
-    select(id1, period, mean, median, sd, lower, upper) %>%
-    rename(area_id = id1)
+    select(area_id1, period, mean, median, sd, lower, upper) %>%
+    rename(area_id = area_id1)
   
   #############
   
   admin2_tfr <- admin2 %>%
-    select(1:1000, id2, period) %>%
-    group_by(id2, period) %>%
+    select(1:1000, area_id2, period) %>%
+    group_by(area_id2, period) %>%
     summarise_all(function(x){5*sum(x)})
   
   admin2_tfr$mean <- apply(admin2_tfr[, 4:1002], 1, mean)
@@ -453,14 +481,14 @@ get_mod_results <- function(mod, asfr_pred_country_subnat, pop_areas, areas_long
     mutate(lower = mean-(qnorm(0.95)*sd),
            upper = mean+(qnorm(0.95)*sd)
     ) %>%
-    select(id2, period, mean, median, sd, lower, upper) %>%
-    rename(area_id = id2)
+    select(area_id2, period, mean, median, sd, lower, upper) %>%
+    rename(area_id = area_id2)
   
   ##############
   
   admin3_tfr <- admin3 %>%
-    select(1:1000, id3, period) %>%
-    group_by(id3, period) %>%
+    select(1:1000, area_id3, period) %>%
+    group_by(area_id3, period) %>%
     summarise_all(function(x){5*sum(x)})
   
   admin3_tfr$mean <- apply(admin3_tfr[, 4:1002], 1, mean)
@@ -471,15 +499,15 @@ get_mod_results <- function(mod, asfr_pred_country_subnat, pop_areas, areas_long
     mutate(lower = mean-(qnorm(0.95)*sd),
            upper = mean+(qnorm(0.95)*sd)
     ) %>%
-    select(id3, period, mean, median, sd, lower, upper) %>%
-    rename(area_id = id3)
+    select(area_id3, period, mean, median, sd, lower, upper) %>%
+    rename(area_id = area_id3)
   
   
   ##########
   
   admin4_tfr <- admin4 %>%
-    select(1:1000, id4, period) %>%
-    group_by(id4, period) %>%
+    select(1:1000, area_id4, period) %>%
+    group_by(area_id4, period) %>%
     summarise_all(function(x){5*sum(x)})
   
   admin4_tfr$mean <- apply(admin4_tfr[, 4:1002], 1, mean)
@@ -490,13 +518,36 @@ get_mod_results <- function(mod, asfr_pred_country_subnat, pop_areas, areas_long
     mutate(lower = mean-(qnorm(0.95)*sd),
            upper = mean+(qnorm(0.95)*sd)
     ) %>%
-    select(id4, period, mean, median, sd, lower, upper) %>%
-    rename(area_id = id4)
+    select(area_id4, period, mean, median, sd, lower, upper) %>%
+    rename(area_id = area_id4)
+  
+  
+  #############
+  
+  
+  admin5_tfr <- admin5 %>%
+    select(1:1000, area_id5, period) %>%
+    group_by(area_id5, period) %>%
+    summarise_all(function(x){5*sum(x)})
+  
+  admin5_tfr$mean <- apply(admin5_tfr[, 4:1002], 1, mean)
+  admin5_tfr$median <- apply(admin5_tfr[, 4:1002], 1, median)
+  admin5_tfr$sd <- apply(admin5_tfr[, 4:1002], 1, sd)
+  
+  admin5_tfr  <- admin5_tfr %>%
+    mutate(lower = mean-(qnorm(0.95)*sd),
+           upper = mean+(qnorm(0.95)*sd)
+    ) %>%
+    select(area_id5, period, mean, median, sd, lower, upper) %>%
+    rename(area_id = area_id5)
+  
+  
+  #######
   
   mod_results <- list()
   
   mod_results$asfr <- admin0_asfr %>%
-    bind_rows(admin1_asfr, admin2_asfr, admin3_asfr, admin4_asfr) %>%
+    bind_rows(admin1_asfr, admin2_asfr, admin3_asfr, admin4_asfr, admin5_asfr) %>%
     left_join(areas_long %>% select(-parent_area_id), by="area_id") %>%
     mutate(source = "Model",
            variable = "asfr") %>%
@@ -504,7 +555,7 @@ get_mod_results <- function(mod, asfr_pred_country_subnat, pop_areas, areas_long
     filter(!is.na(area_id))
   
   mod_results$tfr <- admin0_tfr %>%
-    bind_rows(admin1_tfr, admin2_tfr, admin3_tfr, admin4_tfr) %>%
+    bind_rows(admin1_tfr, admin2_tfr, admin3_tfr, admin4_tfr, admin5_tfr) %>%
     left_join(areas_long %>% select(-parent_area_id), by="area_id") %>%
     mutate(source = "Model",
            variable = "tfr") %>%
@@ -514,7 +565,7 @@ get_mod_results <- function(mod, asfr_pred_country_subnat, pop_areas, areas_long
   
   mod_results$births_by_age <- mod_results$asfr %>%
     #select(-variable) %>%
-    left_join(worldpop_rep %>% select(c(id, age, population, year)), by=c("agegr" = "age", "period" = "year", "area_id" = "id")) %>%
+    left_join(population_age_female %>% select(area_id, agegr, period, population)) %>%
     mutate(val = median*population,
            lower = lower*population,
            upper = upper*population,
@@ -529,6 +580,190 @@ get_mod_results <- function(mod, asfr_pred_country_subnat, pop_areas, areas_long
               lower = sum(lower),
               upper = sum(upper))
   
+  
   return(mod_results)
   
+}
+
+
+get_mod_results_test <- function(mod, asfr_pred_country_subnat) {
+
+  
+  asfr1_country_subnat <- asfr_pred_country_subnat %>%
+    filter(!is.na(surveyid))
+  
+  iso3 <- ifelse(unique(asfr_pred_country_subnat$country) == "Eswatini", "SWZ", countrycode(unique(asfr_pred_country_subnat$country), "country.name", "iso3c"))
+  
+  print("Sampling..")
+  samples <- inla.posterior.sample(1000, mod)
+  print("Done sampling")
+  contents = mod$misc$configs$contents
+  effect = "Predictor"
+  id.effect = which(contents$tag==effect)
+  ind.effect = contents$start[id.effect]-1 + (1:contents$length[id.effect])
+  
+  ind.effect <- 1:(nrow(asfr_pred_country_subnat) - nrow(asfr1_country_subnat))
+  
+  samples.effect = lapply(samples, function(x) x$latent[ind.effect] %>% exp)
+  
+  ident <- asfr_pred_country_subnat[ind.effect, ] %>%
+    select(area_id, agegr, period) %>%
+    mutate(iso3 = iso3)
+  
+    # 
+    # left_join(pop_areas) %>%
+    # filter(period>1999) %>%
+    # mutate(ratio0 = population/id0_agepop,
+    #        ratio1 = population/id1_agepop,
+    #        ratio2 = population/id2_agepop,
+    #        ratio3 = population/id3_agepop,
+    #        ratio4 = population/id4_agepop
+    # )
+  
+  samples_ident <- sapply(samples.effect, cbind) %>%
+    data.frame %>%
+    mutate(id = 1:nrow(.)) %>%
+    left_join(asfr_pred_country_subnat[ind.effect , c(1:4, 25)], by="id") %>%
+    select(-id) %>%
+    left_join(ident) %>%
+    filter(period >1999)
+  
+  samples_ident$median <- apply(samples_ident[, 1:10], 1, median)
+  
+  samples_ident %<>%
+    select(iso3, area_id, period, agegr, median)
+  
+  return(samples_ident)
+  
+}
+
+get_boundaries <- function(iso3_code) {
+  
+  area_file <- paste0("~/Documents/GitHub/naomi-data/", iso3_code, "/data/", tolower(iso3_code), "_areas.geojson")
+  
+  boundary_sf <- read_sf(area_file) %>%
+    mutate(iso3 = iso3_code
+    ) %>%
+    select(iso3, area_id, area_name, area_level, parent_area_id, naomi_level, geometry)
+  
+  return(boundary_sf)
+}
+
+get_wide_areas <- function(iso3_code) {
+  
+  area_file <- paste0("~/Documents/GitHub/naomi-data/", iso3_code, "/data/", tolower(iso3_code), "_areas.geojson")
+  
+  areas <- read_sf(area_file)
+  
+  spread_areas(as.data.frame(areas)) %>%
+    left_join(select(areas, area_id))
+  
+}
+
+
+load_population_agesex <- function(pop_agesex_wide_path, areas_path) {
+
+    wide <- readRDS(pop_agesex_wide_path)
+
+    long <- tidyr::gather(wide, area_id, population,
+                          tidyselect::matches("^[A-Z]{3}[^a-zA-Z]*$",
+                                              ignore.case = FALSE))
+
+    if(!is.null(areas_path)) {
+      areas <- readRDS(areas_path)
+      long <- dplyr::left_join(long,
+                               dplyr::select(areas, -parent_area_id),
+                               by = "area_id")
+      long <- dplyr::select(long, iso3, area_id, area_level, area_name,
+                            dplyr::everything())
+    }
+
+    long
+  }
+
+
+interpolate_fertility_population <- function(population_agesex, calendar_quarters) {
+  
+  population_agesex <- population_age_female
+  calendar_quarters <- calendar_quarter_targets
+  
+  quarter_ids <- calendar_quarter_to_quarter_id(calendar_quarters)
+  dfall <- dplyr::distinct(dplyr::select(population_agesex, -calendar_quarter, -population, -quarter_id))
+  
+  df <- dplyr::select(population_agesex, calendar_quarter, area_id, source, sex, age_group, population) %>%
+    dplyr::mutate(quarter_id = calendar_quarter_to_quarter_id(calendar_quarter))
+  
+  tidyr::expand(df,
+                tidyr::nesting(calendar_quarter = calendar_quarters, quarter_id = quarter_ids),
+                tidyr::nesting(area_id, source, sex, age_group)) %>%
+    dplyr::full_join(df, by = names(.)) %>%
+    dplyr::group_by(area_id, source, sex, age_group) %>%
+    dplyr::mutate(population = exp(zoo::na.approx(log(population), quarter_id, na.rm = FALSE)),
+                  population = tidyr::replace_na(population, 0)) %>%
+    dplyr::ungroup() %>%
+    dplyr::filter(quarter_id %in% quarter_ids) %>%
+    mutate(period = year_labels(quarter_id)) %>%
+    left_join(get_age_groups() %>% select(age_group, age_group_label)) %>%
+    select(area_id, period, age_group_label, population) %>%
+    rename(agegr = age_group_label)
+  
+}
+
+UniquePanelCoords <- ggplot2::ggproto(
+  "UniquePanelCoords", ggplot2::CoordCartesian,
+  
+  num_of_panels = 1,
+  panel_counter = 1,
+  panel_ranges = NULL,
+  
+  setup_layout = function(self, layout, params) {
+    self$num_of_panels <- length(unique(layout$PANEL))
+    self$panel_counter <- 1
+    layout
+  },
+  
+  setup_panel_params =  function(self, scale_x, scale_y, params = list()) {
+    if (!is.null(self$panel_ranges) & length(self$panel_ranges) != self$num_of_panels)
+      stop("Number of panel ranges does not equal the number supplied")
+    
+    train_cartesian <- function(scale, limits, name, given_range = NULL) {
+      if (is.null(given_range))
+        range <- ggplot2:::scale_range(scale, limits, self$expand)
+      else
+        range <- given_range
+      
+      out <- scale$break_info(range)
+      out$arrange <- scale$axis_order()
+      names(out) <- paste(name, names(out), sep = ".")
+      out
+    }
+    
+    cur_panel_ranges <- self$panel_ranges[[self$panel_counter]]
+    if (self$panel_counter < self$num_of_panels)
+      self$panel_counter <- self$panel_counter + 1
+    else
+      self$panel_counter <- 1
+    
+    c(train_cartesian(scale_x, self$limits$x, "x", cur_panel_ranges$x),
+      train_cartesian(scale_y, self$limits$y, "y", cur_panel_ranges$y))
+  }
+)
+
+coord_panel_ranges <- function(panel_ranges, expand = TRUE, default = FALSE, clip = "on") 
+{
+  ggplot2::ggproto(NULL, UniquePanelCoords, panel_ranges = panel_ranges, 
+                   expand = expand, default = default, clip = clip)
+}
+
+grid_arrange_shared_legend <- function(...) {
+  plots <- list(...)
+  g <- ggplotGrob(plots[[1]] + theme(legend.position="right"))$grobs
+  legend <- g[[which(sapply(g, function(x) x$name) == "guide-box")]]
+  lheight <- sum(legend$height)
+  grid.arrange(
+    do.call(arrangeGrob, lapply(plots, function(x)
+      x + theme(legend.position="none"))),
+    legend,
+    ncol = 3,
+    heights = unit.c(unit(1, "npc") - lheight, lheight))
 }
