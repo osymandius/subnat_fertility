@@ -551,7 +551,7 @@ get_mod_results <- function(mod, asfr_pred_country_subnat, pop_areas, areas_long
     left_join(areas_long %>% select(-parent_area_id), by="area_id") %>%
     mutate(source = "Model",
            variable = "asfr") %>%
-    select(-c(mean, sd)) %>%
+    #select(-c(mean, sd)) %>%
     filter(!is.na(area_id))
   
   mod_results$tfr <- admin0_tfr %>%
@@ -559,7 +559,7 @@ get_mod_results <- function(mod, asfr_pred_country_subnat, pop_areas, areas_long
     left_join(areas_long %>% select(-parent_area_id), by="area_id") %>%
     mutate(source = "Model",
            variable = "tfr") %>%
-    select(-c(mean, sd)) %>%
+    #select(-c(mean, sd)) %>%
     filter(!is.na(area_id))
   
   
@@ -683,9 +683,6 @@ load_population_agesex <- function(pop_agesex_wide_path, areas_path) {
 
 
 interpolate_fertility_population <- function(population_agesex, calendar_quarters) {
-  
-  population_agesex <- population_age_female
-  calendar_quarters <- calendar_quarter_targets
   
   quarter_ids <- calendar_quarter_to_quarter_id(calendar_quarters)
   dfall <- dplyr::distinct(dplyr::select(population_agesex, -calendar_quarter, -population, -quarter_id))

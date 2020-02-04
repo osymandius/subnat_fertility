@@ -1,9 +1,30 @@
+library(countrycode)
+library(tidyverse)
+library(magrittr)
+library(rdhs)
+library(demogsurv)
+library(INLA)
+library(reshape2)
+library(survival)
+library(sf)
+library(spdep)
+library(parallel)
+library(viridis)
+library(tidyr)
+library(parallel)
+
+setwd("~/Documents/GitHub/subnat_fertility")
+source("fertility_funs.R")
+boundaries <- readRDS("~/Documents/GitHub/naomi-data/data/area_boundaries.rds")
+areas_long <- readRDS("~/Documents/GitHub/naomi-data/data/area_hierarchy.rds")
+areas_wide <- readRDS("~/Documents/GitHub/naomi-data/data/areas_wide.rds")
+
 dhs_iso3 <- dhs_countries(returnFields=c("CountryName", "DHS_CountryCode")) %>%
   mutate(iso3 = countrycode(CountryName, "country.name", "iso3c"),
          iso3 = ifelse(CountryName == "Eswatini", "SWZ", iso3))
 
 ## Get cluster coordinates
-clusters <- readRDS("~/Documents/GitHub/naomi-data-edit/oli_cluster.rds") %>%
+clusters <- readRDS("~/Documents/GitHub/naomi-data-edit/oli_cluster2.rds") %>%
   mutate(iso3 = survey_id) %>%
   separate(col="iso3", into="iso3", sep=3) %>%
   left_join(dhs_iso3 %>% select(-CountryName), by="iso3") %>%
@@ -17,15 +38,25 @@ iso3 <- as.list(clusters %>% .$iso3 %>% unique)
 ## Get surveys for which we have clusters. Split into country list.
 surveys <- dhs_surveys(surveyIds = unique(clusters$DHS_survey_id)) %>%
   left_join(clusters %>% select(c(DHS_survey_id, survey_id)) %>% distinct, by=c("SurveyId" = "DHS_survey_id")) %>%
-  #filter(CountryName == "Zimbabwe") %>%
+  filter(CountryName != "Ethiopia", SurveyType != "AIS") %>%
   group_split(CountryName)
 
 areas <- readRDS("~/Documents/GitHub/naomi-data/data/areas/areas_long.rds") %>%
   inner_join(clusters, by=c("area_id" = "geoloc_area_id", "iso3")) %>%
-  filter(iso3 == "ZWE")
-  left_join(readRDS("~/Documents/GitHub/naomi-data/data/areas/areas_wide.rds") %>% select(area_id, name4, id4), by=c("area_id")) %>%
+  filter(!iso3 %in% c("MWI", "ETH"))
+
+areas_mwi <- readRDS("~/Documents/GitHub/naomi-data/data/areas/areas_long.rds") %>%
+  inner_join(clusters, by=c("area_id" = "geoloc_area_id", "iso3")) %>%
+  filter(iso3 == "MWI") %>%
+  left_join(areas_wide %>% select(area_id, name4, id4), by=c("area_id")) %>%
   select(-c(area_id, area_name, parent_area_id, area_level)) %>%
   rename(area_name = name4, area_id = id4)
+
+areas <- areas %>%
+  bind_rows(areas_mwi) %>%
+  separate(survey_id, into=c(NA, "SurveyType"), sep=-3, remove=FALSE) %>%
+  filter(SurveyType != "AIS") %>%
+  select(-SurveyType)
 
 ird <- lapply(surveys, function(surveys) {
   dhs_datasets(fileType = "IR", fileFormat = "flat", surveyIds = surveys$SurveyId)
@@ -49,24 +80,11 @@ ir <- unlist(lapply(ird, "[", "path")) %>%
     bind_rows %>%
     group_split(SurveyId))
 
-ir_by_area2 <- function(ir, area_list) {
-  
-  print("run done")
-  
-  ir_int <- ir %>%
-    left_join(area_list, by=c("v001" = "cluster_id")) %>%
-    filter(!is.na(area_id)) %>%
-    group_split(area_id)
-  
-  return(ir_int)
-  
-}
-
 area_list <- areas %>%
   group_by(survey_id) %>%
   group_split(keep=TRUE)
 
-ir_area <- Map(ir_by_area2, ir, area_list) %>%
+ir_area <- Map(ir_by_area2, ir, area_list, n=1:length(ir), total=length(ir)) %>% 
   unlist(recursive = FALSE)
 
 
@@ -84,15 +102,15 @@ names(ir_area) <- sapply(ir_area,  function(x) {
 })
 
 
-tips_surv <- list("DHS" = c(0:10), "MIS" = c(0:5), "AIS" = c(0:5))[test$survtype]
+tips_surv <- list("DHS" = c(0:15), "MIS" = c(0:5), "AIS" = c(0:5))[test$survtype]
 tips_surv <- list("DHS" = c(0:10), "MIS" = c(0:5), "AIS" = c(0:5))[surveys %>%
                                                                      bind_rows %>%
                                                                      .$SurveyType]
 
-asfr_zwe <- Map(calc_asfr1, ir,
-            y=1:length(ir),
-            by = list(~country + surveyid + survtype + survyear),
-            tips = tips_surv,
+asfr <- Map(calc_asfr1, ir_area,
+            y=1:length(ir_area),
+            by = list(~country + surveyid + survtype + survyear + area_name + area_id),
+            tips = list(0:10),
             agegr= list(3:10*5),
             #period = list(seq(1995, 2017, by=0.5)),
             period = list((1995*1):(2017*1)*(1/1)),
