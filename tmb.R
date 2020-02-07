@@ -54,7 +54,8 @@ log_offset <- asfr %>%
   select(-births) %>%
   mutate(agegr = as.numeric(factor(agegr)), pys = log(pys)) %>%
   pivot_wider(names_from = agegr, values_from = pys) %>%
-  complete(period, area_id, fill=map(asfr[2:9], ~NA)) %>%
+  complete(period, area_id, fill=map(asfr[3:9], ~NA)) %>%
+  mutate_if(is.numeric , replace_na, replace = -999) %>%
   select(-period) %>%
   nest(-area_id) %>%
   mutate(data = map(data, ~as.matrix(.x))) %>%
@@ -117,26 +118,32 @@ f <-  MakeADFun(data=list(dat_m = dat_m, log_offset = log_offset, P = as(icar_ad
                                 log_sigma2_U = 0
                                 # log_prec_rw_interaction = 1
                                 ), 
-                # random = c("V", "W"),
+                # ADreport = TRUE,
+                random = c("W"),
                 # map = list(), 
-                DLL = "fertility_tmb")
+                DLL = "fertility_tmb",
+                hessian = TRUE)
 
-f$env$tracepar <- TRUE
+# f$env$tracepar <- FALSE
 # f$report()
 
 fit = nlminb(f$par,f$fn,f$gr, control = list(iter.max = 100000, eval.max = 100000))
-print(fit)
 
-int <- data.frame(agegr = 0:6, intercept = fit$par[1:7], slope = fit$par[8:14])
+opt <- do.call("optim", f)
+rep <- sdreport(f)
+tmb.res <- summary(rep)
 
-crossing(period = 0:21, agegr = 0:6) %>%
+int <- data.frame(agegr = 0:6, intercept = tmb.res[,1][row.names(tmb.res) == "alpha_a"], slope = tmb.res[,1][row.names(tmb.res) == "beta_a"])
+
+crossing(period = 0:21, agegr = 0:6, district = 0:32) %>%
   left_join(int) %>%
-  left_join(data.frame(period = 0:21, rw_time = fit$par[names(fit$par) == "rw_time"])) %>%
-  left_join(data.frame(agegr= 0:6, rw_age = fit$par[names(fit$par) == "rw_age"])) %>%
-  # left_join(data.frame(period = rep(0:21, each=7), agegr = rep(0:6, times=22), interaction = fit$par[names(fit$par) == "rw_interaction"])) %>%
-  mutate(point = exp(intercept + period*slope + rw_time + rw_age)) %>%
+  left_join(data.frame(period = 0:21, rw_time = tmb.res[,1][row.names(tmb.res) == "rw_time"])) %>%
+  left_join(data.frame(agegr= 0:6, rw_age = tmb.res[,1][row.names(tmb.res) == "rw_age"])) %>%
+  left_join(data.frame(district=0:32, v=tmb.res[,1][row.names(tmb.res) == "V"], u = tmb.res[,1][row.names(tmb.res) == "U"])) %>%
+  mutate(point = exp(intercept + period*slope + rw_time + rw_age + v + u)) %>%
   ggplot(aes(x=period, y=point, color=agegr, group=agegr)) +
-    geom_line()
+    geom_line() +
+    facet_wrap(~district)
 
 data.frame(period = rep(0:21, each=7), agegr = rep(0:6, times=22), nu = fit$par[names(fit$par) == "nu"]) %>%
   left_join(int) %>%

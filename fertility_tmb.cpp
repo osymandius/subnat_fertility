@@ -100,21 +100,19 @@ Type objective_function<Type>::operator() ()
     mu_col = log_mu.col(y);
     nll -= dnorm(mu_col, 0, exp(log_prec_epsilon), TRUE).sum();
   }
-  
+
   
   for (int t = 0; t < num_time; t++) {
     for(int a = 0; a < num_age; a++) {
       for(int i = 0; i < num_dist; i++) {
-        std::isnan(log_offset(t,a,i)) ? nll-=0 : nll -= dpois(dat_m(t, a, i), exp(log_mu(t, a, i) + log_offset(t, a, i)), TRUE);
+        if(log_offset(t,a,i) > -100) {
+          nll -= dpois(dat_m(t, a, i), exp(log_mu(t, a, i) + log_offset(t, a, i)), TRUE);
+        }
       }
     }
   }
   
-  
-  REPORT(V);
-  REPORT(W);
-  REPORT(log_sigma2_V);
-  REPORT(log_sigma2_U);
+  ADREPORT(U);
   
   return nll;
   
