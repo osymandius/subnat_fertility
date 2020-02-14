@@ -3,12 +3,11 @@ library(tidyverse)
 library(abind)
 library(sf)
 library(spdep)
-library(INLA)
-devtools::load_all("~/Documents/GitHub/naomi")
+
 setwd("~/Documents/GitHub/subnat_fertility/")
 
-asfr <- readRDS("~/Documents/GitHub/subnat_fertility/asfr_pred_subnat_15_2020_NEW.rds")[["MWI"]]
-boundaries <- readRDS("~/Documents/GitHub/subnat_fertility/area_boundaries.rds")
+asfr <- readRDS("asfr_pred_subnat_15_2020_NEW.rds")[["MWI"]]
+boundaries <- readRDS("input_data/area_boundaries.rds")
 
 iso3_codes <- c("LSO", "MOZ", "MWI", "NAM", "SWZ", "TZA", "UGA", "ZMB", "ZWE")
 
@@ -82,13 +81,14 @@ Q <- INLA::inla.scale.model(diag(rowSums(adj)) - adj,
                                 constr = list(A = matrix(1, 1, nrow(adj)), e = 0))
 
 
-compile("fertility_tmb.cpp")               # Compile the C++ file
-dyn.load(dynlib("fertility_tmb"))
+compile("tmb/fertility_tmb.cpp")               # Compile the C++ file
+dyn.load(dynlib("tmb/fertility_tmb"))
 
 f <-  MakeADFun(data=list(dat_m = dat_m, 
                           log_offset = log_offset, 
                           Q = Q,
-                          Z_i = naomi::sparse_model_matrix(~0 + unique(area_id), asfr)), 
+                          # Z_i = naomi::sparse_model_matrix(~0 + unique(area_id), asfr)
+                          ), 
                 parameters=list(alpha = 0,
                                 rw_time = rep(0,22), 
                                 rw_age = rep(0,7), 
@@ -101,7 +101,6 @@ f <-  MakeADFun(data=list(dat_m = dat_m,
                                 logit_U_rho = 0 # Share of variance between structured and unstructured components
                                 ), 
                 random = c("log_U_sigma", "logit_U_rho"),
-                # map = list(), 
                 DLL = "fertility_tmb",
                 hessian = FALSE,
                 checkParameterOrder=FALSE)
