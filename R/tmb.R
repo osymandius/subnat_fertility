@@ -3,7 +3,8 @@ library(tidyverse)
 library(abind)
 library(sf)
 library(spdep)
-devtools::load_all("~/Documents/GitHub/naomi/")
+library(naomi)
+library(Matrix)
 
 setwd("~/Documents/GitHub/subnat_fertility/")
 
@@ -32,65 +33,58 @@ areas_long <- lapply(paths, read_sf) %>%
 }) %>% 
   bind_rows
 
-dat_m <- asfr %>%
+mf <- crossing(period = factor(1995:2016),
+               agegr = factor(c("15-19", "20-24", "25-29", "30-34", "35-39", "40-44", "45-49")),
+               area_id = filter(areas_long, iso3 == "MWI", area_level == 5)$area_id
+               ) %>%
+  mutate(row_index = factor(row_number()))
+
+
+obs <- asfr %>%
   filter(!is.na(surveyid)) %>%
   select(area_id, period, agegr, tips, births, pys) %>%
-  # complete(period, area_id, fill=map(asfr[2:9], ~NA)) %>%
-  mutate(period = group_indices(., period),
-         area_id = group_indices(., area_id),
-         agegr = group_indices(., agegr),
-         pys = log(pys),
-         pys = ifelse(is.na(pys), -999, pys)
-  )
+  mutate(agegr = factor(agegr, levels(mf$agegr)),
+         period = factor(period))
 
-Z_tips <- data.frame(tips_dummy = ifelse(dat_m$tips > 5, 1, 0)) %>%
-  sparse_model_matrix(~0 + tips_dummy, .)
+obs <- obs %>%
+  left_join(mf, by = c("area_id", "period", "agegr"))
 
-# log_offset <- asfr %>%
-#   filter(!is.na(surveyid)) %>%
-#   select(area_id, period, agegr, tips, births, pys) %>%
-#   group_by(period, agegr, area_id, tips) %>%
-#   summarise_all(sum) %>%
-#   ungroup %>%
-#   select(-births) %>%
-#   complete(period, area_id, fill=map(asfr[3:9], ~NA)) %>%
-#   mutate(period = group_indices(., period),
-#          area_id = group_indices(., area_id),
-#          agegr = group_indices(., agegr)) %>%
-#   mutate_if(is.numeric , replace_na, replace = -999) 
+#' TIPS binary for +/- 5 years
+obs <- obs %>%
+  mutate(tips_dummy = as.integer(tips > 5),
+         tips_f = factor(tips))
 
-# dat_m <- asfr %>%
-#   filter(!is.na(surveyid)) %>%
-#   select(area_id, period, agegr, tips, births, pys) %>%
-#   group_by(period, agegr, area_id, tips) %>%
-#   summarise_all(sum) %>%
-#   ungroup %>%
-#   select(-pys) %>%
-#   mutate(agegr = as.numeric(factor(agegr))) %>%
-#   pivot_wider(names_from = agegr, values_from = births) %>%
-#   complete(period, area_id, fill=map(asfr[2:9], ~NA)) %>%
-#   select(-period) %>%
-#   nest(-area_id) %>%
-#   mutate(data = map(data, ~as.matrix(.x))) %>%
-#   pull(data) %>%
-#   invoke(abind, ., along=3)
+X_mf <- model.matrix(~1 + agegr, mf)
 
-# log_offset <- asfr %>%
-#   filter(!is.na(surveyid)) %>%
-#   select(area_id, period, agegr, births, pys) %>%
-#   group_by(period, agegr, area_id) %>%
-#   summarise_all(sum) %>%
-#   ungroup %>%
-#   select(-births) %>%
-#   mutate(agegr = as.numeric(factor(agegr)), pys = log(pys)) %>%
-#   pivot_wider(names_from = agegr, values_from = pys) %>%
-#   complete(period, area_id, fill=map(asfr[3:9], ~NA)) %>%
-#   mutate_if(is.numeric , replace_na, replace = -999) %>%
-#   select(-period) %>%
-#   nest(-area_id) %>%
-#   mutate(data = map(data, ~as.matrix(.x))) %>%
-#   pull(data) %>%
-#   invoke(abind, ., along=3)
+#' This has dimensions (number of observations) x (number of rows in model frame (i.e crossing of age x time x space))
+#' Many more rows than mf because observations has things we need to adjust for bias (e.g. tips), but not required in model frame. 
+#' Column index (idx) has been joined onto obs dataframe from mf. So now each observation is labelled with the appropriate index in the mf
+M_mf_obs <- Matrix::sparse.model.matrix(~0 + row_index, obs) 
+ 
+### TIPS RANDOM WALK
+
+Z_tips <- Matrix::sparse.model.matrix(~0 + tips_f, obs)
+#' Create precision matrix for RW1
+D_tips <- diff(diag(ncol(Z_tips)), differences = 1)
+Q_tips <- as(t(D_tips) %*% D_tips, "dgCMatrix")
+
+### AGE RANDOM WALK
+
+Z_age <- sparse.model.matrix(~0 + agegr, obs)
+Q_age <- as(INLA:::inla.rw(ncol(Z_age), 1), "dgCMatrix")
+
+### TIME RANDOM WALK
+
+Z_period <- sparse.model.matrix(~0 + period, obs)
+Q_period <- as(INLA:::inla.rw(ncol(Z_period), 2), "dgCMatrix")
+
+### TIPS FIXED EFFECT
+
+X_tips_dummy <- model.matrix(~0 + tips_dummy, obs)
+
+### ICAR
+
+Z_spatial <- sparse.model.matrix(~0 + area_id, obs)
 
 sh <- areas_long %>%
   filter(iso3 == "MWI", naomi_level) %>%
@@ -105,47 +99,52 @@ nb <- sh %>%
   `names<-`(sh$area_idx)
 
 adj <- nb2mat(nb, zero.policy=TRUE, style="B")
-Q <- INLA::inla.scale.model(diag(rowSums(adj)) - adj,
-                                constr = list(A = matrix(1, 1, nrow(adj)), e = 0))
+Q_spatial <- INLA::inla.scale.model(diag(rowSums(adj)) - adj,
+                            constr = list(A = matrix(1, 1, nrow(adj)), e = 0))
 
 
-compile("tmb/fertility_tmb.cpp")               # Compile the C++ file
-dyn.load(dynlib("tmb/fertility_tmb"))
+compile("tmb/fertility_tmb_dev.cpp")               # Compile the C++ file
+dyn.load(dynlib("tmb/fertility_tmb_dev"))
 
-f <-  MakeADFun(data=list(dat_m = as.vector(dat_m$births), 
-                          log_offset = as.vector(dat_m$pys), 
-                          Q = Q,
-                          Z_tips = Z_tips
-                          # Z_i = naomi::sparse_model_matrix(~0 + unique(area_id), asfr)
-                          ), 
-                parameters=list(alpha = 0,
-                                rw_time = rep(0,22), 
-                                rw_age = rep(0,7), 
-                                rw_tips = rep(0, 15),
-                                log_epsilon = 0,
-                                log_sigma_rw_age = 0,
-                                log_sigma_rw_time = 0,
-                                log_sigma_rw_tips = 0,
-                                U_str = rep(0,33),
-                                U_iid = rep(0,33), 
-                                log_sigma_U = 0, # Variance
-                                logit_U_rho = 0 # Share of variance between structured and unstructured components
-                                ), 
-                random = c("log_sigma_U", "logit_U_rho"),
-                DLL = "fertility_tmb",
-                hessian = FALSE,
+data <- list(X_mf = X_mf,
+             M_all_observations = M_mf_obs,
+             X_tips_dummy = X_tips_dummy,
+             Z_tips = Z_tips,
+             Z_age = Z_age,
+             Z_period = Z_period,
+             Z_spatial = Z_spatial,
+             Q_tips = Q_tips,
+             Q_age = Q_age,
+             Q_period = Q_period,
+             Q_spatial = Q_spatial,
+             log_offset = log(obs$pys),
+             births_obs = obs$births)
+
+par <- list(beta_mf = rep(0, ncol(X_mf)),
+            beta_tips_dummy = rep(0, ncol(X_tips_dummy)),
+            u_tips = rep(0, ncol(Z_tips)),
+            u_age = rep(0, ncol(Z_age)),
+            u_period = rep(0, ncol(Z_period)),
+            u_spatial_str = rep(0, ncol(Z_spatial)),
+            u_spatial_iid = rep(0, ncol(Z_spatial)),
+            log_sigma_rw_tips = log(2.5),
+            log_sigma_rw_age = log(2.5),
+            log_sigma_rw_period = log(2.5),
+            log_sigma_spatial = log(2.5),
+            logit_spatial_rho = 0
+            )
+             
+f <-  MakeADFun(data = data,
+                parameters = par,
+                DLL = "fertility_tmb_dev",
+                random = c("beta_mf", "beta_tips_dummy", "u_tips", "u_age", "u_period", "u_spatial_str", "u_spatial_iid"),
+                hessian = TRUE,
                 checkParameterOrder=FALSE)
 
-# f$env$tracepar <- FALSE
-f$report()
+# f$env$tracepar <- TRUE
+# f$report()
 
-fit = nlminb(f$par,f$fn,f$gr, control = list(iter.max = 100000, eval.max = 100000))
+fit <- nlminb(f$par, f$fn, f$gr)
 
-# opt <- do.call("optim", f)
-rep <- sdreport(f)
-tmb.res <- summary(rep)
-
-cbind(crossing(district = 1:33, agegr = 1:7, period = 1:22), data.frame(point=exp(tmb.res[,1][row.names(tmb.res) == "log_mu"]))) %>%
-  ggplot(aes(x=period, y=point, color=agegr, group=agegr)) +
-  geom_line() +
-  facet_wrap(~district)
+exp(f$env$last.par) %>%
+  split(., names(.))
