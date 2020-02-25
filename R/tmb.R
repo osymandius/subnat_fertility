@@ -52,9 +52,10 @@ obs <- obs %>%
 #' TIPS binary for +/- 5 years
 obs <- obs %>%
   mutate(tips_dummy = as.integer(tips > 5),
-         tips_f = factor(tips))
+         tips_f = factor(tips),
+         id.age.period = factor(group_indices(., agegr, period)))
 
-X_mf <- model.matrix(~1 + agegr, mf)
+X_mf <- model.matrix(~1 + agegr + period + area_id, mf)
 
 #' This has dimensions (number of observations) x (number of rows in model frame (i.e crossing of age x time x space))
 #' Many more rows than mf because observations has things we need to adjust for bias (e.g. tips), but not required in model frame. 
@@ -71,12 +72,20 @@ Q_tips <- as(t(D_tips) %*% D_tips, "dgCMatrix")
 ### AGE RANDOM WALK
 
 Z_age <- sparse.model.matrix(~0 + agegr, obs)
-Q_age <- as(INLA:::inla.rw(ncol(Z_age), 1), "dgCMatrix")
+D_age <- diff(diag(ncol(Z_age)), differences = 1)
+Q_age <- t(D_age) %*% D_age
+# diag(Q_age) <- diag(Q_age) + 1E-6
+Q_age <- as(Q_age, "dgCMatrix")
 
 ### TIME RANDOM WALK
 
 Z_period <- sparse.model.matrix(~0 + period, obs)
-Q_period <- as(INLA:::inla.rw(ncol(Z_period), 2), "dgCMatrix")
+D_period <- diff(diag(ncol(Z_period)), differences = 2)
+Q_period <- t(D_period) %*% D_period
+# diag(Q_period) <- diag(Q_period) + 1E-6               
+Q_period <- as(Q_period, "dgCMatrix")
+
+Z_age_period <- sparse.model.matrix(~0 + id.age.period, obs)
 
 ### TIPS FIXED EFFECT
 
@@ -100,8 +109,7 @@ nb <- sh %>%
 
 adj <- nb2mat(nb, zero.policy=TRUE, style="B")
 Q_spatial <- INLA::inla.scale.model(diag(rowSums(adj)) - adj,
-                            constr = list(A = matrix(1, 1, nrow(adj)), e = 0))
-
+                            constr = list(A = matrix(1, 1, nrow(adj)), eps = 0))
 
 compile("tmb/fertility_tmb_dev.cpp")               # Compile the C++ file
 dyn.load(dynlib("tmb/fertility_tmb_dev"))
@@ -113,6 +121,7 @@ data <- list(X_mf = X_mf,
              Z_age = Z_age,
              Z_period = Z_period,
              Z_spatial = Z_spatial,
+             Z_age_period = Z_age_period,
              Q_tips = Q_tips,
              Q_age = Q_age,
              Q_period = Q_period,
@@ -127,6 +136,9 @@ par <- list(beta_mf = rep(0, ncol(X_mf)),
             u_period = rep(0, ncol(Z_period)),
             u_spatial_str = rep(0, ncol(Z_spatial)),
             u_spatial_iid = rep(0, ncol(Z_spatial)),
+            eta_age_period = array(0, c(ncol(Z_period),ncol(Z_age))),
+            tphi_period = 0,
+            tphi_age = 0,
             log_sigma_rw_tips = log(2.5),
             log_sigma_rw_age = log(2.5),
             log_sigma_rw_period = log(2.5),
@@ -137,7 +149,7 @@ par <- list(beta_mf = rep(0, ncol(X_mf)),
 f <-  MakeADFun(data = data,
                 parameters = par,
                 DLL = "fertility_tmb_dev",
-                random = c("beta_mf", "beta_tips_dummy", "u_tips", "u_age", "u_period", "u_spatial_str", "u_spatial_iid"),
+                random = c("beta_mf", "beta_tips_dummy", "u_tips", "u_age", "u_period", "u_spatial_str", "u_spatial_iid", "eta_age_period"),
                 hessian = TRUE,
                 checkParameterOrder=FALSE)
 
@@ -145,6 +157,27 @@ f <-  MakeADFun(data = data,
 # f$report()
 
 fit <- nlminb(f$par, f$fn, f$gr)
+rep <- sdreport(f)
+tmb_res <- summary(rep)
 
 exp(f$env$last.par) %>%
   split(., names(.))
+
+tmb_res%>% as.data.frame %>% mutate(id = rownames(.)) 
+
+split(., rownames(.))
+
+mf %>% 
+  cbind(data.frame(val = tmb_res[,1][rownames(tmb_res) == "omega"])) %>%
+  ggplot(aes(x=period, y=val, group=agegr, color=agegr)) +
+    geom_line() +
+    facet_wrap(~area_id)
+
+obs %>%
+  type.convert %>%
+  left_join(
+    data.frame(id.age.period = 1:154, val = tmb_res[,1][rownames(tmb_res) == "eta_age_period"])
+  ) %>%
+  ggplot(aes(x=period, y=val, color=agegr, group=agegr)) +
+    geom_line()
+        
