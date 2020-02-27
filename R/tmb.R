@@ -82,6 +82,8 @@ Q_period <- t(D_period) %*% D_period
 diag(Q_period) <- diag(Q_period) + 1E-6               
 Q_period <- as(Q_period, "dgCMatrix")
 
+interaction_idx <- as.numeric(sort(unique(obs$id.interaction)))
+
 ### TIPS FIXED EFFECT
 
 X_tips_dummy <- model.matrix(~0 + tips_dummy, obs)
@@ -118,7 +120,7 @@ data <- list(X_mf = X_mf,
              Z_period = Z_period,
              Z_spatial = Z_spatial,
              Z_interaction = sparse.model.matrix(~0 + id.interaction, obs),
-             interaction_idx = sort(unique(obs$id.interaction)),
+             interaction_idx = interaction_idx,
              Q_tips = Q_tips,
              Q_age = Q_age,
              Q_period = Q_period,
@@ -144,7 +146,7 @@ par <- list(beta_mf = rep(0, ncol(X_mf)),
 f <-  MakeADFun(data = data,
                 parameters = par,
                 DLL = "fertility_tmb_dev",
-                random = c("beta_mf", "beta_tips_dummy", "u_tips", "u_age", "u_period", "u_spatial_str", "u_spatial_iid", "eta"),
+                random = c("beta_mf", "beta_tips_dummy", "u_tips", "u_age", "u_period", "u_spatial_str", "u_spatial_iid".),
                 hessian = TRUE,
                 checkParameterOrder=FALSE)
 
