@@ -21,6 +21,7 @@ Type objective_function<Type>::operator() ()
   DATA_SPARSE_MATRIX(Z_age);
   DATA_SPARSE_MATRIX(Z_period);
   DATA_SPARSE_MATRIX(Z_spatial);
+  DATA_SPARSE_MATRIX(Z_interaction);
 
   DATA_SPARSE_MATRIX(Q_tips);
   DATA_SPARSE_MATRIX(Q_age);
@@ -102,6 +103,7 @@ Type objective_function<Type>::operator() ()
                           Z_tips * u_tips * sigma_rw_tips + 
                           Z_age * u_age * sigma_rw_age + 
                           Z_period * u_period * sigma_rw_period + 
+                          Z_interaction * eta_v +
                           Z_spatial * spatial * sigma_spatial +
                           log_offset);
     
