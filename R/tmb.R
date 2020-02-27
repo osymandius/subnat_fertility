@@ -8,7 +8,7 @@ library(Matrix)
 
 setwd("~/Documents/GitHub/subnat_fertility/")
 
-asfr <- readRDS("asfr_pred_subnat_15_2020_NEW.rds")[["MWI"]]
+asfr <- readRDS("asfr_pred_subnat_15_2020_NEW.rds")[["ZWE"]]
 boundaries <- readRDS("input_data/area_boundaries.rds")
 
 iso3_codes <- c("LSO", "MOZ", "MWI", "NAM", "SWZ", "TZA", "UGA", "ZMB", "ZWE")
@@ -33,28 +33,25 @@ areas_long <- lapply(paths, read_sf) %>%
 }) %>% 
   bind_rows
 
-mf <- crossing(period = factor(1995:2016),
+mf <- crossing(period = factor(1995:2015),
                agegr = factor(c("15-19", "20-24", "25-29", "30-34", "35-39", "40-44", "45-49")),
-               area_id = filter(areas_long, iso3 == "MWI", area_level == 5)$area_id
+               area_id = filter(areas_long, iso3 == "ZWE", naomi_level)$area_id
                ) %>%
-  mutate(row_index = factor(row_number()))
+  mutate(row_index = factor(row_number()),
+         id.interaction = group_indices(., agegr, period, area_id)
+  )
 
 
 obs <- asfr %>%
   filter(!is.na(surveyid)) %>%
   select(area_id, period, agegr, tips, births, pys) %>%
   mutate(agegr = factor(agegr, levels(mf$agegr)),
-         period = factor(period))
-
-obs <- obs %>%
-  left_join(mf, by = c("area_id", "period", "agegr"))
-
-#' TIPS binary for +/- 5 years
-obs <- obs %>%
+         period = factor(period)) %>%
+  left_join(mf, by = c("area_id", "period", "agegr")) %>%
   mutate(tips_dummy = as.integer(tips > 5),
          tips_f = factor(tips))
 
-X_mf <- model.matrix(~1 + agegr, mf)
+X_mf <- model.matrix(~1 + agegr + period + area_id, mf)
 
 #' This has dimensions (number of observations) x (number of rows in model frame (i.e crossing of age x time x space))
 #' Many more rows than mf because observations has things we need to adjust for bias (e.g. tips), but not required in model frame. 
@@ -71,12 +68,18 @@ Q_tips <- as(t(D_tips) %*% D_tips, "dgCMatrix")
 ### AGE RANDOM WALK
 
 Z_age <- sparse.model.matrix(~0 + agegr, obs)
-Q_age <- as(INLA:::inla.rw(ncol(Z_age), 1), "dgCMatrix")
+D_age <- diff(diag(ncol(Z_age)), differences = 1)
+Q_age <- t(D_age) %*% D_age
+diag(Q_age) <- diag(Q_age) + 1E-6
+Q_age <- as(Q_age, "dgCMatrix")
 
 ### TIME RANDOM WALK
 
 Z_period <- sparse.model.matrix(~0 + period, obs)
-Q_period <- as(INLA:::inla.rw(ncol(Z_period), 2), "dgCMatrix")
+D_period <- diff(diag(ncol(Z_period)), differences = 2)
+Q_period <- t(D_period) %*% D_period
+diag(Q_period) <- diag(Q_period) + 1E-6               
+Q_period <- as(Q_period, "dgCMatrix")
 
 ### TIPS FIXED EFFECT
 
@@ -87,7 +90,7 @@ X_tips_dummy <- model.matrix(~0 + tips_dummy, obs)
 Z_spatial <- sparse.model.matrix(~0 + area_id, obs)
 
 sh <- areas_long %>%
-  filter(iso3 == "MWI", naomi_level) %>%
+  filter(iso3 == "ZWE", naomi_level) %>%
   mutate(area_idx = row_number())
 
 #' Neighbor list
@@ -145,6 +148,23 @@ f <-  MakeADFun(data = data,
 # f$report()
 
 fit <- nlminb(f$par, f$fn, f$gr)
+rep <- sdreport(f)
+tmb_res <- summary(rep)
 
 exp(f$env$last.par) %>%
   split(., names(.))
+
+mf %>% 
+  cbind(data.frame(val = tmb_res[,1][rownames(tmb_res) == "omega"])) %>%
+  ggplot(aes(x=period, y=val, group=agegr, color=agegr)) +
+  geom_line() +
+  facet_wrap(~area_id)
+
+obs %>%
+  type.convert %>%
+  left_join(
+    data.frame(id.age.period = 1:154, val = tmb_res[,1][rownames(tmb_res) == "eta_age_period"])
+  ) %>%
+  ggplot(aes(x=period, y=val, color=agegr, group=agegr)) +
+  geom_line()
+

@@ -43,6 +43,7 @@ Type objective_function<Type>::operator() ()
   DATA_VECTOR(births_obs);
 
   // model
+  nll -= dnorm(beta_mf, Type(0), Type(5), true).sum();
 
   // //Fixed effect TIPS dummy
   nll -= dnorm(beta_tips_dummy, Type(0), Type(1), true).sum();
@@ -67,7 +68,7 @@ Type objective_function<Type>::operator() ()
 
   //// SPATIAL
   // ICAR
-  nll -= Type(-0.5) * (u_spatial_str * (Q_spatial * u_spatial_str)).sum(); // I don't understand this line. Pairwise? But how?
+  nll -= Type(-0.5) * (u_spatial_str * (Q_spatial * u_spatial_str)).sum();
   nll -= dnorm(u_spatial_str.sum(), Type(0), Type(0.001) * u_spatial_str.size(), 1); // sum to zero constraint
   
   // IID
@@ -95,6 +96,10 @@ Type objective_function<Type>::operator() ()
                           log_offset);
     
   nll -= dpois(births_obs, exp(mu_obs_pred), true).sum();
+
+  vector<Type> omega(exp(mu_mf));
+
+  ADREPORT(omega);
   
   return nll;
   
