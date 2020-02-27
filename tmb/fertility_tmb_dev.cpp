@@ -4,7 +4,6 @@ template<class Type>
 Type objective_function<Type>::operator() ()
   
 {
-  using namespace density;
   Type nll = 0;
 
   DATA_MATRIX(X_mf);
@@ -19,7 +18,6 @@ Type objective_function<Type>::operator() ()
   DATA_SPARSE_MATRIX(Z_age);
   DATA_SPARSE_MATRIX(Z_period);
   DATA_SPARSE_MATRIX(Z_spatial);
-  DATA_SPARSE_MATRIX(Z_age_period);
 
   DATA_SPARSE_MATRIX(Q_tips);
   DATA_SPARSE_MATRIX(Q_age);
@@ -39,19 +37,12 @@ Type objective_function<Type>::operator() ()
   PARAMETER(logit_spatial_rho);
   PARAMETER(log_sigma_spatial);
 
-  PARAMETER(tphi_period);
-  PARAMETER(tphi_age);
-  PARAMETER_ARRAY(eta_age_period);
-
   // observations
 
   DATA_VECTOR(log_offset);
   DATA_VECTOR(births_obs);
 
   // model
-
-
-  nll -= dnorm(beta_mf, Type(0), Type(5), true).sum();
 
   // //Fixed effect TIPS dummy
   nll -= dnorm(beta_tips_dummy, Type(0), Type(1), true).sum();
@@ -74,15 +65,10 @@ Type objective_function<Type>::operator() ()
   nll -= Type(-0.5) * (u_period * (Q_period * u_period)).sum();
   nll -= dnorm(u_period.sum(), Type(0), Type(0.001) * u_period.size(), true);
 
-  // AR1 PERIOD X AGE INTERACTION
-  Type phi_period = tphi_period / sqrt( 1.0 + tphi_period * tphi_period);
-  Type phi_age = tphi_age / sqrt( 1.0 + tphi_age * tphi_age);
-  nll += SEPARABLE(AR1(phi_period), AR1(phi_age))(eta_age_period);
-
   //// SPATIAL
   // ICAR
-  nll -= Type(-0.5) * (u_spatial_str * (Q_spatial * u_spatial_str)).sum();
-  nll -= dnorm(u_spatial_str.sum(), Type(0), Type(0.001) * u_spatial_str.size(), 1);
+  nll -= Type(-0.5) * (u_spatial_str * (Q_spatial * u_spatial_str)).sum(); // I don't understand this line. Pairwise? But how?
+  nll -= dnorm(u_spatial_str.sum(), Type(0), Type(0.001) * u_spatial_str.size(), 1); // sum to zero constraint
   
   // IID
   nll -=dnorm(u_spatial_iid, Type(0), Type(2.5), true).sum();
@@ -99,24 +85,16 @@ Type objective_function<Type>::operator() ()
   vector<Type> spatial = sqrt(1 - spatial_rho) * u_spatial_iid + sqrt(spatial_rho) * u_spatial_str;
 
   vector<Type> mu_mf(X_mf * beta_mf);
-  vector<Type> vector_eta(eta_age_period);
   
   vector<Type> mu_obs_pred(M_all_observations * mu_mf +
                           X_tips_dummy * beta_tips_dummy +
                           Z_tips * u_tips * sigma_rw_tips + 
                           Z_age * u_age * sigma_rw_age + 
                           Z_period * u_period * sigma_rw_period + 
-                          Z_age_period * vector_eta +
                           Z_spatial * spatial * sigma_spatial +
                           log_offset);
     
   nll -= dpois(births_obs, exp(mu_obs_pred), true).sum();
-
-  vector<Type> omega(exp(mu_mf));
-
-  ADREPORT(omega);
-  ADREPORT(phi_age);
-  ADREPORT(phi_period);
   
   return nll;
   
