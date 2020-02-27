@@ -38,7 +38,8 @@ mf <- crossing(period = factor(1995:2015),
                area_id = filter(areas_long, iso3 == "ZWE", naomi_level)$area_id
                ) %>%
   mutate(row_index = factor(row_number()),
-         id.interaction = group_indices(., agegr, period, area_id)
+         # id.interaction = group_indices(., agegr, period, area_id)
+         id.interaction = group_indices(., agegr, period)
   )
 
 
@@ -116,6 +117,7 @@ data <- list(X_mf = X_mf,
              Z_age = Z_age,
              Z_period = Z_period,
              Z_spatial = Z_spatial,
+             Z_interaction = sparse.model.matrix(~0 + id.interaction, obs),
              Q_tips = Q_tips,
              Q_age = Q_age,
              Q_period = Q_period,
@@ -130,6 +132,7 @@ par <- list(beta_mf = rep(0, ncol(X_mf)),
             u_period = rep(0, ncol(Z_period)),
             u_spatial_str = rep(0, ncol(Z_spatial)),
             u_spatial_iid = rep(0, ncol(Z_spatial)),
+            eta = array(0, c(ncol(Z_period), ncol(Z_age))),
             log_sigma_rw_tips = log(2.5),
             log_sigma_rw_age = log(2.5),
             log_sigma_rw_period = log(2.5),
@@ -140,7 +143,7 @@ par <- list(beta_mf = rep(0, ncol(X_mf)),
 f <-  MakeADFun(data = data,
                 parameters = par,
                 DLL = "fertility_tmb_dev",
-                random = c("beta_mf", "beta_tips_dummy", "u_tips", "u_age", "u_period", "u_spatial_str", "u_spatial_iid"),
+                random = c("beta_mf", "beta_tips_dummy", "u_tips", "u_age", "u_period", "u_spatial_str", "u_spatial_iid", "eta"),
                 hessian = TRUE,
                 checkParameterOrder=FALSE)
 

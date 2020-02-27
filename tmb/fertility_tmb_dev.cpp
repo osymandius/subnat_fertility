@@ -4,6 +4,9 @@ template<class Type>
 Type objective_function<Type>::operator() ()
   
 {
+
+  using namespace density;
+
   Type nll = 0;
 
   DATA_MATRIX(X_mf);
@@ -36,6 +39,8 @@ Type objective_function<Type>::operator() ()
   PARAMETER_VECTOR(u_spatial_iid); 
   PARAMETER(logit_spatial_rho);
   PARAMETER(log_sigma_spatial);
+
+  PARAMETER_ARRAY(eta);
 
   // observations
 
@@ -84,6 +89,11 @@ Type objective_function<Type>::operator() ()
   nll -= dnorm(sigma_spatial, Type(0), Type(2.5), true) + log_sigma_spatial;
   
   vector<Type> spatial = sqrt(1 - spatial_rho) * u_spatial_iid + sqrt(spatial_rho) * u_spatial_str;
+
+  nll += SEPARABLE(GMRF(Q_age), GMRF(Q_period))(eta);
+
+  vector<Type> eta_v(eta);
+  nll -= dnorm(eta_v, Type(0), Type(1), true).sum();
 
   vector<Type> mu_mf(X_mf * beta_mf);
   
