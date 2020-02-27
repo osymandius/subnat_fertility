@@ -91,7 +91,7 @@ Type objective_function<Type>::operator() ()
   
   vector<Type> spatial = sqrt(1 - spatial_rho) * u_spatial_iid + sqrt(spatial_rho) * u_spatial_str;
 
-  nll += SEPARABLE(GMRF(Q_age), GMRF(Q_period))(eta);
+  nll += SEPARABLE(GMRF(Q_period), SEPARABLE(GMRF(Q_age), GMRF(Q_spatial)))(eta);
 
   vector<Type> eta_v(eta);
   nll -= dnorm(eta_v, Type(0), Type(1), true).sum();
@@ -103,7 +103,7 @@ Type objective_function<Type>::operator() ()
                           Z_tips * u_tips * sigma_rw_tips + 
                           Z_age * u_age * sigma_rw_age + 
                           Z_period * u_period * sigma_rw_period + 
-                          Z_interaction * eta_v +
+                          // Z_interaction * eta_v +
                           Z_spatial * spatial * sigma_spatial +
                           log_offset);
     

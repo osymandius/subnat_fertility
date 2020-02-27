@@ -39,7 +39,7 @@ mf <- crossing(period = factor(1995:2015),
                ) %>%
   mutate(row_index = factor(row_number()),
          # id.interaction = group_indices(., agegr, period, area_id)
-         id.interaction = group_indices(., agegr, period)
+         id.interaction = factor(group_indices(., agegr, period, area_id))
   )
 
 
@@ -103,7 +103,7 @@ nb <- sh %>%
   `names<-`(sh$area_idx)
 
 adj <- nb2mat(nb, zero.policy=TRUE, style="B")
-Q_spatial <- INLA::inla.scale.model(diag(rowSums(adj)) - adj,
+Q_spatial <- INLA::inla.scale.model(diag(rowSums(adj)) - 0.99*adj,
                             constr = list(A = matrix(1, 1, nrow(adj)), e = 0))
 
 
@@ -118,6 +118,7 @@ data <- list(X_mf = X_mf,
              Z_period = Z_period,
              Z_spatial = Z_spatial,
              Z_interaction = sparse.model.matrix(~0 + id.interaction, obs),
+             interaction_idx = sort(unique(obs$id.interaction)),
              Q_tips = Q_tips,
              Q_age = Q_age,
              Q_period = Q_period,
@@ -132,7 +133,7 @@ par <- list(beta_mf = rep(0, ncol(X_mf)),
             u_period = rep(0, ncol(Z_period)),
             u_spatial_str = rep(0, ncol(Z_spatial)),
             u_spatial_iid = rep(0, ncol(Z_spatial)),
-            eta = array(0, c(ncol(Z_period), ncol(Z_age))),
+            eta = array(0, c(ncol(Z_spatial), ncol(Z_age), ncol(Z_period))),
             log_sigma_rw_tips = log(2.5),
             log_sigma_rw_age = log(2.5),
             log_sigma_rw_period = log(2.5),
@@ -166,7 +167,7 @@ mf %>%
 obs %>%
   type.convert %>%
   left_join(
-    data.frame(id.age.period = 1:154, val = tmb_res[,1][rownames(tmb_res) == "eta_age_period"])
+    data.frame(id.interaction = 1:147, val = tmb_res[,1][rownames(tmb_res) == "eta"])
   ) %>%
   ggplot(aes(x=period, y=val, color=agegr, group=agegr)) +
   geom_line()
