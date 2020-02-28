@@ -16,7 +16,7 @@ library(parallel)
 devtools::load_all("~/Documents/GitHub/naomi")
 
 setwd("~/Documents/GitHub/subnat_fertility")
-source("fertility_funs.R")
+source("R/fertility_funs.R")
 
 #boundaries_old <- readRDS("~/Documents/GitHub/naomi-data-old/data/area_boundaries.rds")
 boundaries <- readRDS("~/Documents/GitHub/subnat_fertility/area_boundaries.rds")
@@ -267,8 +267,8 @@ iso3_code <- names(mod_list)
 
 calendar_quarter_targets <- convert_calendar_quarter(c(2000:2020), 2)
 
-population_age_female <- load_population_agesex("~/Documents/GitHub/subnat_fertility/population_agesex_wide_wpp2019_raked.rds", "~/Documents/GitHub/subnat_fertility/areas_long.RDS") %>%
-  filter(sex == "female", iso3 %in% iso3_code, iso3 != "UGA") %>%
+population_age_female <- load_population_agesex("~/Documents/GitHub/subnat_fertility/input_data/population_agesex_wide_wpp2019_raked.rds", "~/Documents/GitHub/subnat_fertility/input_data/areas_long.RDS") %>%
+  filter(sex == "female", iso3 == "ZWE", iso3 != "UGA") %>%
   mutate(calendar_quarter = quarter_id_to_calendar_quarter(quarter_id)) %>%
   left_join(get_age_groups()) %>%
   interpolate_fertility_population(., calendar_quarter_targets) %>%

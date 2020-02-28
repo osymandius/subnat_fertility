@@ -44,7 +44,8 @@ Type objective_function<Type>::operator() ()
   PARAMETER(logit_spatial_rho);
   PARAMETER(log_sigma_spatial);
 
-  // DATA_SPARSE_MATRIX(A_out);
+  DATA_SPARSE_MATRIX(A_out);
+  DATA_VECTOR(pop);
 
   // observations
 
@@ -123,7 +124,12 @@ Type objective_function<Type>::operator() ()
 
   vector<Type> omega(exp(mu_mf));
 
-  ADREPORT(omega);
+  vector<Type> births(omega * pop);
+  vector<Type> births_out(A_out * births);
+  vector<Type> population_out(A_out * pop);
+  vector<Type> omega_out(births_out / population_out);
+
+  REPORT(omega_out);
 
   return nll;
   

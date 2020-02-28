@@ -34,13 +34,22 @@ areas_long <- lapply(paths, read_sf) %>%
   bind_rows
 
 mf <- crossing(period = factor(1995:2015),
-               agegr = factor(c("15-19", "20-24", "25-29", "30-34", "35-39", "40-44", "45-49")),
-               area_id = filter(areas_long, iso3 == "ZWE", naomi_level)$area_id
-               ) %>%
+               agegr = c("15-19", "20-24", "25-29", "30-34", "35-39", "40-44", "45-49"),
+               area_id = filter(areas_long, iso3 == "ZWE", naomi_level)$area_id) %>%
+  left_join(read_csv("~/Documents/GitHub/naomi-data/ZWE/data/zwe_population_nso.csv") %>%
+              mutate(year = year_labels(calendar_quarter_to_quarter_id(calendar_quarter))) %>%
+              filter(sex == "female", year == 2019) %>%
+              select(area_id, age_group, population) %>%
+              rename(agegr = age_group)) %>%
+  mutate(area_id = factor(area_id, levels = filter(areas_long, iso3 == "ZWE", naomi_level)$area_id),
+         agegr = factor(agegr, levels = c("15-19", "20-24", "25-29", "30-34", "35-39", "40-44", "45-49"))
+         ) %>%
+  arrange(period, area_id, agegr) %>%
   mutate(idx = factor(row_number()),
          # id.interaction = group_indices(., agegr, period, area_id)
-         id.interaction = factor(group_indices(., agegr, period, area_id))
-  )
+         id.interaction = factor(group_indices(., agegr, period, area_id)))
+
+str(mf)
 
 
 obs <- asfr %>%
@@ -50,7 +59,8 @@ obs <- asfr %>%
          period = factor(period)) %>%
   left_join(mf, by = c("area_id", "period", "agegr")) %>%
   mutate(tips_dummy = as.integer(tips > 5),
-         tips_f = factor(tips))
+         tips_f = factor(tips),
+         area_id = factor(area_id, levels(mf$area_id))) 
 
 X_mf <- model.matrix(~1 + agegr + period + area_id, mf)
 
@@ -147,8 +157,9 @@ data <- list(X_mf = X_mf,
              Q_period = Q_period,
              Q_spatial = Q_spatial,
              log_offset = log(obs$pys),
-             births_obs = obs$births
-             # A_out = A_out
+             births_obs = obs$births,
+             pop = mf$population,
+             A_out = A_out
              )
 
 par <- list(beta_mf = rep(0, ncol(X_mf)),
