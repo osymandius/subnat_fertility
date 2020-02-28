@@ -3,8 +3,8 @@ library(tidyverse)
 library(abind)
 library(sf)
 library(spdep)
-library(naomi)
 library(Matrix)
+devtools::load_all("~/Documents/GitHub/naomi")
 
 setwd("~/Documents/GitHub/subnat_fertility/")
 
@@ -37,7 +37,7 @@ mf <- crossing(period = factor(1995:2015),
                agegr = factor(c("15-19", "20-24", "25-29", "30-34", "35-39", "40-44", "45-49")),
                area_id = filter(areas_long, iso3 == "ZWE", naomi_level)$area_id
                ) %>%
-  mutate(row_index = factor(row_number()),
+  mutate(idx = factor(row_number()),
          # id.interaction = group_indices(., agegr, period, area_id)
          id.interaction = factor(group_indices(., agegr, period, area_id))
   )
@@ -57,7 +57,7 @@ X_mf <- model.matrix(~1 + agegr + period + area_id, mf)
 #' This has dimensions (number of observations) x (number of rows in model frame (i.e crossing of age x time x space))
 #' Many more rows than mf because observations has things we need to adjust for bias (e.g. tips), but not required in model frame. 
 #' Column index (idx) has been joined onto obs dataframe from mf. So now each observation is labelled with the appropriate index in the mf
-M_mf_obs <- Matrix::sparse.model.matrix(~0 + row_index, obs) 
+M_mf_obs <- Matrix::sparse.model.matrix(~0 + idx, obs) 
  
 ### TIPS RANDOM WALK
 
@@ -108,6 +108,27 @@ adj <- nb2mat(nb, zero.policy=TRUE, style="B")
 Q_spatial <- INLA::inla.scale.model(diag(rowSums(adj)) - 0.99*adj,
                             constr = list(A = matrix(1, 1, nrow(adj)), e = 0))
 
+## Outputs
+area_merged <-  st_read("~/Documents/GitHub/naomi-data/ZWE/data/zwe_areas.geojson")
+areas <- create_areas(area_merged = area_merged)
+area_aggregation <- create_area_aggregation(area_merged$area_id[area_merged$naomi_level], areas)
+
+mf_out <- crossing(
+  area_id = area_aggregation$area_id,
+  agegr = unique(mf$agegr),
+  period = unique(mf$period)
+) %>%
+  mutate(out_idx = row_number())
+
+join_out <- crossing(area_aggregation, 
+         agegr = unique(mf$agegr),
+         period = unique(mf$period)) %>%
+  full_join(mf %>%
+              select(area_id, agegr, period, idx), by = c("model_area_id" = "area_id", "agegr", "period")) %>%
+  full_join(mf_out) %>%
+  mutate(x=1)
+
+A_out <- spMatrix(nrow(mf_out), nrow(mf), join_out$out_idx, as.integer(join_out$idx), join_out$x)
 
 compile("tmb/fertility_tmb_dev.cpp")               # Compile the C++ file
 dyn.load(dynlib("tmb/fertility_tmb_dev"))
@@ -119,14 +140,16 @@ data <- list(X_mf = X_mf,
              Z_age = Z_age,
              Z_period = Z_period,
              Z_spatial = Z_spatial,
-             Z_interaction = sparse.model.matrix(~0 + id.interaction, obs),
-             interaction_idx = interaction_idx,
+             # Z_interaction = sparse.model.matrix(~0 + id.interaction, obs),
+             # interaction_idx = interaction_idx,
              Q_tips = Q_tips,
              Q_age = Q_age,
              Q_period = Q_period,
              Q_spatial = Q_spatial,
              log_offset = log(obs$pys),
-             births_obs = obs$births)
+             births_obs = obs$births
+             # A_out = A_out
+             )
 
 par <- list(beta_mf = rep(0, ncol(X_mf)),
             beta_tips_dummy = rep(0, ncol(X_tips_dummy)),
@@ -135,7 +158,7 @@ par <- list(beta_mf = rep(0, ncol(X_mf)),
             u_period = rep(0, ncol(Z_period)),
             u_spatial_str = rep(0, ncol(Z_spatial)),
             u_spatial_iid = rep(0, ncol(Z_spatial)),
-            eta = array(0, c(ncol(Z_spatial), ncol(Z_age), ncol(Z_period))),
+            # eta = array(0, c(ncol(Z_spatial), ncol(Z_age), ncol(Z_period))),
             log_sigma_rw_tips = log(2.5),
             log_sigma_rw_age = log(2.5),
             log_sigma_rw_period = log(2.5),
@@ -146,8 +169,8 @@ par <- list(beta_mf = rep(0, ncol(X_mf)),
 f <-  MakeADFun(data = data,
                 parameters = par,
                 DLL = "fertility_tmb_dev",
-                random = c("beta_mf", "beta_tips_dummy", "u_tips", "u_age", "u_period", "u_spatial_str", "u_spatial_iid".),
-                hessian = TRUE,
+                random = c("beta_mf", "beta_tips_dummy", "u_tips", "u_age", "u_period", "u_spatial_str", "u_spatial_iid"),
+                hessian = FALSE,
                 checkParameterOrder=FALSE)
 
 # f$env$tracepar <- TRUE
