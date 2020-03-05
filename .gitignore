@@ -1,4 +1,7 @@
 ~/.rdhs.json
 pop_data/
-/tmb/fertility_tmb.o
-/tmb/fertility_tmb.so
+tmb/fertility_tmb.o
+tmb/fertility_tmb.so
+tmb/fertility_tmb_dev.o
+tmb/fertility_tmb_dev.so
+.Rproj.user

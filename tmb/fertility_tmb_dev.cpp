@@ -26,6 +26,13 @@ Type objective_function<Type>::operator() ()
   // PARAMETER_ARRAY(eta);
   // DATA_VECTOR(interaction_idx);
 
+  // DATA_SPARSE_MATRIX(Z_interaction1);
+  // DATA_SPARSE_MATRIX(Z_interaction2);
+  // DATA_SPARSE_MATRIX(Z_interaction3);
+  // PARAMETER_ARRAY(eta1);
+  // PARAMETER_ARRAY(eta2);
+  // PARAMETER_ARRAY(eta3);
+
   DATA_SPARSE_MATRIX(Q_tips);
   DATA_SPARSE_MATRIX(Q_age);
   DATA_SPARSE_MATRIX(Q_period);
@@ -93,16 +100,25 @@ Type objective_function<Type>::operator() ()
   Type sigma_spatial = exp(log_sigma_spatial);
   nll -= dnorm(sigma_spatial, Type(0), Type(2.5), true) + log_sigma_spatial;
   
-  vector<Type> spatial = sqrt(1 - spatial_rho) * u_spatial_iid + sqrt(spatial_rho) * u_spatial_str;
+  vector<Type> spatial = sigma_spatial * (sqrt(1 - spatial_rho) * u_spatial_iid + sqrt(spatial_rho) * u_spatial_str);
 
   // nll += SEPARABLE(GMRF(Q_period), SEPARABLE(GMRF(Q_age), GMRF(Q_spatial)))(eta);
-
   // vector<Type> eta_v(eta);
-  // // vector<Type> eta_v_clipped(interaction_idx.size());
-  
   // nll -= dnorm(eta_v, Type(0), Type(1), true).sum();
 
+  // nll += SEPARABLE(GMRF(Q_period), GMRF(Q_age))(eta1);
+  // nll += SEPARABLE(GMRF(Q_period), GMRF(Q_spatial))(eta2);
+  // nll += SEPARABLE(GMRF(Q_age), GMRF(Q_spatial))(eta3);
 
+  // vector<Type> eta1_v(eta1);
+  // nll -= dnorm(eta1_v, Type(0), Type(1), true).sum();
+  // vector<Type> eta2_v(eta2);
+  // nll -= dnorm(eta2_v, Type(0), Type(1), true).sum();
+  // vector<Type> eta3_v(eta3);
+  // nll -= dnorm(eta3_v, Type(0), Type(1), true).sum();
+
+  
+  // // // vector<Type> eta_v_clipped(interaction_idx.size();
   // for (int i = 0; i < interaction_idx.size() -1 ; ++i)
   // {
   //     eta_v_clipped(i) = eta_v(asDouble(interaction_idx(i)));
@@ -112,12 +128,15 @@ Type objective_function<Type>::operator() ()
   vector<Type> mu_mf(X_mf * beta_mf);
   
   vector<Type> mu_obs_pred(M_all_observations * mu_mf +
-                          X_tips_dummy * beta_tips_dummy +
-                          Z_tips * u_tips * sigma_rw_tips + 
-                          Z_age * u_age * sigma_rw_age + 
-                          Z_period * u_period * sigma_rw_period + 
+                          X_tips_dummy * beta_tips_dummy +          // TIPS fixed effect
+                          Z_tips * u_tips * sigma_rw_tips +         // TIPS RW
+                          Z_age * u_age * sigma_rw_age +            // Age RW1
+                          Z_period * u_period * sigma_rw_period +   // Time RW2
                           // Z_interaction * eta_v +
-                          Z_spatial * spatial * sigma_spatial +
+                          // Z_interaction1 * eta1_v +
+                          // Z_interaction2 * eta2_v +
+                          // Z_interaction3 * eta3_v +
+                          Z_spatial * spatial +                      // Spatial model
                           log_offset);
     
   nll -= dpois(births_obs, exp(mu_obs_pred), true).sum();
@@ -130,6 +149,16 @@ Type objective_function<Type>::operator() ()
   vector<Type> omega_out(births_out / population_out);
 
   REPORT(omega_out);
+  REPORT(spatial);
+  REPORT(u_period);
+  REPORT(u_age);
+  REPORT(u_tips);
+  // REPORT(eta1_v);
+  // REPORT(eta2_v);
+  // REPORT(eta3_v);
+  // ADREPORT(omega_out);
+
+  // REPORT(omega);
 
   return nll;
   
