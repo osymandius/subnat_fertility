@@ -216,8 +216,8 @@ get_pred <- function(mod_list, asfr_pred, asfr1, ...) {
   
 }
 #iso3_list, multicountry
-run_mod_nat <- function(formulae, asfr_pred) {
-  mod <- inla(formulae, family="poisson", data=asfr_pred, E=pys,
+run_mod_nat <- function(formula, asfr_pred) {
+  mod <- inla(formula, family="poisson", data=asfr_pred, E=pys,
               control.family=list(link='log'),
               control.predictor=list(compute=TRUE, link=1),
               control.inla = list(strategy = "gaussian", int.strategy = "eb"),
@@ -574,7 +574,7 @@ get_mod_results_test <- function(mod, asfr_pred_country_subnat) {
   samples.effect = lapply(samples, function(x) x$latent[ind.effect] %>% exp)
   
   ident <- asfr_pred_country_subnat[ind.effect, ] %>%
-    select(area_id, agegr, period) %>%
+    select(area_id, age_group, period) %>%
     mutate(iso3 = iso3)
   
     # 
@@ -598,7 +598,7 @@ get_mod_results_test <- function(mod, asfr_pred_country_subnat) {
   samples_ident$median <- apply(samples_ident[, 1:10], 1, median)
   
   samples_ident %<>%
-    select(iso3, area_id, period, agegr, median)
+    select(iso3, area_id, period, age_group, median)
   
   return(samples_ident)
   
