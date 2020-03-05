@@ -173,35 +173,6 @@ ir_by_area2 <- function(ir, area_list, n, total) {
 }
 
 
-repeat_formulae <- function(formulae, country_number) {
-  
-  form1 <- list()
-  
-  form1[[1]] <- formulae[[1]]
-  
-  form2 <- list()
-  
-  form2[[1]] <- formulae[[2]]
-  
-  form3 <- list()
-  
-  form3[[1]] <- formulae[[3]]
-  
-  form4 <- list()
-  
-  form4[[1]] <- formulae[[4]]
-    
-  
-  form1 <- rep(form1, country_number)
-  form2 <- rep(form2, country_number)
-  form3 <- rep(form3, country_number)
-  form4 <- rep(form4, country_number)
-  
-  formulae <- c(form1, form2, form3, form4)
-  
-  return(formulae)
-}
-
 get_pred <- function(mod_list, asfr_pred, asfr1, ...) {
   
   pred_size <- nrow(asfr_pred) - nrow(asfr1)
@@ -245,18 +216,14 @@ get_pred <- function(mod_list, asfr_pred, asfr1, ...) {
   
 }
 #iso3_list, multicountry
-run_mod <- function(formulae, asfr_pred, model_family) {
-  mod <- inla(formulae, family=model_family, data=asfr_pred, E=pys,
+run_mod_nat <- function(formulae, asfr_pred) {
+  mod <- inla(formulae, family="poisson", data=asfr_pred, E=pys,
               control.family=list(link='log'),
               control.predictor=list(compute=TRUE, link=1),
               control.inla = list(strategy = "gaussian", int.strategy = "eb"),
               control.compute=list(config = TRUE, dic= TRUE, cpo=TRUE),
               verbose=TRUE)
-  
-  # if(multicountry) {
-  #   print(iso3_list)
-  # }
-    
+
   return(mod)
 }
 

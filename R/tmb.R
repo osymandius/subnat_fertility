@@ -18,6 +18,20 @@ asfr <- readRDS(paste0("countries/", iso3_current, "/data/", iso3_current, "_asf
 population <- population %>%
   filter(period == min(period))
 
+##############
+
+dat <- lapply(c("LSO", "MOZ", "MWI", "NAM", "TZA", "UGA", "ZMB", "ZWE"), function(iso3_current) {
+  
+  areas_long <- filter(areas_long, iso3==iso3_current)
+  
+  readRDS(paste0("countries/", iso3_current, "/data/", iso3_current, "_asfr_admin", unique(areas_long$area_level[areas_long$naomi_level == TRUE]), ".rds"))
+  
+})
+
+names(dat) <- c("LSO", "MOZ", "MWI", "NAM", "TZA", "UGA", "ZMB", "ZWE")
+
+##################
+
 # population <- population %>%
 #   group_by(calendar_quarter, sex, age_group) %>%
 #   summarise(population = sum(population)) %>%
