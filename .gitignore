@@ -5,3 +5,6 @@ tmb/fertility_tmb.so
 tmb/fertility_tmb_dev.o
 tmb/fertility_tmb_dev.so
 .Rproj.user
+*.o
+*.so
+*.Rproj
