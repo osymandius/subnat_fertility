@@ -14,6 +14,7 @@ devtools::load_all("~/Documents/GitHub/naomi")
 
 source("R/fertility_funs.R")
 source("R/inputs.R")
+source("R/fertility_funs.R")
 
 iso3 <- c("LSO", "MOZ", "MWI", "NAM", "TZA", "UGA", "ZMB", "ZWE")
 
@@ -68,6 +69,68 @@ asfr <- Map(calc_asfr1, dat$ir,
 asfr_pred <- get_asfr_pred_df(asfr)
 
 get_neighbourhood_structure(asfr, areas_long, boundaries)
+
+####################### NATIONAL MODS
+
+dat <- lapply(c("LSO", "MOZ", "MWI", "NAM", "TZA", "UGA", "ZMB", "ZWE"), function(iso3_current) {
+  areas_long <- filter(areas_long, iso3==iso3_current)
+  dat <- readRDS(paste0("countries/", iso3_current, "/data/", iso3_current, "_asfr_admin0.rds")) %>%
+    filter(period<2016)
+  
+  return(dat)
+})
+
+names(dat) <- c("LSO", "MOZ", "MWI", "NAM", "TZA", "UGA", "ZMB", "ZWE")
+
+formula <- births ~ f(id.age_group, model="rw1") + f(id.period, model="rw2") + f(id.age_group2, model = "rw1", group = id.period, control.group = list(model = "ar1"))
+
+mod_list <- lapply( c("LSO", "MOZ", "MWI", "NAM", "TZA", "UGA", "ZMB", "ZWE"), function(x) readRDS(paste0("countries/", x, "/mods/", x, "_nat_mod.rds")))
+
+mod_list <- Map(function(x, y) {
+  
+  formula <- births ~ 
+    f(id.age_group, model="rw1") + 
+    f(id.period, model="rw2") + 
+    f(id.age_group2, model = "rw1", group = id.period, control.group = list(model = "rw2")) +
+    tips_dummy + 
+    f(id.tips, model="rw1")
+  
+  mod <- run_mod_nat(formula, y)
+  
+  # saveRDS(mod, paste0("countries/", x, "/mods/", x, "_nat_mod.rds"))
+  
+  return(mod)
+}, x=c("LSO", "MOZ", "MWI", "NAM", "TZA", "UGA", "ZMB", "ZWE"), y=dat)
+
+
+res_list <- Map(function(x, y,  z) {
+  
+  res <- get_mod_results_test(z, y)
+  
+  # saveRDS(res, paste0("countries/", x, "/mods/", x, "_nat_res.rds"))
+  
+  return(res)
+}, x=c("LSO", "MOZ", "MWI", "NAM", "TZA", "UGA", "ZMB", "ZWE"), y=dat, z=mod_list)
+
+res_list %>%
+  bind_rows %>%
+ggplot(aes(x=period, y=median, color=age_group, group=age_group)) +
+  geom_line() +
+  facet_wrap(~iso3)
+
+r_list <- lapply(mod_list, "[[", "summary.random") %>%
+  lapply(function(x){
+  x %>%
+    lapply(function(x) mutate(x, ID = as.integer(ID))) %>%
+    lapply(arrange, ID) %>%
+    lapply("[[", "mean") %>%
+    lapply(exp)
+})
+
+names(r_list) <- c("LSO", "MOZ", "MWI", "NAM", "TZA", "UGA", "ZMB", "ZWE")
+
+
+##########################
 
 ### RUN MODEL ON CLUSTER ####
 #' Recommend:

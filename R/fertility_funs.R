@@ -559,7 +559,7 @@ get_mod_results_test <- function(mod, asfr_pred_country_subnat) {
   asfr1_country_subnat <- asfr_pred_country_subnat %>%
     filter(!is.na(surveyid))
   
-  iso3 <- ifelse(unique(asfr_pred_country_subnat$country) == "Eswatini", "SWZ", countrycode(unique(asfr_pred_country_subnat$country), "country.name", "iso3c"))
+  iso3 <- unique(asfr_pred_country_subnat$iso3)
   
   print("Sampling..")
   samples <- inla.posterior.sample(1000, mod)
@@ -574,8 +574,7 @@ get_mod_results_test <- function(mod, asfr_pred_country_subnat) {
   samples.effect = lapply(samples, function(x) x$latent[ind.effect] %>% exp)
   
   ident <- asfr_pred_country_subnat[ind.effect, ] %>%
-    select(area_id, age_group, period) %>%
-    mutate(iso3 = iso3)
+    select(area_id, age_group, period)
   
     # 
     # left_join(pop_areas) %>%
@@ -590,14 +589,14 @@ get_mod_results_test <- function(mod, asfr_pred_country_subnat) {
   samples_ident <- sapply(samples.effect, cbind) %>%
     data.frame %>%
     mutate(id = 1:nrow(.)) %>%
-    left_join(asfr_pred_country_subnat[ind.effect , c(1:4, 25)], by="id") %>%
+    left_join(asfr_pred_country_subnat[ind.effect , c("iso3", "area_id", "period", "age_group", "id")], by="id") %>%
     select(-id) %>%
     left_join(ident) %>%
     filter(period >1999)
   
   samples_ident$median <- apply(samples_ident[, 1:10], 1, median)
   
-  samples_ident %<>%
+  samples_ident <- samples_ident %>%
     select(iso3, area_id, period, age_group, median)
   
   return(samples_ident)

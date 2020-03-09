@@ -4,49 +4,38 @@ library(abind)
 library(sf)
 library(spdep)
 library(Matrix)
-devtools::load_all("~/Documents/GitHub/naomi")
 
-setwd("~/Documents/GitHub/subnat_fertility/")
+devtools::load_all("~/GitHub/naomi")
+
+setwd("~/GitHub/subnat_fertility/")
 source("R/inputs.R")
+
+lapply(list.files("~/GitHub/naomi/R", full.names = TRUE), source)
 
 iso3_current <- "ZWE"
 
-list2env(make_areas_population(iso3_current, "~/Documents/GitHub/naomi-data/"), globalenv())
+list2env(make_areas_population("ZWE", "~/GitHub/naomi-data/"), globalenv())
 
-asfr <- readRDS(paste0("countries/", iso3_current, "/data/", iso3_current, "_asfr_admin", 2, ".rds"))
+asfr <- readRDS(paste0("countries/", iso3_current, "/data/", iso3_current, "_asfr_admin", 0, ".rds"))
 
 population <- population %>%
   filter(period == min(period))
 
-##############
 
-dat <- lapply(c("LSO", "MOZ", "MWI", "NAM", "TZA", "UGA", "ZMB", "ZWE"), function(iso3_current) {
-  
-  areas_long <- filter(areas_long, iso3==iso3_current)
-  
-  readRDS(paste0("countries/", iso3_current, "/data/", iso3_current, "_asfr_admin", unique(areas_long$area_level[areas_long$naomi_level == TRUE]), ".rds"))
-  
-})
-
-names(dat) <- c("LSO", "MOZ", "MWI", "NAM", "TZA", "UGA", "ZMB", "ZWE")
-
-##################
-
-# population <- population %>%
-#   group_by(calendar_quarter, sex, age_group) %>%
-#   summarise(population = sum(population)) %>%
-#   mutate(area_id = "ZWE") %>%
-#   ungroup
+population <- population %>%
+  group_by(period, sex, age_group) %>%
+  summarise(population = sum(population)) %>%
+  mutate(area_id = "ZWE") %>%
+  ungroup
 
 mf <- crossing(period = factor(1995:2015),
                age_group = c("15-19", "20-24", "25-29", "30-34", "35-39", "40-44", "45-49"),
-               area_id = filter(areas_long, iso3 == iso3_current, area_level == 2)$area_id) %>%
+               area_id = filter(areas_long, iso3 == iso3_current, area_level == 0)$area_id) %>%
   left_join(population %>%
-              mutate(year = year_labels(calendar_quarter_to_quarter_id(calendar_quarter))) %>%
               filter(sex == "female") %>%
               select(area_id, age_group, population)
   ) %>%
-  mutate(area_id = factor(area_id, levels = filter(areas_long, iso3 == iso3_current,  area_level == 2)$area_id),
+  mutate(area_id = factor(area_id, levels = filter(areas_long, iso3 == iso3_current,  area_level == 0)$area_id),
          age_group = factor(age_group, levels = c("15-19", "20-24", "25-29", "30-34", "35-39", "40-44", "45-49"))
          ) %>%
   arrange(period, area_id, age_group) %>%
@@ -68,8 +57,8 @@ obs <- asfr %>%
          tips_f = factor(tips),
          area_id = factor(area_id, levels(mf$area_id))) 
 
-X_mf <- model.matrix(~1 + age_group + period + area_id, mf)
-# X_mf <- model.matrix(~1 + age_group + period, mf)
+# X_mf <- model.matrix(~1 + age_group + period + area_id, mf)
+X_mf <- model.matrix(~1 + age_group + period, mf)
 
 #' This has dimensions (number of observations) x (number of rows in model frame (i.e crossing of age x time x space))
 #' Many more rows than mf because observations has things we need to adjust for bias (e.g. tips), but not required in model frame. 
@@ -78,7 +67,7 @@ M_mf_obs <- Matrix::sparse.model.matrix(~0 + idx, obs)
  
 ### TIPS RANDOM WALK
 
-Z_tips <- Matrix::sparse.model.matrix(~0 + tips_f, obs)
+Z_tips <- sparse.model.matrix(~0 + tips_f, obs)
 #' Create precision matrix for RW1
 D_tips <- diff(diag(ncol(Z_tips)), differences = 1)
 Q_tips <- as(t(D_tips) %*% D_tips, "dgCMatrix")
@@ -174,6 +163,7 @@ join_out <- crossing(area_aggregation,
 
 A_out <- spMatrix(nrow(mf_out), nrow(mf), join_out$out_idx, as.integer(join_out$idx), join_out$x)
 
+dyn.unload(dynlib("tmb/fertility_tmb_dev"))
 compile("tmb/fertility_tmb_dev.cpp")               # Compile the C++ file
 dyn.load(dynlib("tmb/fertility_tmb_dev"))
 
@@ -183,20 +173,20 @@ data <- list(X_mf = X_mf,
              Z_tips = Z_tips,
              Z_age = Z_age,
              Z_period = Z_period,
-             Z_spatial = Z_spatial,
+             # Z_spatial = Z_spatial,
              # Z_interaction = sparse.model.matrix(~0 + id.interaction, obs),
-             # Z_interaction1 = sparse.model.matrix(~0 + id.interaction1, obs),
+             Z_interaction1 = sparse.model.matrix(~0 + id.interaction1, obs),
              # Z_interaction2 = sparse.model.matrix(~0 + id.interaction2, obs),
              # Z_interaction3 = sparse.model.matrix(~0 + id.interaction3, obs),
              # interaction_idx = interaction_idx,
              Q_tips = Q_tips,
              Q_age = Q_age,
              Q_period = Q_period,
-             Q_spatial = Q_spatial,
+             # Q_spatial = Q_spatial,
              log_offset = log(obs$pys),
-             births_obs = obs$births,
-             pop = mf$population,
-             A_out = A_out
+             births_obs = obs$births
+             # pop = mf$population,
+             # A_out = A_out
              )
 
 par <- list(beta_mf = rep(0, ncol(X_mf)),
@@ -204,24 +194,24 @@ par <- list(beta_mf = rep(0, ncol(X_mf)),
             u_tips = rep(0, ncol(Z_tips)),
             u_age = rep(0, ncol(Z_age)),
             u_period = rep(0, ncol(Z_period)),
-            u_spatial_str = rep(0, ncol(Z_spatial)),
-            u_spatial_iid = rep(0, ncol(Z_spatial)),
+            # u_spatial_str = rep(0, ncol(Z_spatial)),
+            # u_spatial_iid = rep(0, ncol(Z_spatial)),
             # eta = array(0, c(ncol(Z_spatial), ncol(Z_age), ncol(Z_period))),
-            # eta1 = array(0, c(ncol(Z_age), ncol(Z_period))),
+            eta1 = array(0, c(ncol(Z_age), ncol(Z_period))),
             # eta2 = array(0, c(ncol(Z_spatial), ncol(Z_period))),
             # eta3 = array(0, c(ncol(Z_spatial), ncol(Z_age))),
             log_sigma_rw_tips = log(2.5),
             log_sigma_rw_age = log(2.5),
-            log_sigma_rw_period = log(2.5),
-            log_sigma_spatial = log(2.5),
-            logit_spatial_rho = 0
+            log_sigma_rw_period = log(2.5)
+            # log_sigma_spatial = log(2.5),
+            # logit_spatial_rho = 0
             )
              
 f <-  MakeADFun(data = data,
                 parameters = par,
                 DLL = "fertility_tmb_dev",
                 # random = c("beta_mf", "beta_tips_dummy", "u_tips", "u_age", "u_period", "u_spatial_str", "u_spatial_iid", "eta1", "eta2", "eta3"),
-                random = c("beta_mf", "beta_tips_dummy", "u_tips", "u_age", "u_period", "u_spatial_str", "u_spatial_iid"),
+                random = c("beta_mf", "beta_tips_dummy", "eta1"),
                 hessian = FALSE,
                 checkParameterOrder=FALSE)
 
@@ -232,36 +222,29 @@ fit <- nlminb(f$par, f$fn, f$gr)
 rep <- sdreport(f)
 tmb_res <- summary(rep)
 
-interaction_doubles <- f$report()
-full_res <- readRDS("~/Documents/GitHub/subnat_fertility/3d_res.rds")
+split(exp(tmb_res[,1]), rownames(tmb_res))
 
-no_int <- f$report()$omega_out
+inla_r <- r_list[["ZWE"]]
 
-mf_out %>%
-  left_join(areas_long) %>%
-  cbind(data.frame(val = tmb_res[,1][rownames(tmb_res) == "omega_out"],
-                   se = tmb_res[,2][rownames(tmb_res) == "omega_out"]
-                   )
-        ) %>%
-  mutate(lower = val - qnorm(0.95)*se,
-         upper = val + qnorm(0.95)*se)
+inla_r$id.age_group
 
-mf_out %>% 
-  left_join(areas_long) %>%
-  cbind(data.frame(val = f$report()$omega_out)) %>%
-  filter(area_level ==2) %>%
-  ggplot(aes(x=period, y=val, group=age_group, color=age_group)) +
-  geom_line() +
-  facet_wrap(~area_id)
+inla_res <- res_list[["ZWE"]] %>%
+  mutate(source = "inla") %>%
+  rename(val = median)
 
-mf_out %>% 
-  left_join(areas_long) %>%
+mf %>% 
+  # left_join(areas_long) %>%
   cbind(data.frame(val = f$report()$omega)) %>%
-  filter(area_level ==0) %>%
-  group_by(period) %>%
-  summarise(tfr = 5*sum(val))
+  type.convert() %>%
+  mutate(source = "tmb") %>%
+  bind_rows(inla_res) %>%
+  filter(age_group == "20-24") %>%
+  ggplot(aes(x=period, y=val, group=source, color=source)) +
+    geom_line() +
+    facet_wrap(~area_id)
 
-inla_res <- readRDS("~/Documents/GitHub/subnat_fertility/2019_12_4_workshop_data.rds")[["ZWE"]]
+data.frame(val = f$report()$u_period)
+
 
 f$report()
 
