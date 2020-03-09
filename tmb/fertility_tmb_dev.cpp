@@ -20,23 +20,23 @@ Type objective_function<Type>::operator() ()
   DATA_SPARSE_MATRIX(Z_tips);
   DATA_SPARSE_MATRIX(Z_age);
   DATA_SPARSE_MATRIX(Z_period);
-  // DATA_SPARSE_MATRIX(Z_spatial);
+  DATA_SPARSE_MATRIX(Z_spatial);
   
   // DATA_SPARSE_MATRIX(Z_interaction);
   // PARAMETER_ARRAY(eta);
   // DATA_VECTOR(interaction_idx);
 
-  DATA_SPARSE_MATRIX(Z_interaction1);
+  // DATA_SPARSE_MATRIX(Z_interaction1);
   // DATA_SPARSE_MATRIX(Z_interaction2);
   // DATA_SPARSE_MATRIX(Z_interaction3);
-  PARAMETER_ARRAY(eta1);
+  // PARAMETER_ARRAY(eta1);
   // PARAMETER_ARRAY(eta2);
   // PARAMETER_ARRAY(eta3);
 
   DATA_SPARSE_MATRIX(Q_tips);
   DATA_SPARSE_MATRIX(Q_age);
   DATA_SPARSE_MATRIX(Q_period);
-  // DATA_SPARSE_MATRIX(Q_spatial);
+  DATA_SPARSE_MATRIX(Q_spatial);
 
   PARAMETER(log_sigma_rw_tips);
   PARAMETER(log_sigma_rw_age);
@@ -46,10 +46,10 @@ Type objective_function<Type>::operator() ()
   PARAMETER_VECTOR(u_age);
   PARAMETER_VECTOR(u_period);
 
-  // PARAMETER_VECTOR(u_spatial_str);
-  // PARAMETER_VECTOR(u_spatial_iid); 
-  // PARAMETER(logit_spatial_rho);
-  // PARAMETER(log_sigma_spatial);
+  PARAMETER_VECTOR(u_spatial_str);
+  PARAMETER_VECTOR(u_spatial_iid); 
+  PARAMETER(logit_spatial_rho);
+  PARAMETER(log_sigma_spatial);
 
   // DATA_SPARSE_MATRIX(A_out);
   // DATA_VECTOR(pop);
@@ -86,35 +86,35 @@ Type objective_function<Type>::operator() ()
   nll -= dnorm(u_period, Type(0), Type(1), true).sum();
   nll -= dnorm(u_period.sum(), Type(0), Type(0.001) * u_period.size(), true);
 
-  // //// SPATIAL
-  // // ICAR
-  // nll -= Type(-0.5) * (u_spatial_str * (Q_spatial * u_spatial_str)).sum();
-  // nll -= dnorm(u_spatial_str.sum(), Type(0), Type(0.001) * u_spatial_str.size(), 1); // sum to zero constraint
+  //// SPATIAL
+  // ICAR
+  nll -= Type(-0.5) * (u_spatial_str * (Q_spatial * u_spatial_str)).sum();
+  nll -= dnorm(u_spatial_str.sum(), Type(0), Type(0.001) * u_spatial_str.size(), 1); // sum to zero constraint
   
-  // // IID
-  // nll -=dnorm(u_spatial_iid, Type(0), Type(2.5), true).sum();
+  // IID
+  nll -=dnorm(u_spatial_iid, Type(0), Type(2.5), true).sum();
   
-  // // Rho
-  // Type spatial_rho(exp(logit_spatial_rho)/(1+exp(logit_spatial_rho)));
-  // nll -= log(spatial_rho) +  log(1 - spatial_rho); // Jacobian adjustment for inverse logit'ing the parameter... 
-  // nll -= dbeta(spatial_rho, Type(0.5), Type(0.5), true);
+  // Rho
+  Type spatial_rho(exp(logit_spatial_rho)/(1+exp(logit_spatial_rho)));
+  nll -= log(spatial_rho) +  log(1 - spatial_rho); // Jacobian adjustment for inverse logit'ing the parameter... 
+  nll -= dbeta(spatial_rho, Type(0.5), Type(0.5), true);
   
-  // // Sigma
-  // Type sigma_spatial = exp(log_sigma_spatial);
-  // nll -= dnorm(sigma_spatial, Type(0), Type(2.5), true) + log_sigma_spatial;
+  // Sigma
+  Type sigma_spatial = exp(log_sigma_spatial);
+  nll -= dnorm(sigma_spatial, Type(0), Type(2.5), true) + log_sigma_spatial;
   
-  // vector<Type> spatial = sigma_spatial * (sqrt(1 - spatial_rho) * u_spatial_iid + sqrt(spatial_rho) * u_spatial_str);
+  vector<Type> spatial = sigma_spatial * (sqrt(1 - spatial_rho) * u_spatial_iid + sqrt(spatial_rho) * u_spatial_str);
 
   // nll += SEPARABLE(GMRF(Q_period), SEPARABLE(GMRF(Q_age), GMRF(Q_spatial)))(eta);
   // vector<Type> eta_v(eta);
   // nll -= dnorm(eta_v, Type(0), Type(1), true).sum();
 
-  nll += SEPARABLE(GMRF(Q_period), GMRF(Q_age))(eta1);
+  // nll += SEPARABLE(GMRF(Q_period), GMRF(Q_age))(eta1);
   // nll += SEPARABLE(GMRF(Q_period), GMRF(Q_spatial))(eta2);
   // nll += SEPARABLE(GMRF(Q_age), GMRF(Q_spatial))(eta3);
 
-  vector<Type> eta1_v(eta1);
-  nll -= dnorm(eta1_v, Type(0), Type(1), true).sum();
+  // vector<Type> eta1_v(eta1);
+  // nll -= dnorm(eta1_v, Type(0), Type(1), true).sum();
   // vector<Type> eta2_v(eta2);
   // nll -= dnorm(eta2_v, Type(0), Type(1), true).sum();
   // vector<Type> eta3_v(eta3);
@@ -137,10 +137,10 @@ Type objective_function<Type>::operator() ()
                           Z_period * u_period * 1/sigma_rw_period +
                           log_offset +
                           // Z_interaction * eta_v +
-                          Z_interaction1 * eta1_v
+                          // Z_interaction1 * eta1_v
                           // Z_interaction2 * eta2_v +
                           // Z_interaction3 * eta3_v +
-                          // Z_spatial * spatial
+                          Z_spatial * spatial
                           );
     
   nll -= dpois(births_obs, exp(mu_obs_pred), true).sum();

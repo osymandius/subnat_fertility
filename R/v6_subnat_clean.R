@@ -12,6 +12,7 @@ library(tidyr)
 library(parallel)
 devtools::load_all("~/Documents/GitHub/naomi")
 
+setwd("~/GitHub/subnat_fertility/")
 source("R/fertility_funs.R")
 source("R/inputs.R")
 source("R/fertility_funs.R")
@@ -66,9 +67,13 @@ asfr <- Map(calc_asfr1, dat$ir,
          iso3 = ifelse(country == "Eswatini", "SWZ", iso3)) %>%
   select(-country)
 
-asfr_pred <- get_asfr_pred_df(asfr)
+asfr_pred <- make_asfr_pred_df(asfr)
 
 get_neighbourhood_structure(asfr, areas_long, boundaries)
+
+##################################
+
+dat <- get_asfr_pred_df("ZWE", area_level = 2, project = FALSE)
 
 ####################### NATIONAL MODS
 
@@ -81,8 +86,6 @@ dat <- lapply(c("LSO", "MOZ", "MWI", "NAM", "TZA", "UGA", "ZMB", "ZWE"), functio
 })
 
 names(dat) <- c("LSO", "MOZ", "MWI", "NAM", "TZA", "UGA", "ZMB", "ZWE")
-
-formula <- births ~ f(id.age_group, model="rw1") + f(id.period, model="rw2") + f(id.age_group2, model = "rw1", group = id.period, control.group = list(model = "ar1"))
 
 mod_list <- lapply( c("LSO", "MOZ", "MWI", "NAM", "TZA", "UGA", "ZMB", "ZWE"), function(x) readRDS(paste0("countries/", x, "/mods/", x, "_nat_mod.rds")))
 

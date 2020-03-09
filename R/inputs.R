@@ -205,7 +205,7 @@ clusters_to_surveys <- function(surveys, cluster_areas, single_tips = TRUE) {
 }
 
 
-get_asfr_pred_df <- function(asfr, t2 = 2020) {
+make_asfr_pred_df <- function(asfr, t2 = 2020) {
   
   area_df <- areas_long %>% 
     filter(iso3 == unique(asfr$iso3), area_level == areas_long$area_level[areas_long$area_id == asfr$area_id[1]])
@@ -225,6 +225,9 @@ get_asfr_pred_df <- function(asfr, t2 = 2020) {
            id.age_group2 = id.age_group,
            id.age_group3 = id.age_group,
            id.age_group.period = group_indices(., period, age_group),
+           id.district = group_indices(., area_id),
+           id.district2 = id.district,
+           id.district3 = id.district,
            id.tips = (group_indices(., tips)),
            id.tips = ifelse(is.na(tips), NA, id.tips),
            id.tips = factor(id.tips),
@@ -254,4 +257,37 @@ get_neighbourhood_structure <- function(asfr, areas_long, boundaries) {
   
   nb2INLA(paste0("countries/", unique(asfr$iso3), "/adj/", unique(asfr$iso3), "_admin", level, ".adj"), nb)
   
+}
+
+get_asfr_pred_df <- function(iso3_current, area_level, project) {
+
+  if (area_level == "naomi") {
+
+    int <- areas_long %>%
+              filter(iso3 == iso3_current)
+
+    area_level <- unique(int$area_level[int$naomi_level == TRUE])
+
+  }
+
+
+  if (project == FALSE) {
+
+    dat <- readRDS(paste0("countries/", iso3_current, "/data/", iso3_current, "_asfr_admin", area_level, ".rds"))
+
+    year <- unique(max(filter(dat, !is.na(surveyid))$period))
+
+    dat <- dat %>%
+      filter(period <= year)
+
+  } else {
+
+    dat <- readRDS(paste0("countries/", iso3_current, "/data/", iso3_current, "_asfr_admin", area_level, ".rds"))
+
+
+  }
+  
+  return(dat)
+
+
 }

@@ -16,7 +16,7 @@ iso3_current <- "ZWE"
 
 list2env(make_areas_population("ZWE", "~/GitHub/naomi-data/"), globalenv())
 
-asfr <- readRDS(paste0("countries/", iso3_current, "/data/", iso3_current, "_asfr_admin", 0, ".rds"))
+asfr <- readRDS(paste0("countries/", iso3_current, "/data/", iso3_current, "_asfr_admin", 2, ".rds"))
 
 population <- population %>%
   filter(period == min(period))
@@ -30,12 +30,12 @@ population <- population %>%
 
 mf <- crossing(period = factor(1995:2015),
                age_group = c("15-19", "20-24", "25-29", "30-34", "35-39", "40-44", "45-49"),
-               area_id = filter(areas_long, iso3 == iso3_current, area_level == 0)$area_id) %>%
+               area_id = filter(areas_long, iso3 == iso3_current, area_level == 2)$area_id) %>%
   left_join(population %>%
               filter(sex == "female") %>%
               select(area_id, age_group, population)
   ) %>%
-  mutate(area_id = factor(area_id, levels = filter(areas_long, iso3 == iso3_current,  area_level == 0)$area_id),
+  mutate(area_id = factor(area_id, levels = filter(areas_long, iso3 == iso3_current,  area_level == 2)$area_id),
          age_group = factor(age_group, levels = c("15-19", "20-24", "25-29", "30-34", "35-39", "40-44", "45-49"))
          ) %>%
   arrange(period, area_id, age_group) %>%
@@ -57,8 +57,8 @@ obs <- asfr %>%
          tips_f = factor(tips),
          area_id = factor(area_id, levels(mf$area_id))) 
 
-# X_mf <- model.matrix(~1 + age_group + period + area_id, mf)
-X_mf <- model.matrix(~1 + age_group + period, mf)
+X_mf <- model.matrix(~1 + age_group + period + area_id, mf)
+#X_mf <- model.matrix(~1 + age_group + period, mf)
 
 #' This has dimensions (number of observations) x (number of rows in model frame (i.e crossing of age x time x space))
 #' Many more rows than mf because observations has things we need to adjust for bias (e.g. tips), but not required in model frame. 
@@ -173,16 +173,16 @@ data <- list(X_mf = X_mf,
              Z_tips = Z_tips,
              Z_age = Z_age,
              Z_period = Z_period,
-             # Z_spatial = Z_spatial,
+             Z_spatial = Z_spatial,
              # Z_interaction = sparse.model.matrix(~0 + id.interaction, obs),
-             Z_interaction1 = sparse.model.matrix(~0 + id.interaction1, obs),
+             # Z_interaction1 = sparse.model.matrix(~0 + id.interaction1, obs),
              # Z_interaction2 = sparse.model.matrix(~0 + id.interaction2, obs),
              # Z_interaction3 = sparse.model.matrix(~0 + id.interaction3, obs),
              # interaction_idx = interaction_idx,
              Q_tips = Q_tips,
              Q_age = Q_age,
              Q_period = Q_period,
-             # Q_spatial = Q_spatial,
+             Q_spatial = Q_spatial,
              log_offset = log(obs$pys),
              births_obs = obs$births
              # pop = mf$population,
@@ -194,24 +194,25 @@ par <- list(beta_mf = rep(0, ncol(X_mf)),
             u_tips = rep(0, ncol(Z_tips)),
             u_age = rep(0, ncol(Z_age)),
             u_period = rep(0, ncol(Z_period)),
-            # u_spatial_str = rep(0, ncol(Z_spatial)),
-            # u_spatial_iid = rep(0, ncol(Z_spatial)),
+            u_spatial_str = rep(0, ncol(Z_spatial)),
+            u_spatial_iid = rep(0, ncol(Z_spatial)),
             # eta = array(0, c(ncol(Z_spatial), ncol(Z_age), ncol(Z_period))),
-            eta1 = array(0, c(ncol(Z_age), ncol(Z_period))),
+            # eta1 = array(0, c(ncol(Z_age), ncol(Z_period))),
             # eta2 = array(0, c(ncol(Z_spatial), ncol(Z_period))),
             # eta3 = array(0, c(ncol(Z_spatial), ncol(Z_age))),
             log_sigma_rw_tips = log(2.5),
             log_sigma_rw_age = log(2.5),
-            log_sigma_rw_period = log(2.5)
-            # log_sigma_spatial = log(2.5),
-            # logit_spatial_rho = 0
+            log_sigma_rw_period = log(2.5),
+            log_sigma_spatial = log(2.5),
+            logit_spatial_rho = 0
             )
              
 f <-  MakeADFun(data = data,
                 parameters = par,
                 DLL = "fertility_tmb_dev",
                 # random = c("beta_mf", "beta_tips_dummy", "u_tips", "u_age", "u_period", "u_spatial_str", "u_spatial_iid", "eta1", "eta2", "eta3"),
-                random = c("beta_mf", "beta_tips_dummy", "eta1"),
+                random = c("beta_mf", "beta_tips_dummy", "u_tips", "u_age", "u_period", "u_spatial_str", "u_spatial_iid"),
+                #random = c("beta_mf", "beta_tips_dummy", "eta1"),
                 hessian = FALSE,
                 checkParameterOrder=FALSE)
 
@@ -227,6 +228,10 @@ split(exp(tmb_res[,1]), rownames(tmb_res))
 inla_r <- r_list[["ZWE"]]
 
 inla_r$id.age_group
+
+inla_res <- get_mod_results_test(zwe.m, dat)%>%
+  mutate(source = "inla") %>%
+  rename(val = median)
 
 inla_res <- res_list[["ZWE"]] %>%
   mutate(source = "inla") %>%
