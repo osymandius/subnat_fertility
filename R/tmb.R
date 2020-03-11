@@ -45,7 +45,25 @@ mf <- crossing(period = factor(1995:2015),
          id.interaction2 = factor(group_indices(., period, area_id)),
          id.interaction3 = factor(group_indices(., age_group, area_id))
          )
+asfr %>%
+  filter(!is.na(surveyid))
 
+mics_data <- read_mics(iso3_current)
+mics_asfr <- Map(calc_asfr_mics, mics_data$wm, y=list(1),
+                 by = list(~area_id + survyear + surveyid + survtype),
+                 tips = list(c(0:5)),
+                 agegr= list(3:10*5),
+                 period = list(1995:2017),
+                 counts = TRUE,
+                 bhdata = mics_data$bh_df) %>%
+  bind_rows %>%
+  rename(age_group = agegr)
+
+asfr %>%
+  filter(!is.na(surveyid)) %>%
+  select(area_id, period, age_group, tips, births, pys) %>%
+  type.convert() %>%
+  bind_rows(mics_asfr %>% type.convert %>%select(area_id, period, age_group, tips, births, pys))
 
 obs <- asfr %>%
   filter(!is.na(surveyid)) %>%
@@ -231,8 +249,7 @@ inla_r <- r_list[["ZWE"]]
 
 inla_r$id.age_group
 
-debugonce(get_mod_results_test)
-inla_res <- get_mod_results_test(mod, dat)%>%
+inla_res <- get_mod_results_test(zwe.r, asfr)%>%
   mutate(source = "inla") %>%
   rename(val = median)
 

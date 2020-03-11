@@ -66,6 +66,16 @@ asfr <- Map(calc_asfr1, dat$ir,
          iso3 = ifelse(country == "Eswatini", "SWZ", iso3)) %>%
   select(-country)
 
+
+mics_asfr <- Map(calc_asfr_mics, mics_data$wm, y=list(1),
+                 by = list(~area_id + survyear + surveyid + survtype),
+                 tips = list(c(0:5)),
+                 agegr= list(3:10*5),
+                 period = list(1995:2017),
+                 counts = TRUE,
+                 bhdata = mics_data$bh_df) %>%
+  bind_rows
+
 asfr_pred <- make_asfr_pred_df(asfr)
 
 get_neighbourhood_structure(asfr, areas_long, boundaries)
