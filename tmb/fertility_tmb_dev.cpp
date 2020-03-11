@@ -26,12 +26,12 @@ Type objective_function<Type>::operator() ()
   // PARAMETER_ARRAY(eta);
   // DATA_VECTOR(interaction_idx);
 
-  // DATA_SPARSE_MATRIX(Z_interaction1);
-  // DATA_SPARSE_MATRIX(Z_interaction2);
-  // DATA_SPARSE_MATRIX(Z_interaction3);
-  // PARAMETER_ARRAY(eta1);
-  // PARAMETER_ARRAY(eta2);
-  // PARAMETER_ARRAY(eta3);
+  DATA_SPARSE_MATRIX(Z_interaction1);
+  DATA_SPARSE_MATRIX(Z_interaction2);
+  DATA_SPARSE_MATRIX(Z_interaction3);
+  PARAMETER_ARRAY(eta1);
+  PARAMETER_ARRAY(eta2);
+  PARAMETER_ARRAY(eta3);
 
   DATA_SPARSE_MATRIX(Q_tips);
   DATA_SPARSE_MATRIX(Q_age);
@@ -109,16 +109,16 @@ Type objective_function<Type>::operator() ()
   // vector<Type> eta_v(eta);
   // nll -= dnorm(eta_v, Type(0), Type(1), true).sum();
 
-  // nll += SEPARABLE(GMRF(Q_period), GMRF(Q_age))(eta1);
-  // nll += SEPARABLE(GMRF(Q_period), GMRF(Q_spatial))(eta2);
-  // nll += SEPARABLE(GMRF(Q_age), GMRF(Q_spatial))(eta3);
+  nll += SEPARABLE(GMRF(Q_period), GMRF(Q_age))(eta1); 
+  nll += SEPARABLE(GMRF(Q_period), GMRF(Q_spatial))(eta2);
+  nll += SEPARABLE(GMRF(Q_age), GMRF(Q_spatial))(eta3);
 
-  // vector<Type> eta1_v(eta1);
-  // nll -= dnorm(eta1_v, Type(0), Type(1), true).sum();
-  // vector<Type> eta2_v(eta2);
-  // nll -= dnorm(eta2_v, Type(0), Type(1), true).sum();
-  // vector<Type> eta3_v(eta3);
-  // nll -= dnorm(eta3_v, Type(0), Type(1), true).sum();
+  vector<Type> eta1_v(eta1);
+  nll -= dnorm(eta1_v, Type(0), Type(1), true).sum();
+  vector<Type> eta2_v(eta2);
+  nll -= dnorm(eta2_v, Type(0), Type(1), true).sum();
+  vector<Type> eta3_v(eta3);
+  nll -= dnorm(eta3_v, Type(0), Type(1), true).sum();
 
   
   // // // vector<Type> eta_v_clipped(interaction_idx.size();
@@ -137,9 +137,9 @@ Type objective_function<Type>::operator() ()
                           Z_period * u_period * 1/sigma_rw_period +
                           log_offset +
                           // Z_interaction * eta_v +
-                          // Z_interaction1 * eta1_v
-                          // Z_interaction2 * eta2_v +
-                          // Z_interaction3 * eta3_v +
+                          Z_interaction1 * eta1_v +
+                          Z_interaction2 * eta2_v +
+                          Z_interaction3 * eta3_v +
                           Z_spatial * spatial
                           );
     
@@ -157,9 +157,10 @@ Type objective_function<Type>::operator() ()
   ADREPORT(u_period);
   ADREPORT(u_age);
   ADREPORT(u_tips);
-  // REPORT(eta1_v);
-  // REPORT(eta2_v);
-  // REPORT(eta3_v);
+  ADREPORT(beta_tips_dummy);
+  REPORT(eta1_v);
+  REPORT(eta2_v);
+  REPORT(eta3_v);
   // ADREPORT(omega_out);
 
   REPORT(omega);

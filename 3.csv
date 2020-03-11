@@ -1,0 +1,444 @@
+var,label
+hh1,Cluster number
+hh2,Household number
+ln,Line number
+wm1,Cluster number
+wm2,Household number
+wm3,Woman's line number
+wmint,Interviewer number
+wm4,Supervisor number
+wm5,Interviewer number
+wm6d,Day of interview
+wm6m,Month of interview
+wm6y,Year of interview
+wm8,Respondent to another questionnaire
+wm9,Consent
+wm17,Result of woman's interview
+wm7h,Start of interview - Hour
+wm7m,Start of interview - Minutes
+wm10h,End of interview - Hour
+wm10m,End of interview - Minutes
+wm11,Interview completed in private
+wm12,Language of the Questionnaire
+wm13,Language of the Interview
+wm14,Native language of the Respondent
+wm15,Translator used
+wmhint,Household interviewer
+intromm,Introduction MM Listing
+mmaux,Other brother/sisters
+wmfin,Finish
+wb3m,Month of birth of woman
+wb3y,Year of birth of woman
+wb4,Age of woman
+wb5,Ever attended school
+wb6a,Highest level of school attended
+wb6b,Highest grade attended at that level
+wb7,Ever completed that grade/year
+wb9,Attended school during current school year
+wb10a,Level of education attended current school year
+wb10b,Grade attended at that level during current school year
+wb11,Attended school previous school year
+wb12a,Level of education attended previous school year
+wb12b,Grade attended at that level during previous school year
+wb14,Can read part of the sentence
+wb15,Duration of living in current place
+wb16,Place of living prior to moving to current place
+wb17,Region prior to moving to current place
+wb18,Covered by health insurance
+wb19a,Type of health insurance: Mutual health organization / Community-based health insurance
+wb19b,Type of health insurance: Health insurance through employer
+wb19c,Type of health insurance: Social security
+wb19d,Type of health insurance: Other privately purchased commercial health insurance
+wb19x,Type of health insurance: Other
+wb19nr,Type of health insurance: No response
+mt1,Frequency of reading newspaper or magazine
+mt2,Frequency of listening to the radio
+mt3,Frequency of watching TV
+mt4,Ever used a computer or a tablet
+mt5,Computer / tablet usage in the last 3 months
+mt6a,During the last 3 months: Copy or move a file or folder
+mt6b,During the last 3 months: Use a copy / paste in document
+mt6c,During the last 3 months: Send e-mail with attached file
+mt6d,During the last 3 months: Use a basic arithmetic formula in a spreadsheet
+mt6e,During the last 3 months: Connect and install a new device
+mt6f,During the last 3 months: Install and configure software
+mt6g,During the last 3 months: Create an electronic presentation
+mt6h,During the last 3 months: Transfer a file
+mt6i,During the last 3 months: Write a computer program
+mt9,Ever used internet
+mt10,Internet usage in the last 3 months
+mt11,Own a mobile phone
+mt12,Mobile phone usage in the last 3 months
+cm1,Ever given birth
+cm2,Any sons or daughters living with you
+cm3,Sons living with you
+cm4,Daughters living with you
+cm5,Any sons or daughters not living with you
+cm6,Sons living elsewhere
+cm7,Daughters living elsewhere
+cm8,Ever had child who later died
+cm9,Boys dead
+cm10,Girls dead
+cm11,Children ever born
+cm12,Confirm total number of children ever born
+cm15,Check total number of children ever born
+cm17,Live births in last two years
+bh11,Any other live births
+mn2,Received prenatal care
+mn3a,Prenatal care provider: Doctor
+mn3b,Prenatal care provider: Nurse/Midwife
+mn3f,Prenatal care provider: Traditional birth attendant
+mn3g,Prenatal care provider: Community health worker
+mn3h,Prenatal care provider. Religious birth attendant
+mn3x,Prenatal care provider: Other
+mn3nr,Prenatal care provider: No Response
+mn4au,Weeks or months pregnent at first prenatal care - unit
+mn4an,Weeks or months pregnant at first prenatal care - number
+mn5,Times received prenatal care
+mn6a,Blood pressure
+mn6b,Urine sample
+mn6c,Blood sample
+mn7,Has own immunization card
+mn8,Any tetanus toxoid injection during last pregnancy
+mn9,Doses of tetanus toxoid during last pregnancy
+mn11,Any tetanus toxoid injection before last pregnancy
+mn12,Doses of tetanus toxoid before last pregnancy
+mn14,Years ago last tetanus toxoid received before last pregnancy
+mn16,Any SP/Fansidar during last pregnancy
+mn16a,On life long Cotrimoxazole
+mn17,Doses of SP/Fansidar during last pregnancy
+mn18a,"Received SP/Fansidar during an antenatal care visit, or during another visit: Antenatal visit"
+mn18b,"Received SP/Fansidar during an antenatal care visit, or during another visit: Another facility visit"
+mn18c,"Received SP/Fansidar during an antenatal care visit, or during another visit: Community health worker"
+mn18x,"Received SP/Fansidar during an antenatal care visit, or during another visit: Other source"
+mn18nr,"Received SP/Fansidar during an antenatal care visit, or during another visit: No response"
+mn19a,Assistance at delivery: Doctor
+mn19b,Assistance at delivery: Nurse / Midwife
+mn19f,Assistance at delivery: Traditional birth attendant
+mn19g,Assistance at delivery: Community health worker
+mn19h,Assistance at delivery: Relative / Friend
+mn19i,Assistance at delivery:Religious birth attendant
+mn19x,Assistance at delivery: Other
+mn19y,Assistance at delivery: No one
+mn19nr,Assistance at delivery: No response
+mn20,Place of delivery
+mn21,Delivery by caesarean section
+mn22,Decision made to have caesarean section
+mn23,"After the birth, baby was put directly on the bare skin of mothers chest"
+mn24,Baby was wrapped up before being placed on mothers chest
+mn25,Baby was dried or wiped soon after birth
+mn26u,Time baby was bathed - unit
+mn26n,Time baby was bathed - number
+mn32,Size of child at birth
+mn33,Weighed at birth
+mn34a,Weight from card or recall
+mn34,Weight at birth (Kilograms)
+mn35,Menstrual period returned since the birth of child
+mn36,Ever breastfeed
+mn37u,Time baby put to breast - unit
+mn37n,Time baby put to breast - number
+mn38,"Within first 3 days after delivery, child given anything to drink other than breast milk"
+mn39a,Child given to drink: Milk (other than breast milk)
+mn39b,Child given to drink: Plain water
+mn39c,Child given to drink: Sugar or glucose water
+mn39d,Child given to drink: Gripe water
+mn39e,Child given to drink: Sugar - salt - water solution
+mn39f,Child given to drink: Fruit juice
+mn39g,Child given to drink: Infant formula
+mn39h,Child given to drink: Tea / Infusions
+mn39i,Child given to drink: Honey
+mn39j,Child given to drink: Prescribed medicine
+mn39x,Child given to drink: Other
+mn39y,Child given to drink: Not given anything to drink
+mn39nr,Child given to drink: No response
+pn3u,Duration of staying in the health facility - unit
+pn3n,Duration of staying in the health facility - number
+pn4,Baby's health checked before leaving health facility
+pn5,Mother's health checked before leaving health facility
+pn6,Baby's health checked after leaving health facility
+pn8,Baby checked after the delivery was over
+pn9,Mother checked after the delivery was over
+pn10,Additional baby check after the delivery
+pn11,Baby checked after the delivery
+pn12,Number of times baby was checked
+pn13u,How long after delivery did the first check of baby happen - unit
+pn13n,How long after delivery did the first check of baby happen - number
+pn14a,Person checking on baby's health: Doctor
+pn14b,Person checking on baby's health: Nurse / Midwife
+pn14f,Person checking on baby's health: Traditional birth attendant
+pn14g,Person checking on baby's health: Community health worker
+pn14h,Person checking on baby's health: Relative / Friend
+pn14i,Person checking on baby's health: Religious birth attendant
+pn14x,Person checking on baby's health: Other
+pn14nr,Person checking on baby's health: No response
+pn15,Place where baby's health was checked
+pn17,Mother's health checked after leaving health facility
+pn19,Mother's health checked after the delivery was over
+pn20,Mother's health checked after the birth of the baby
+pn21,Number of times mother's health was checked after the birth
+pn22u,How long after delivery did the first check of mother happen - unit
+pn22n,How long after delivery did the first check of mother happen - number
+pn23a,Person checking on mother's health: Doctor
+pn23b,Person checking on mother's health: Nurse / Midwife
+pn23f,Person checking on mother's health: Traditional birth attendant
+pn23g,Person checking on mother's health: Community health worker
+pn23h,Person checking on mother's health: Relative / Friend
+pn23i,Person checking on mother's health:Religious birth attendant
+pn23x,Person checking on mother's health: Other
+pn23nr,Person checking on mother's health: No response
+pn24,Place where mother's health was checked
+pn25a,During two days after birth health care provider: Examine cord
+pn25b,During two days after birth health care provider: Take temperature
+pn25c,During two days after birth health care provider: Counsel on breastfeeding
+pn27,During two days after birth health care provider observe child's breastfeeding
+pn29,During two days after birth health care provider weighed child again
+pn30,During two days after birth health care provider gave information on symtomps
+un14u,Start of last menstrual period - unit
+un14n,Start of last menstrual period - number
+un16,"Social activities, school or work days not attended due to menstruation"
+un17,Availability of private place for washing during last menstrual period
+un18,"Used any materials such as sanitary pads, tampons or cloth"
+un19,Materials reusable
+un19a,Materials for menstrual period
+vt1,"Someone taken or tried taking something, by using force or threatening to use force"
+vt2,Victimisation happened during the last 12 months
+vt3,Number of times victimisation happened in the last year
+vt5,"The last time that this happened, was anything stolen"
+vt6,Person(s) had a weapon
+vt7a,"Offender(s) had a knife, a gun or something else used as a weapon: A knife"
+vt7b,"Offender(s) had a knife, a gun or something else used as a weapon: A gun"
+vt7x,"Offender(s) had a knife, a gun or something else used as a weapon: Other weapon"
+vt7nr,"Offender(s) had a knife, a gun or something else used as a weapon: No response"
+vt8,Incident reported to the police
+vt9,Physically attacked
+vt10,Attack happened during the last 12 months
+vt11,Number of times attack happened in the last year
+vt12,Place attack happened the last time
+vt13,Number of people involved in committing the offence
+vt14,At least one of the offender(s) recognized at the time of the incident
+vt17,Person(s) had a weapon
+vt18a,"Offender(s) had a knife, a gun or something else used as a weapon: A knife"
+vt18b,"Offender(s) had a knife, a gun or something else used as a weapon: A gun"
+vt18x,"Offender(s) had a knife, a gun or something else used as a weapon: Other weapon"
+vt18nr,"Offender(s) had a knife, a gun or something else used as a weapon: No response"
+vt19,Incident reported to the police
+vt20,Feeling safe walking alone in neighbourhood after dark
+vt21,Feeling safe at home alone after dark
+vt22a,"In the past 12 months, felt discriminated: Ethnic or immigration origin"
+vt22b,"In the past 12 months, felt discriminated: Gender"
+vt22c,"In the past 12 months, felt discriminated: Sexual orientation"
+vt22d,"In the past 12 months, felt discriminated: Age"
+vt22e,"In the past 12 months, felt discriminated: Religion or belief"
+vt22f,"In the past 12 months, felt discriminated: Disability"
+vt22g,"In the past 12 months, felt discriminated: Marital status"
+vt22h,"In the past 12 months, felt discriminated: Pregnancy"
+vt22i,"In the past 12 months, felt discriminated: Political Affiliation"
+vt22j,"In the past 12 months, felt discriminated: Born out of wedlock"
+vt22x,"In the past 12 months, felt discriminated: Any other reason"
+ma1,Currently married or living with a man
+ma2,Age of husband/partner
+ma3,Husband/partner has more wives or partners
+ma4,Number of other wives or partners
+ma5,Ever married or lived with a man
+ma6,Marital status
+ma7,Married or lived with a man once or more than once
+ma8m,Month of first union
+ma8y,Year of first union
+ma11,Age at first union
+af2,Use glasses or contact lenses
+af3,Use hearing aid
+af6,"Difficulty seeing, even if wearing glasses or contact lenses"
+af8,"Difficulty hearing, even if using a hearing aid"
+af9,Difficulty walking or climbing steps
+af10,Difficulty remembering or concentrating
+af11,"Difficulty with self-care, such as washing all over or dressing"
+af12,Difficulty communicating
+sb1,Age at first sexual intercourse
+sb2u,Time since last sexual intercourse - unit
+sb2n,Time since last sexual intercourse - number
+ha1,Ever heard of HIV or AIDS
+ha13a,Given information about HIV during antenatal care visit: HIV from mother
+ha13b,Given information about HIV during antenatal care visit: Things to do
+ha13c,Given information about HIV during antenatal care visit: Tested for HIV
+ha13d,Given information about HIV during antenatal care visit: Offered a test
+ha14,Tested for HIV as part of antenatal care
+ha15,Received results from test during antenatal care
+ha16,Received consultation after testing during antenatal care
+ha18,Offered test for HIV before delivery
+ha19,Tested for HIV during delivery
+ha20,Received results from test during delivery
+ha22,Tested for HIV since test during pregnancy
+ha23,Most recent time of testing for HIV
+ha24,Ever been tested for HIV
+ha25,Most recent time of testing for HIV
+ha26,Received results of HIV test
+ha27,Place to get tested
+ha28,Heard of test kits
+ha29,Ever tested self
+ha30,Buy fresh vegetebles from shopkeeper
+ha31,Children with HIV allowed to attend school
+ha32,Hesitate to take HIV test
+ha33,People talk badly about peoplewith HIV
+ha34,Lose respect of other people
+ha35,Ashamed if someone in family has HIV
+ha36,Fear of getting HIV
+mm3,Any brothers and sisters from the same mother that you have not mentioned
+mm4,Are there any brothers or sisters who do not live with you that you have not mentioned?
+mm5,Are there any brothers or sisters who died that you have not mentioned?
+mm6,"Are there any brothers or sisters born to your natural mother, but who have a different natural father, that you have not mentioned?"
+mm7,Number of siblings listed
+mm8,Confirmation of number of siblings
+mm12,Number of preceding births
+ls1,Estimation of overall happiness
+ls2,Satisfaction with ladder step
+ls3,Life satisfaction in comparison with last year
+ls4,Life satisfaction expectation one year from now
+dv0,LINE NUMBER IN HH30H
+dv1,Privacy obtained
+dv3a,He is jealous or angry if talk to other men
+dv3b,He accuses you of being unfaithful
+dv3c,He does not permit you to to meet your female friends
+dv3d,He tries to limit your contact with your family
+dv3e,He insists on knowing where you are
+dv3f,He did not trust you with any money
+dv4a,He say or do something to humiliate you in front of other
+dv4a1,How often during the last 12 months
+dv4b,He threaten you or someone close to you with harm
+dv4b1,How often during the last 12 months
+dv4c,He insults you or make you feel bad about yourself
+dv4c1,How often during the last 12 months
+dv5a,"Push you, shake you or throw something at you"
+dv5a1,How often during the last 12 months
+dv5b,Slap you
+dv5b1,How often during the last 12 months
+dv5c,Twist your arm or pull your hair
+dv5c1,How often during the last 12 months
+dv5d,Punch you with the fist or with something that could hurt you
+dv5d1,How often during the last 12 months
+dv5e,"Kick you, drag you or beat you up"
+dv5e1,How often during the last 12 months
+dv5f,Try to choke you or burn you on purpose
+dv5f1,How often during the last 12 months
+dv5g,"Threaten or attack you with a knife, gun or any other weapon"
+dv5g1,How often during the last 12 months
+dv5h,Physically force you to have sexual intercourses
+dv5h1,How often during the last 12 months
+dv5i,Force you to perform other sexual acts
+dv5i1,How often during the last 12 months
+dv5j,ever force you with threats or in any other way to perform sexual acts you did not want to
+dv5j1,How often during the last 12 months
+dv7,How long after you first (got married/started living together) with your (last) (husband/partner) did (this/any of these things) first happen
+dv8a,"You had cuts, bruises, or aches"
+dv8b,"You had eye injuries, sprains, dislocations, or burns"
+dv8c,"You had deep wounds, broken bones, broken teeth, or any other serious injury"
+dv9,"ever hit, slapped, kicked, or done anything else to physically hurt your (last) (husband/partner)"
+dv10,How often during the last 12 months
+dv11,(husband/partner) drink alcohol
+dv12,How often does (did) he get drunk
+dv13,Are (Were) you afraid of your (last) (husband/partner)
+dv15a,"Did any of your previous (husband/partner) ever hit, slap, kick, or do anything else to hurt you physically"
+dv15a1,How long ago did this last happen
+dv15b,Did any of your previous (husband/partner) physically force you to have intercourse or perform any other sexual acts against your will
+dv15b1,How long ago did this last happen
+dv15c,"Did any previous (husband/partner) humiliate you in front of others, threaten to hurt you or someone you care about, or insult you or make you feel bad about yourself"
+dv15c1,How long ago did this last happen
+dv16ab,"From the time you were 15 years old has anyone hit you, slapped you, kicked you, or done anything else to hurt you physically"
+dv17a,Mother/step-mother
+dv17b,Father/step-father
+dv17c,Sister/brother
+dv17d,Daughter/son
+dv17e,Other relative
+dv17f,Current boyfriend
+dv17g,Former boyfriend
+dv17h,Mother-in-law
+dv17i,Father-in-law
+dv17j,Other in-law
+dv17k,Teacher
+dv17l,Employer/someone at work
+dv17m,Police/soldier
+dv17x,Other
+dv18,"In the last 12 months, how often has (this person/have these persons) physically hurt you"
+dv19b,Have you ever been pregnant
+dv20,"Has anyone ever hit, slapped, kicked, or done anything else to hurt you physically while you were pregnant"
+dv21a,Current husband/partner
+dv21b,Mother/step-mother
+dv21c,Father/step-father
+dv21d,Sister/brother
+dv21e,Daughter/son
+dv21f,Other relative
+dv21g,Former husband/partner
+dv21h,Current boyfriend
+dv21i,Former boyfriend
+dv21j,Mother-in-law
+dv21k,Father-in-law
+dv21l,Other in-law
+dv21m,Teacher
+dv21n,Employer/someone at work
+dv21o,Police/soldier
+dv21x,Other
+dv22a,"As a child or as an adult,  has anyone ever forced you in any way to have sexual intercourse or perform any other sexual acts when you did not want to"
+dv22b,"As a child or as an adult, has anyone ever forced you in any way to have sexual intercourse or perform any other sexual acts when you did not want to"
+dv23,Who was the person who was forcing you the very first time this happened
+dv23a,Where were you when this happened to you
+dv24ab,In the last 12 months has anyone physically forced you to have sexual intercourse when you did not want to
+dv25ab,How old were you the first time you were forced to have sexual intercourse or perform any other sexual acts
+dv27,"Thinking about what you yourself have experienced among the different things we have been talking about, have you ever tried to seek help"
+dv28a,Own family
+dv28b,Husband's/partner's family
+dv28c,Current/former/husband/partner
+dv28d,Current/former boyfriend
+dv28e,Friend
+dv28f,Neighbor
+dv28g,Religious leader
+dv28h,Doctor/medical personnel
+dv28i,Police
+dv28j,Lawyer
+dv28k,Social service organization
+dv28x,Other
+dv29,Have you ever told anyone about this
+dv30,"As far as you know, did your father ever beat your mother"
+dv31a,Interrupted interview because of husband's presence
+dv31b,Interrupted interview because of other adult male's presence
+dv31c,Interrupted interview because of adult female's presence
+hh3,Interviewer number
+hh4,Supervisor number
+hh6,Area
+hh7,Province
+wdoi,Date of interview women (CMC)
+wage,Age
+wdob,Date of birth of woman (CMC)
+wdom,Date of marriage of woman (CMC)
+wagem,Age at first marriage/union of woman
+wdobfc,Date of birth of first child (CMC)
+wdoblc,Date of birth of last child (CMC)
+mstatus,Marital/Union status of woman
+ceb,Children ever born
+csurv,Children surviving
+cdead,Children dead
+welevel,Education
+insurance,Health insurance
+disability,Functional difficulties (age 18-49 years)
+religion,Religion of household head
+bh4d_first,Day of birth
+bh4m_first,Month of birth
+bh4y_first,Year of birth
+bh6_first,Age of child
+bh3_last,Sex of newborns
+bh4d_last,Day of birth
+bh4m_last,Month of birth
+bh4y_last,Year of birth
+bh6_last,Age of child
+wmweight,Woman's sample weight
+dvhweight,Women selected for DV's household sample weight
+dvweight,Women selected for DV's sample weight
+wscore,Combined wealth score
+windex5,Wealth index quintile
+windex10,Percentile Group of com1
+wscoreu,Urban wealth score
+windex5u,Urban wealth index quintile
+windex10u,Percentile Group of urb1
+wscorer,Rural wealth score
+windex5r,Rural wealth index quintile
+windex10r,Percentile Group of rur1
+psu,Primary sampling unit
+stratum,Stratum for sampling errors calculation

@@ -1,0 +1,11 @@
+﻿label,id,filetype,MICS3,MICS5,MICS6
+cluster number,cluster,wm,wm1,wm1,wm1
+household number,hh_number,wm,wm2,wm2,wm2
+woman's line number,line_number,wm,wm4,wm4,wm3
+date of interview women (cmc),doi,wm,cmcdoiw,wdoi,wdoi
+date of birth (cmc),wdob,wm,wdob,wdob,wdob
+woman weight,weight,wm,wmweight,wmweight,wmweight
+cluster number,cluster,bh,wm1,hh1,wm1
+household number,hh_number,bh,wm2,hh2,wm2
+woman's line number,line_number,bh,wm4,ln,wm3
+date of child's birth (cmc),cdob,bh,cm11ec,bh4c,bh4c

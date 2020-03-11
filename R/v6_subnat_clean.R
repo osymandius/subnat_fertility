@@ -13,7 +13,6 @@ library(parallel)
 devtools::load_all("~/Documents/GitHub/naomi")
 
 setwd("~/GitHub/subnat_fertility/")
-source("R/fertility_funs.R")
 source("R/inputs.R")
 source("R/fertility_funs.R")
 
@@ -48,7 +47,7 @@ surveys <- dhs_surveys(surveyIds = unique(clusters$DHS_survey_id)) %>%
   )
 
 ## Needs check to ensure level is < max_level
-cluster_areas <- assign_cluster_area(iso3_current, clusters, 0)
+cluster_areas <- assign_cluster_area(clusters, 0)
 
 dat <- clusters_to_surveys(surveys, cluster_areas)
 
@@ -73,7 +72,9 @@ get_neighbourhood_structure(asfr, areas_long, boundaries)
 
 ##################################
 
-dat <- get_asfr_pred_df("ZWE", area_level = 2, project = FALSE)
+dat <- get_asfr_pred_df("ZWE", area_level = 0, project = FALSE)
+
+dat_list <- lapply(c("LSO", "MOZ", "MWI", "NAM", "TZA", "UGA", "ZMB", "ZWE"), get_asfr_pred_df, area_level = "naomi", project=FALSE)
 
 ####################### NATIONAL MODS
 
@@ -105,6 +106,8 @@ mod_list <- Map(function(x, y) {
   return(mod)
 }, x=c("LSO", "MOZ", "MWI", "NAM", "TZA", "UGA", "ZMB", "ZWE"), y=dat)
 
+mod <- run_mod_nat(formula, dat)
+
 
 res_list <- Map(function(x, y,  z) {
   
@@ -121,6 +124,9 @@ ggplot(aes(x=period, y=median, color=age_group, group=age_group)) +
   geom_line() +
   facet_wrap(~iso3)
 
+mod_list <- list()
+mod_list[[1]] <- zwe.r
+
 r_list <- lapply(mod_list, "[[", "summary.random") %>%
   lapply(function(x){
   x %>%
@@ -129,6 +135,10 @@ r_list <- lapply(mod_list, "[[", "summary.random") %>%
     lapply("[[", "mean") %>%
     lapply(exp)
 })
+
+zwe.r$summary.fixed
+
+exp(0.05003866)
 
 names(r_list) <- c("LSO", "MOZ", "MWI", "NAM", "TZA", "UGA", "ZMB", "ZWE")
 

@@ -159,6 +159,146 @@ calc_asfr1 <- function(data,
   return(pred)
 }
 
+calc_asfr_mics <- function(data,
+                       y=NULL,
+                       by = NULL,
+                       agegr = NULL,
+                       period = NULL,
+                       cohort = NULL,
+                       tips = NULL,
+                       clusters=~cluster,
+                       strata=NULL,
+                       id="unique_id",
+                       dob="wdob",
+                       intv = "doi",
+                       weight= "wmweight",
+                       varmethod = "none",
+                       bvars = "cdob",
+                       birth_displace = 1e-6,
+                       origin=1900,
+                       scale=12,
+                       bhdata = bh_df,
+                       counts=FALSE,
+                       clustcounts = FALSE){
+  
+  print(y)
+  
+  data$id <- data[[id]]
+  data$dob <- data[[dob]]
+  data$intv <- data[[intv]]
+  data$weights <- data[[weight]] / mean(data[[weight]])
+  
+  if(is.null(by))
+    by <- ~1
+  
+  vars <- unique(unlist(lapply(c(by, strata, clusters), all.vars)))
+  f <- formula(paste("~", paste(vars, collapse = "+")))
+  mf <- model.frame(formula = f, data = data, na.action = na.pass,
+                    id = id, weights = weights, dob = dob, intv = intv)
+  
+  if(is.null(bhdata)) {
+    births <- reshape(model.frame(paste("~", paste(bvars, collapse="+")),
+                                  data, na.action=na.pass, id=id),
+                      idvar="(id)", timevar="bidx",
+                      varying=bvars, v.names="bcmc", direction="long")
+  } else {
+    if(length(bvars) > 1)
+      stop("If `bhdata' is provided, bvars must provide a single variable name (length(bvars) = 1)")
+    
+    bhdata$id <- bhdata[[id]]
+    bhdata$bcmc <- bhdata[[bvars]]
+    births <- model.frame(~bcmc, data = bhdata, id = id)
+    births$bidx <- ave(births$bcmc, births$`(id)`, FUN = seq_along)
+  }
+  births <- births[!is.na(births$bcmc), ]
+  births$bcmc <- births$bcmc + births$bidx * birth_displace
+  
+  epis <- tmerge(mf, mf, id=`(id)`, tstart=`(dob)`, tstop=`(intv)`)
+  epis <- tmerge(epis, births, id=`(id)`, birth = event(bcmc))
+  
+  aggr <- demog_pyears(f, epis, period=period, agegr=agegr, cohort=cohort, tips=tips,
+                       event="birth", weights="(weights)", origin=origin, scale=scale)$data
+  
+  ## construct interaction of all factor levels that appear
+  byvar <- intersect(c(all.vars(by), "agegr", "period", "cohort", "tips"),
+                     names(aggr))
+  aggr$byf <- interaction(aggr[byvar], drop=TRUE)
+  
+  ## prediction for all factor levels that appear
+  pred <- data.frame(aggr[c(byvar, "byf")])[!duplicated(aggr$byf),]
+  pred <- pred[order(pred$byf), ]
+  
+  if(counts || varmethod == "none"){
+    mc <- model.matrix(~-1+byf, aggr)
+    clong <- aggr[c("event", "pyears")]
+    pred[c("births", "pys")] <- t(mc) %*% as.matrix(clong)
+  }
+  
+  if(varmethod == "none") {
+    
+    pred$asfr <- pred$births / pred$pys
+    pred$byf <- NULL
+    if(!counts)
+      pred[c("births", "pys")] <- NULL
+    
+  } else if(varmethod == "lin") {
+    
+    des <- survey::svydesign(ids=clusters, strata=strata, data=aggr, weights=~1)
+    class(des) <- c("svypyears", class(des))
+    
+    ## fit model
+    f <- if(length(levels(aggr$byf)) == 1)
+      event ~ offset(log(pyears))
+    else
+      event ~ -1 + byf + offset(log(pyears))
+    
+    mod <- survey::svyglm(f, des, family=quasipoisson)
+    
+    ## prediction for all factor levels that appear
+    pred$pyears <- 1
+    
+    asfr <- predict(mod, pred, type="response", vcov=TRUE)
+    v <- vcov(asfr)
+    dimnames(v) <- list(pred$byf, pred$byf)
+    
+    pred$asfr <- as.numeric(asfr)
+    pred$se_asfr <- sqrt(diag(v))
+    pred[c("byf", "pyears")] <- NULL
+    attr(pred, "var") <- v
+  } else if(varmethod %in% c("jkn", "jk1")) {
+    
+    ## Convert to array with events and PYs for each cluster
+    ## reshape2::acast is MUCH faster than stats::reshape
+    events_clust <- reshape2::acast(aggr, update(clusters, byf ~ .), value.var="event")
+    pyears_clust <- reshape2::acast(aggr, update(clusters, byf ~ .), value.var="pyears")
+    
+    if(varmethod == "jkn"){
+      aggr$strataid <- as.integer(interaction(aggr[all.vars(strata)], drop=TRUE))
+      strataid <- drop(reshape2::acast(unique(aggr[c(all.vars(clusters), "strataid")]),
+                                       update(clusters,  1 ~ .), value.var="strataid"))
+    } else
+      strataid <- NULL
+    
+    estdf <- jackknife(events_clust, pyears_clust, strataid)
+    
+    pred$asfr <- estdf$est
+    pred$se_asfr <- estdf$se
+    attr(pred, "var") <- vcov(estdf)
+    pred$byf <- NULL
+    if(clustcounts){
+      attr(pred, "events_clust") <- events_clust
+      attr(pred, "pyears_clust") <- pyears_clust
+      attr(pred, "strataid") <- strataid
+    }
+  } else
+    stop(paste0("varmethod = \"", varmethod, "\" is not recognized."))
+  
+  
+  rownames(pred) <- NULL
+  
+  return(pred)
+}
+
 ir_by_area2 <- function(ir, area_list, n, total) {
   
   print(paste(n, "of", total))
@@ -559,8 +699,6 @@ get_mod_results_test <- function(mod, asfr_pred_country_subnat) {
   asfr1_country_subnat <- asfr_pred_country_subnat %>%
     filter(!is.na(surveyid))
   
-  iso3 <- unique(asfr_pred_country_subnat$iso3)
-  
   print("Sampling..")
   samples <- inla.posterior.sample(1000, mod)
   print("Done sampling")
@@ -588,16 +726,15 @@ get_mod_results_test <- function(mod, asfr_pred_country_subnat) {
   
   samples_ident <- sapply(samples.effect, cbind) %>%
     data.frame %>%
-    mutate(id = 1:nrow(.)) %>%
-    left_join(asfr_pred_country_subnat[ind.effect , c("iso3", "area_id", "period", "age_group", "id")], by="id") %>%
-    select(-id) %>%
-    left_join(ident) %>%
-    filter(period >1999)
+    # mutate(id =row_number()) %>%
+    # left_join(asfr_pred_country_subnat[ind.effect , c("iso3", "area_id", "period", "age_group", "id")], by="id") %>%
+    # select(-id) %>%
+    cbind(ident)
   
-  samples_ident$median <- apply(samples_ident[, 1:10], 1, median)
+  samples_ident$median <- apply(samples_ident[, 1:1000], 1, median)
   
   samples_ident <- samples_ident %>%
-    select(iso3, area_id, period, age_group, median)
+    select(area_id, period, age_group, median)
   
   return(samples_ident)
   
