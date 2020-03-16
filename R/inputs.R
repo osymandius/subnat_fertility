@@ -1,4 +1,4 @@
-make_areas_population <- function(iso3_codes, path_to_naomi_data) {
+make_areas_population <- function(iso3_codes, path_to_naomi_data, full=FALSE) {
 
 paths <- paste0(path_to_naomi_data, iso3_codes, "/data")
 
@@ -32,6 +32,10 @@ areas_long <- lapply(files, "[[", "areas") %>%
   
   return(x)
 }) %>% 
+  bind_rows
+
+areas_full <- lapply(files, "[[", "areas") %>%
+  lapply(st_read) %>% 
   bind_rows
 
 areas_wide <- lapply(files, "[[", "areas") %>%
@@ -68,6 +72,10 @@ population <- lapply(files, "[[", "population") %>%
 
   df <- list()
   df$areas_long <- areas_long
+  
+  if(full)
+    df$areas_full <- areas_full
+  
   df$areas_wide <- areas_wide
   df$boundaries <- boundaries
   df$population <- population
@@ -207,7 +215,7 @@ clusters_to_surveys <- function(surveys, cluster_areas, single_tips = TRUE) {
 read_mics <- function(iso3_current) {
 
   temp <- tempdir()
-  path <- grep(countrycode(iso3_current, "iso3c", "country.name"), list.files("C:/Users/os210/Imperial College London/HIV Inference Group - Data/household surveys/MICS/datasets", full.names=TRUE), value=TRUE)
+  path <- grep(countrycode(iso3_current, "iso3c", "country.name"), list.files("~/Imperial College London/HIV Inference Group - Documents/Data/household surveys/MICS/datasets", full.names=TRUE), value=TRUE)
   uz <- lapply(path, unzip, exdir = temp)
 
   check <- read.csv("input_data/MICS_list.csv") %>%

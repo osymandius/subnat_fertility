@@ -4,17 +4,21 @@ library(abind)
 library(sf)
 library(spdep)
 library(Matrix)
+library(countrycode)
+library(haven)
+library(survival)
 
-devtools::load_all("~/GitHub/naomi")
+devtools::load_all("~/Documents/GitHub/naomi")
 
-setwd("~/GitHub/subnat_fertility/")
+setwd("~/Documents/GitHub/subnat_fertility/")
 source("R/inputs.R")
+source("R/fertility_funs.R")
 
-lapply(list.files("~/GitHub/naomi/R", full.names = TRUE), source)
+# lapply(list.files("~/Documents/GitHub/naomi/R", full.names = TRUE), source)
 
 iso3_current <- "ZWE"
 
-list2env(make_areas_population("ZWE", "~/GitHub/naomi-data/"), globalenv())
+list2env(make_areas_population("ZWE", "~/Documents/GitHub/naomi-data/", full = T), globalenv())
 
 asfr <- get_asfr_pred_df("ZWE", 2, project = F)
 
@@ -22,19 +26,19 @@ population <- population %>%
   filter(period == min(period))
 
 
-population <- population %>%
-  group_by(period, sex, age_group) %>%
-  summarise(population = sum(population)) %>%
-  mutate(area_id = "ZWE") %>%
-  ungroup
+# population <- population %>%
+#   group_by(period, sex, age_group) %>%
+#   summarise(population = sum(population)) %>%
+#   mutate(area_id = "ZWE") %>%
+#   ungroup
 
-mf <- crossing(period = factor(1995:2015),
+mf <- crossing(period = factor(1995:2019),
                age_group = c("15-19", "20-24", "25-29", "30-34", "35-39", "40-44", "45-49"),
                area_id = filter(areas_long, iso3 == iso3_current, area_level == 2)$area_id) %>%
-  # left_join(population %>%
-  #             filter(sex == "female") %>%
-  #             select(area_id, age_group, population)
-  # ) %>%
+  left_join(population %>%
+              filter(sex == "female") %>%
+              select(area_id, age_group, population)
+  ) %>%
   mutate(area_id = factor(area_id, levels = filter(areas_long, iso3 == iso3_current,  area_level == 2)$area_id),
          age_group = factor(age_group, levels = c("15-19", "20-24", "25-29", "30-34", "35-39", "40-44", "45-49"))
          ) %>%
@@ -44,9 +48,7 @@ mf <- crossing(period = factor(1995:2015),
          id.interaction1 = factor(group_indices(., age_group, period)),
          id.interaction2 = factor(group_indices(., period, area_id)),
          id.interaction3 = factor(group_indices(., age_group, area_id))
-         )
-asfr %>%
-  filter(!is.na(surveyid))
+  )
 
 mics_data <- read_mics(iso3_current)
 mics_asfr <- Map(calc_asfr_mics, mics_data$wm, y=list(1),
@@ -57,26 +59,32 @@ mics_asfr <- Map(calc_asfr_mics, mics_data$wm, y=list(1),
                  counts = TRUE,
                  bhdata = mics_data$bh_df) %>%
   bind_rows %>%
+  type.convert() %>%
   rename(age_group = agegr)
 
-asfr %>%
-  filter(!is.na(surveyid)) %>%
-  select(area_id, period, age_group, tips, births, pys) %>%
-  type.convert() %>%
-  bind_rows(mics_asfr %>% type.convert %>%select(area_id, period, age_group, tips, births, pys))
 
 obs <- asfr %>%
+  bind_rows(mics_asfr) %>%
+  type.convert() %>%
   filter(!is.na(surveyid)) %>%
   select(area_id, period, age_group, tips, births, pys) %>%
-  mutate(age_group = factor(age_group, levels(mf$age_group)),
-         period = factor(period)) %>%
-  left_join(mf, by = c("area_id", "period", "age_group")) %>%
+  left_join(mf %>% type.convert(), by = c("area_id", "period", "age_group")) %>%
   mutate(tips_dummy = as.integer(tips > 5),
          tips_f = factor(tips),
-         area_id = factor(area_id, levels(mf$area_id))) 
+         area_id = factor(area_id, levels(mf$area_id)),
+         age_group = factor(age_group, levels(mf$age_group)),
+         period = factor(period)
+         ) 
+
+# join_national <- mf %>%
+#   mutate(ntl_idx = group_indices(., period, age_group),
+#          x=1) %>%
+#   filter(period == 2019)
+# 
+# A_national <- spMatrix(nrow(mf), nrow(mf), join_national$ntl_idx, as.integer(join_national$idx), join_national$x)
 
 X_mf <- model.matrix(~1 + age_group + period + area_id, mf)
-X_mf <- model.matrix(~1 + age_group + period, mf)
+# X_mf <- model.matrix(~1 + age_group + period, mf)
 
 #' This has dimensions (number of observations) x (number of rows in model frame (i.e crossing of age x time x space))
 #' Many more rows than mf because observations has things we need to adjust for bias (e.g. tips), but not required in model frame. 
@@ -135,37 +143,44 @@ adj <- nb2mat(nb, zero.policy=TRUE, style="B")
 Q_spatial <- INLA::inla.scale.model(diag(rowSums(adj)) - 0.99*adj,
                             constr = list(A = matrix(1, 1, nrow(adj)), e = 0))
 
+#####
+
+
+
 ## Outputs
-area_merged <-  st_read(files[[iso3_current]][["areas"]])
+
+crossing(area_id = areas_wide %>%
+  select(area_id, area_id0) %>%
+  rename(area_id_out = area_id0) %>%
+  bind_rows(areas_wide %>%
+              select(area_id, area_id1) %>%
+              rename(area_id_out = area_id1)) %>%
+  bind_rows(areas_wide %>%
+              select(area_id) %>%
+              mutate(area_id_out = area_id)),
+  age_group = unique(mf$age_group),
+  period = unique(mf$period)
+)
+
+
+areas_wide %>%
+  select(area_id, area_id1) %>%
+  rename(area_id, area_id_out)
+
+area_merged <- st_read("~/Documents/GitHub/naomi-data/ZWE/data/zwe_areas.geojson")
 areas <- create_areas(area_merged = area_merged)
 area_aggregation <- create_area_aggregation(area_merged$area_id[area_merged$naomi_level], areas)
 
-age_groups <- unique(mf$age_group)
-# age_group_out <- c(unique(as.character(mf$age_group)), "15-49")
-# 
-# age_group_join <- get_age_groups() %>%
-#   dplyr::filter(age_group %in% age_group_out) %>%
-#   stats::setNames(paste0(names(.), "_out")) %>%
-#   tidyr::crossing(get_age_groups() %>%
-#                     dplyr::filter(age_group %in% age_groups)) %>%
-#   dplyr::filter(age_group_start_out <= age_group_start,
-#                 age_group_span_out == Inf |
-#                   (age_group_start + age_group_span) <=
-#                   (age_group_start_out + age_group_span_out)) %>%
-#   dplyr::select(age_group_out, age_group)
-
 mf_out <- crossing(
-  area_id = area_aggregation$area_id,
-  # age_group = age_group_join$age_group_out,
-  age_group = age_groups,
-  period = unique(mf$period)
-) %>%
-  # mutate(indicator = ifelse(age_group == "15-49", "tfr", "asfr")) %>%
+    area_id = area_aggregation$area_id,
+    age_group = unique(mf$age_group),
+    period = unique(mf$period)
+  ) %>%
   arrange(area_id, age_group, period) %>%
   mutate(out_idx = row_number())
 
 join_out <- crossing(area_aggregation, 
-         age_group = age_groups,
+         age_group = unique(mf$age_group),
          period = unique(mf$period)) %>%
   full_join(mf %>%
               select(area_id, age_group, period, idx), by = c("model_area_id" = "area_id", 
@@ -187,38 +202,39 @@ dyn.load(dynlib("tmb/fertility_tmb_dev"))
 
 data <- list(X_mf = X_mf,
              M_all_observations = M_mf_obs,
-             X_tips_dummy = X_tips_dummy,
-             Z_tips = Z_tips,
+             # X_tips_dummy = X_tips_dummy,
+             # Z_tips = Z_tips,
              Z_age = Z_age,
              Z_period = Z_period,
              Z_spatial = Z_spatial,
              # Z_interaction = sparse.model.matrix(~0 + id.interaction, obs),
-             Z_interaction1 = sparse.model.matrix(~0 + id.interaction1, obs),
-             Z_interaction2 = sparse.model.matrix(~0 + id.interaction2, obs),
-             Z_interaction3 = sparse.model.matrix(~0 + id.interaction3, obs),
+             # Z_interaction1 = sparse.model.matrix(~0 + id.interaction1, obs),
+             # Z_interaction2 = sparse.model.matrix(~0 + id.interaction2, obs),
+             # Z_interaction3 = sparse.model.matrix(~0 + id.interaction3, obs),
              # interaction_idx = interaction_idx,
-             Q_tips = Q_tips,
+             # Q_tips = Q_tips,
              Q_age = Q_age,
              Q_period = Q_period,
              Q_spatial = Q_spatial,
+             # A_national = A_national,
              log_offset = log(obs$pys),
              births_obs = obs$births
-             # pop = mf$population,
+             # pop = mf$population
              # A_out = A_out
              )
 
 par <- list(beta_mf = rep(0, ncol(X_mf)),
-            beta_tips_dummy = rep(0, ncol(X_tips_dummy)),
-            u_tips = rep(0, ncol(Z_tips)),
+            # beta_tips_dummy = rep(0, ncol(X_tips_dummy)),
+            # u_tips = rep(0, ncol(Z_tips)),
             u_age = rep(0, ncol(Z_age)),
             u_period = rep(0, ncol(Z_period)),
             u_spatial_str = rep(0, ncol(Z_spatial)),
             u_spatial_iid = rep(0, ncol(Z_spatial)),
             # eta = array(0, c(ncol(Z_spatial), ncol(Z_age), ncol(Z_period))),
-            eta1 = array(0, c(ncol(Z_age), ncol(Z_period))),
-            eta2 = array(0, c(ncol(Z_spatial), ncol(Z_period))),
-            eta3 = array(0, c(ncol(Z_spatial), ncol(Z_age))),
-            log_sigma_rw_tips = log(2.5),
+            # eta1 = array(0, c(ncol(Z_age), ncol(Z_period))),
+            # eta2 = array(0, c(ncol(Z_spatial), ncol(Z_period))),
+            # eta3 = array(0, c(ncol(Z_spatial), ncol(Z_age))),
+            # log_sigma_rw_tips = log(2.5),
             log_sigma_rw_age = log(2.5),
             log_sigma_rw_period = log(2.5),
             log_sigma_spatial = log(2.5),
@@ -228,8 +244,8 @@ par <- list(beta_mf = rep(0, ncol(X_mf)),
 f <-  MakeADFun(data = data,
                 parameters = par,
                 DLL = "fertility_tmb_dev",
-                 random = c("beta_mf", "beta_tips_dummy", "u_tips", "u_age", "u_period", "u_spatial_str", "u_spatial_iid", "eta1", "eta2", "eta3"),
-                #random = c("beta_mf", "beta_tips_dummy", "u_tips", "u_age", "u_period", "u_spatial_str", "u_spatial_iid"),
+                #random = c("beta_mf", "beta_tips_dummy", "u_tips", "u_age", "u_period", "u_spatial_str", "u_spatial_iid", "eta1", "eta2", "eta3"),
+                random = c("beta_mf",  "u_age", "u_period", "u_spatial_str", "u_spatial_iid"),
                 #random = c("beta_mf", "beta_tips_dummy", "eta1"),
                 hessian = FALSE,
                 checkParameterOrder=FALSE)
@@ -274,6 +290,15 @@ mf %>%
     facet_wrap(~area_id)
 
 data.frame(val = f$report()$u_period)
+
+mf %>% 
+  # left_join(areas_long) %>%
+  cbind(data.frame(val = f$report()$omega)) %>%
+  type.convert() %>%
+  ggplot(aes(x=period, y=val, group=age_group, color=age_group)) +
+  geom_line() +
+  facet_wrap(~area_id)
+
 
 
 f$report()
