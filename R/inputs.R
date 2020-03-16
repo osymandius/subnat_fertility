@@ -212,10 +212,10 @@ clusters_to_surveys <- function(surveys, cluster_areas, single_tips = TRUE) {
 
 }
 
-read_mics <- function(iso3_current) {
+read_mics <- function(iso3_current, path_to_MICS = "~/Imperial College London/HIV Inference Group - Documents/Data/household surveys/MICS/datasets") {
 
   temp <- tempdir()
-  path <- grep(countrycode(iso3_current, "iso3c", "country.name"), list.files("~/Imperial College London/HIV Inference Group - Documents/Data/household surveys/MICS/datasets", full.names=TRUE), value=TRUE)
+  path <- grep(countrycode(iso3_current, "iso3c", "country.name"), list.files(path_to_MICS, full.names=TRUE), value=TRUE)
   uz <- lapply(path, unzip, exdir = temp)
 
   check <- read.csv("input_data/MICS_list.csv") %>%
