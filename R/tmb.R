@@ -32,7 +32,7 @@ population <- population %>%
 #   mutate(area_id = "ZWE") %>%
 #   ungroup
 
-mf <- crossing(period = factor(1995:2019),
+mf <- crossing(period = factor(1995:2018),
                age_group = c("15-19", "20-24", "25-29", "30-34", "35-39", "40-44", "45-49"),
                area_id = filter(areas_long, iso3 == iso3_current, area_level == 2)$area_id) %>%
   left_join(population %>%
@@ -55,19 +55,21 @@ mics_asfr <- Map(calc_asfr_mics, mics_data$wm, y=list(1),
                  by = list(~area_id + survyear + surveyid + survtype),
                  tips = list(c(0:5)),
                  agegr= list(3:10*5),
-                 period = list(1995:2017),
+                 period = list(1995:2019),
                  counts = TRUE,
                  bhdata = mics_data$bh_df) %>%
   bind_rows %>%
   type.convert() %>%
+  filter(period <= survyear) %>%
   rename(age_group = agegr)
-
 
 obs <- asfr %>%
   bind_rows(mics_asfr) %>%
   type.convert() %>%
   filter(!is.na(surveyid)) %>%
   select(area_id, period, age_group, tips, births, pys) %>%
+  mutate(idx = row_number())
+  left_join(area_aggregation)
   left_join(mf %>% type.convert(), by = c("area_id", "period", "age_group")) %>%
   mutate(tips_dummy = as.integer(tips > 5),
          tips_f = factor(tips),
@@ -75,13 +77,46 @@ obs <- asfr %>%
          age_group = factor(age_group, levels(mf$age_group)),
          period = factor(period)
          ) 
+  
+join_national <- obs %>% 
+  mutate(idx_age = group_indices(., age_group),
+         idx_period = max(idx_age) + group_indices(., period),
+         idx_period = ifelse(idx_period == min(idx_period), 1, idx_period-1)
+  ) %>%
+  left_join(area_aggregation) %>%
+  mutate(idx_district = max(idx_period) + group_indices(., model_area_id),
+         idx_district = ifelse(idx_district == min(idx_district), 1, idx_district-1),
+         x=1) %>%
+  select(idx, idx_age, idx_period, idx_district, x) %>%
+  pivot_longer(-c(idx, x))
 
-# join_national <- mf %>%
-#   mutate(ntl_idx = group_indices(., period, age_group),
-#          x=1) %>%
-#   filter(period == 2019)
-# 
-# A_national <- spMatrix(nrow(mf), nrow(mf), join_national$ntl_idx, as.integer(join_national$idx), join_national$x)
+A_national <- sparseMatrix(i=join_national$idx, j=join_national$value, x=join_national$x, use.last.ij = TRUE)
+
+mics_asfr %>%
+  left_join(area_aggregation) %>%
+  mutate(idx_out = row_number())
+
+crossing(area_aggregation %>% 
+           left_join(areas_long %>% select(area_id, area_level)) %>% 
+           filter(area_level %in% c(0,2)) %>% 
+           select(-area_level), 
+         age_group = unique(mf$age_group),
+         period = unique(mf$period)) %>%
+  
+  arrange(period, model_area_id, age_group) %>%
+  full_join(mf %>%
+              select(area_id, age_group, period, idx), by = c("model_area_id" = "area_id", 
+                                                              "age_group", 
+                                                              "period")
+  ) %>%
+  full_join(mf_out) %>%
+  # full_join(mf_out, by=c("area_id" = "area_id",
+  #                        "period",
+  #                        "age_group_out" = "age_group")
+  #           ) %>%
+  mutate(x=1)
+
+A_out <- spMatrix(nrow(mf_out), nrow(mf), join_out$out_idx, as.integer(join_out$idx), join_out$x)
 
 X_mf <- model.matrix(~1 + age_group + period + area_id, mf)
 # X_mf <- model.matrix(~1 + age_group + period, mf)
