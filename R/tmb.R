@@ -20,6 +20,7 @@ source("R/fertility_funs.R")
 
 iso3_current <- "ZWE"
 
+##sorry..
 list2env(make_areas_population("ZWE", "~/Documents/GitHub/naomi-data/", full = FALSE), globalenv())
 
 asfr <- get_asfr_pred_df("ZWE", 2, project = FALSE)
@@ -45,12 +46,7 @@ areas <- create_areas(area_merged = area_merged)
 area_aggregation <- create_area_aggregation(area_merged$area_id[area_merged$naomi_level], areas)
 
 
-# population <- population %>%
-#   group_by(period, sex, age_group) %>%
-#   summarise(population = sum(population)) %>%
-#   mutate(area_id = "ZWE") %>%
-#   ungroup
-
+## Make model frame.
 mf <- crossing(period = factor(1995:2018),
                age_group = c("15-19", "20-24", "25-29", "30-34", "35-39", "40-44", "45-49"),
                area_id = filter(areas_long, iso3 == iso3_current, area_level == 2)$area_id) %>%
@@ -67,6 +63,7 @@ mf <- crossing(period = factor(1995:2018),
          
   )
 
+## Existing incorrect method that produces 63 replicates in the obs dataframe for each national row of data.
 obs <- asfr %>%
   bind_rows(mics_asfr) %>%
   type.convert() %>%
@@ -88,23 +85,7 @@ obs <- asfr %>%
          x=1
          )
 
-obs <- asfr %>%
-  bind_rows(mics_asfr) %>%
-  type.convert() %>%
-  filter(!is.na(surveyid)) %>%
-  select(area_id, period, age_group, tips, births, pys) %>%
-  mutate(tips_dummy = as.integer(tips > 5),
-         tips_f = factor(tips),
-         model_area_id = factor(model_area_id, levels(mf$area_id)),
-         age_group = factor(age_group, levels(mf$age_group)),
-         period = factor(period),
-         id.interaction = factor(id.interaction, levels(mf$id.interaction)),
-         # id.interaction1 = factor(group_indices(., age_group, period)),
-         # id.interaction2 = factor(group_indices(., period, model_area_id)),
-         # id.interaction3 = factor(group_indices(., age_group, model_area_id)),
-         x=1
-  )
-
+## Instead, leave obs dataframe alone and bind area_aggregation in separately to join_obs which is then used to make the aggregation matrix (currently test_m). This works fine. But problems from line 102.
 join_obs <- asfr %>%
   bind_rows(mics_asfr) %>%
   type.convert() %>%
@@ -117,19 +98,24 @@ join_obs <- asfr %>%
 
 test_m <- sparseMatrix(i=join_obs$idx_obs, j=join_obs$idx, x=join_obs$x, use.last.ij = TRUE)
 
-#   
-# join_national <- obs %>% 
-#   mutate(idx_age = group_indices(., age_group),
-#          idx_period = max(idx_age) + group_indices(., period),
-#          idx_period = ifelse(idx_period == min(idx_period), 1, idx_period-1)
-#   ) %>%
-#   mutate(idx_district = max(idx_period) + group_indices(., model_area_id),
-#          idx_district = ifelse(idx_district == min(idx_district), 1, idx_district-1),
-#          x=1) %>%
-#   select(idx, idx_age, idx_period, idx_district, x) %>%
-#   pivot_longer(-c(idx, x))
-# 
-# A_national <- sparseMatrix(i=join_national$idx, j=join_national$value, x=join_national$x, use.last.ij = TRUE)
+## Model_area_id no longer present - run into problems with spatial design matrix. ZWE has no adjacency. 
+obs <- asfr %>%
+  bind_rows(mics_asfr) %>%
+  type.convert() %>%
+  filter(!is.na(surveyid)) %>%
+  select(area_id, period, age_group, tips, births, pys) %>%
+  mutate(tips_dummy = as.integer(tips > 5),
+         tips_f = factor(tips),
+         area_id = factor(area_id), ## Problems here
+         age_group = factor(age_group),
+         period = factor(period),
+         id.interaction = factor(id.interaction, levels(mf$id.interaction)),
+         # id.interaction1 = factor(group_indices(., age_group, period)),
+         # id.interaction2 = factor(group_indices(., period, model_area_id)),
+         # id.interaction3 = factor(group_indices(., age_group, model_area_id)),
+         x=1
+  )
+
 
 X_mf <- model.matrix(~1 + age_group + period + area_id, mf)
 # X_mf <- model.matrix(~1 + age_group + period, mf)
@@ -174,7 +160,8 @@ X_tips_dummy <- model.matrix(~0 + tips_dummy, obs)
 
 ### ICAR
 
-Z_spatial <- sparse.model.matrix(~0 + model_area_id, obs)
+# Z_spatial <- sparse.model.matrix(~0 + model_area_id, obs)
+Z_spatial <- sparse.model.matrix(~0 + area_id, obs)
 
 sh <- areas_long %>%
   filter(iso3 == iso3_current, naomi_level) %>%
