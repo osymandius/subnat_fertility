@@ -14,17 +14,17 @@ Type objective_function<Type>::operator() ()
 
   DATA_SPARSE_MATRIX(M_all_observations);
   
-  // DATA_MATRIX(X_tips_dummy);
-  // PARAMETER_VECTOR(beta_tips_dummy);
+  DATA_MATRIX(X_tips_dummy);
+  PARAMETER_VECTOR(beta_tips_dummy);
 
-  // DATA_SPARSE_MATRIX(Z_tips);
+  DATA_SPARSE_MATRIX(Z_tips);
   DATA_SPARSE_MATRIX(Z_age);
   DATA_SPARSE_MATRIX(Z_period);
   DATA_SPARSE_MATRIX(Z_spatial);
+
+  DATA_SPARSE_MATRIX(Z_interaction);
+  PARAMETER_ARRAY(eta);
   
-  // DATA_SPARSE_MATRIX(Z_interaction);
-  // PARAMETER_ARRAY(eta);
-  // DATA_VECTOR(interaction_idx);
 
   // DATA_SPARSE_MATRIX(Z_interaction1);
   // DATA_SPARSE_MATRIX(Z_interaction2);
@@ -33,16 +33,16 @@ Type objective_function<Type>::operator() ()
   // PARAMETER_ARRAY(eta2);
   // PARAMETER_ARRAY(eta3);
 
-  // DATA_SPARSE_MATRIX(Q_tips);
+  DATA_SPARSE_MATRIX(Q_tips);
   DATA_SPARSE_MATRIX(Q_age);
   DATA_SPARSE_MATRIX(Q_period);
   DATA_SPARSE_MATRIX(Q_spatial);
 
-  // PARAMETER(log_sigma_rw_tips);
+  PARAMETER(log_sigma_rw_tips);
   PARAMETER(log_sigma_rw_age);
   PARAMETER(log_sigma_rw_period);
 
-  // PARAMETER_VECTOR(u_tips);
+  PARAMETER_VECTOR(u_tips);
   PARAMETER_VECTOR(u_age);
   PARAMETER_VECTOR(u_period);
 
@@ -53,8 +53,8 @@ Type objective_function<Type>::operator() ()
 
   // DATA_SPARSE_MATRIX(A_national);
 
-  // DATA_SPARSE_MATRIX(A_out);
-  // DATA_VECTOR(pop);
+  DATA_SPARSE_MATRIX(A_out);
+  DATA_VECTOR(pop);
 
   // observations
 
@@ -64,15 +64,15 @@ Type objective_function<Type>::operator() ()
   // model
   nll -= dnorm(beta_mf, Type(0), Type(5), true).sum();
 
-  // //Fixed effect TIPS dummy
-  // nll -= dnorm(beta_tips_dummy, Type(0), Type(1), true).sum();
+  //Fixed effect TIPS dummy
+  nll -= dnorm(beta_tips_dummy, Type(0), Type(1), true).sum();
 
-  // // RW TIPS
-  // Type sigma_rw_tips = exp(log_sigma_rw_tips);
-  // nll -= dnorm(sigma_rw_tips, Type(0), Type(2.5), true) + log_sigma_rw_tips;
-  // nll -= Type(-0.5) * (u_tips * (Q_tips * u_tips)).sum();
-  // nll -= dnorm(u_tips, Type(0), Type(1), true).sum();
-  // nll -= dnorm(u_tips.sum(), Type(0), Type(0.001) * u_tips.size(), true);
+  // RW TIPS
+  Type sigma_rw_tips = exp(log_sigma_rw_tips);
+  nll -= dnorm(sigma_rw_tips, Type(0), Type(2.5), true) + log_sigma_rw_tips;
+  nll -= Type(-0.5) * (u_tips * (Q_tips * u_tips)).sum();
+  nll -= dnorm(u_tips, Type(0), Type(1), true).sum();
+  nll -= dnorm(u_tips.sum(), Type(0), Type(0.001) * u_tips.size(), true);
 
   // RW AGE
   Type sigma_rw_age = exp(log_sigma_rw_age);
@@ -108,9 +108,9 @@ Type objective_function<Type>::operator() ()
   vector<Type> spatial = sigma_spatial * (sqrt(1 - spatial_rho) * u_spatial_iid + sqrt(spatial_rho) * u_spatial_str);
 
 
-  // nll += SEPARABLE(GMRF(Q_period), SEPARABLE(GMRF(Q_age), GMRF(Q_spatial)))(eta);
-  // vector<Type> eta_v(eta);
-  // nll -= dnorm(eta_v, Type(0), Type(1), true).sum();
+  nll += SEPARABLE(GMRF(Q_period), SEPARABLE(GMRF(Q_age), GMRF(Q_spatial)))(eta);
+  vector<Type> eta_v(eta);
+  nll -= dnorm(eta_v, Type(0), Type(1), true).sum();
 
   // nll += SEPARABLE(GMRF(Q_period), GMRF(Q_age))(eta1); 
   // nll += SEPARABLE(GMRF(Q_period), GMRF(Q_spatial))(eta2);
@@ -123,6 +123,11 @@ Type objective_function<Type>::operator() ()
   // vector<Type> eta3_v(eta3);
   // nll -= dnorm(eta3_v, Type(0), Type(1), true).sum();
 
+  // std::cout << "eta1: " << eta1_v.size() << std::endl;
+  // std::cout << "eta2: " << eta2_v.size() << std::endl;
+  // std::cout << "eta3: " << eta3_v.size() << std::endl;
+
+
   
   // // // vector<Type> eta_v_clipped(interaction_idx.size();
   // for (int i = 0; i < interaction_idx.size() -1 ; ++i)
@@ -134,12 +139,12 @@ Type objective_function<Type>::operator() ()
   vector<Type> mu_mf(X_mf * beta_mf);
   
   vector<Type> mu_obs_pred(M_all_observations * mu_mf +
-                          // X_tips_dummy * beta_tips_dummy +          // TIPS fixed effect
-                          // Z_tips * u_tips * 1/sigma_rw_tips +         // TIPS RW
+                          X_tips_dummy * beta_tips_dummy +          // TIPS fixed effect
+                          Z_tips * u_tips * 1/sigma_rw_tips   +     // TIPS RW
                           Z_age * u_age * 1/sigma_rw_age +            // Age RW1
                           Z_period * u_period * 1/sigma_rw_period +
                           log_offset +
-                          // Z_interaction * eta_v +
+                          Z_interaction * eta_v +
                           // Z_interaction1 * eta1_v +
                           // Z_interaction2 * eta2_v +
                           // Z_interaction3 * eta3_v +
@@ -152,26 +157,28 @@ Type objective_function<Type>::operator() ()
   vector<Type> omega(exp(mu_mf));
   
 
-  // vector<Type> births(omega * pop);
-  // vector<Type> births_out(A_out * births);
-  // vector<Type> ntl_births(exp(A_national * mu_mf));
+  vector<Type> births(omega * pop);
+  vector<Type> births_out(A_out * births);
 
-  // std::cout << ntl_births.size() << std::endl;
-  // vector<Type> population_out(A_out * pop);
-  // vector<Type> omega_out(births_out / population_out);
+  vector<Type> population_out(A_out * pop);
+  vector<Type> omega_out(births_out / population_out);
 
-  // REPORT(omega_out);
+  REPORT(omega_out);
+
+
   // REPORT(spatial);
-  // ADREPORT(u_period);
-  // ADREPORT(u_age);
+  REPORT(u_period);
+  REPORT(u_age);
+  REPORT(u_spatial_str);
+  REPORT(u_spatial_iid);
   // ADREPORT(u_tips);
   // ADREPORT(beta_tips_dummy);
-  // REPORT(eta1_v);
+  REPORT(eta_v);
   // REPORT(eta2_v);
   // REPORT(eta3_v);
   // ADREPORT(omega_out);
 
-  REPORT(omega);
+  // REPORT(omega);
   // REPORT(ntl_omega);
 
   return nll;
