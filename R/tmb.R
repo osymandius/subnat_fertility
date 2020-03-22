@@ -9,19 +9,22 @@ library(haven)
 library(survival)
 library(parallel)
 library(demogsurv)
+library(naomi)
 
-devtools::load_all("~/Documents/GitHub/naomi")
+library(here)
 
-setwd("~/Documents/GitHub/subnat_fertility/")
-source("R/inputs.R")
-source("R/fertility_funs.R")
+naomi_data_path <- "~/naomi-data"
+## naomi_data_path <- "~/Documents/GitHub/naomi-data/"
+
+source(here("R/inputs.R"))
+source(here("R/fertility_funs.R"))
 
 # lapply(list.files("~/Documents/GitHub/naomi/R", full.names = TRUE), source)
 
 iso3_current <- "ZWE"
 
 ##sorry..
-list2env(make_areas_population("ZWE", "~/Documents/GitHub/naomi-data/", full = FALSE), globalenv())
+list2env(make_areas_population("ZWE", naomi_data_path, full = FALSE), globalenv())
 
 asfr <- get_asfr_pred_df("ZWE", 2, project = FALSE)
 
@@ -41,7 +44,7 @@ mics_asfr <- Map(calc_asfr_mics, mics_data$wm, y=list(1),
 population <- population %>%
   filter(period == min(period))
 
-area_merged <- st_read("~/Documents/GitHub/naomi-data/ZWE/data/zwe_areas.geojson")
+area_merged <- st_read(file.path(naomi_data_path, "ZWE/data/zwe_areas.geojson"))
 areas <- create_areas(area_merged = area_merged)
 area_aggregation <- create_area_aggregation(area_merged$area_id[area_merged$naomi_level], areas)
 
@@ -252,9 +255,8 @@ join_out <- crossing(area_aggregation,
 
 A_out <- spMatrix(nrow(mf_out), nrow(mf), join_out$out_idx, as.integer(join_out$idx), join_out$x)
 
-dyn.unload(dynlib("tmb/fertility_tmb_dev"))
-compile("tmb/fertility_tmb_dev.cpp")               # Compile the C++ file
-dyn.load(dynlib("tmb/fertility_tmb_dev"))
+compile(here("tmb/fertility_tmb_dev.cpp"))               # Compile the C++ file
+dyn.load(dynlib(here("tmb/fertility_tmb_dev")))
 
 data <- list(X_mf = X_mf,
              M_obs = M_obs,
@@ -322,7 +324,6 @@ f <-  MakeADFun(data = data,
                 DLL = "fertility_tmb_dev",
                 #random = c("beta_mf", "beta_tips_dummy", "u_tips", "u_age", "u_period", "u_spatial_str", "u_spatial_iid", "eta1", "eta2", "eta3"),
                 random = c("beta_mf", "beta_tips_dummy", "u_tips", "u_age", "u_period", "u_spatial_str", "u_spatial_iid"),
-
                 hessian = FALSE,
                 checkParameterOrder=FALSE)
 

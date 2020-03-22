@@ -9,23 +9,27 @@ library(geojsonsf)
 library(sf)
 library(spdep)
 library(parallel)
-devtools::load_all("~/Documents/GitHub/naomi")
+library(naomi)
 
-setwd("~/GitHub/subnat_fertility/")
-source("R/inputs.R")
-source("R/fertility_funs.R")
+library(here)
+
+naomi_data_path <- "~/naomi-data"
+## naomi_data_path <- "~/Documents/GitHub/naomi-data/"
+
+source(here("R/inputs.R"))
+source(here("R/fertility_funs.R"))
 
 iso3 <- c("LSO", "MOZ", "MWI", "NAM", "TZA", "UGA", "ZMB", "ZWE")
 
-list2env(make_areas_population(iso3, "~/Documents/GitHub/naomi-data/"), globalenv())
+list2env(make_areas_population(iso3, naomi_data_path), globalenv())
 
-set_rdhs_config(email="o.stevens@imperial.ac.uk", project="Subnational fertility", config_path = "~/.rdhs.json")
+## set_rdhs_config(email="o.stevens@imperial.ac.uk", project="Subnational fertility", config_path = "~/.rdhs.json")
 
 dhs_iso3 <- dhs_countries(returnFields=c("CountryName", "DHS_CountryCode")) %>%
   mutate(iso3 = countrycode(CountryName, "country.name", "iso3c"),
          iso3 = ifelse(CountryName == "Eswatini", "SWZ", iso3))
 
-clusters <- readRDS("input_data/clusters_2019_11_21.rds") %>%
+clusters <- readRDS(here("input_data/clusters_2019_11_21.rds")) %>%
   mutate(iso3 = survey_id) %>%
   separate(col="iso3", into="iso3", sep=3) %>%
   left_join(dhs_iso3 %>% select(-CountryName), by="iso3") %>%
@@ -89,7 +93,7 @@ dat_list <- lapply(c("LSO", "MOZ", "MWI", "NAM", "TZA", "UGA", "ZMB", "ZWE"), ge
 
 dat <- lapply(c("LSO", "MOZ", "MWI", "NAM", "TZA", "UGA", "ZMB", "ZWE"), function(iso3_current) {
   areas_long <- filter(areas_long, iso3==iso3_current)
-  dat <- readRDS(paste0("countries/", iso3_current, "/data/", iso3_current, "_asfr_admin0.rds")) %>%
+  dat <- readRDS(here("countries", paste0(iso3_current, "/data/", iso3_current, "_asfr_admin0.rds"))) %>%
     filter(period<2016)
   
   return(dat)
@@ -97,7 +101,8 @@ dat <- lapply(c("LSO", "MOZ", "MWI", "NAM", "TZA", "UGA", "ZMB", "ZWE"), functio
 
 names(dat) <- c("LSO", "MOZ", "MWI", "NAM", "TZA", "UGA", "ZMB", "ZWE")
 
-mod_list <- lapply( c("LSO", "MOZ", "MWI", "NAM", "TZA", "UGA", "ZMB", "ZWE"), function(x) readRDS(paste0("countries/", x, "/mods/", x, "_nat_mod.rds")))
+mod_list <- lapply( c("LSO", "MOZ", "MWI", "NAM", "TZA", "UGA", "ZMB", "ZWE"),
+                   function(x) readRDS(here("countries", paste0(x, "/mods/", x, "_nat_mod.rds"))))
 
 mod_list <- Map(function(x, y) {
   

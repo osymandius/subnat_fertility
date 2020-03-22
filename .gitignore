@@ -7,8 +7,10 @@ tmb/fertility_tmb_dev.so
 .Rproj.user
 *.o
 *.so
+*.dll
 *.Rproj
 C:\Users\os210\AppData\Local\Temp\RtmpWMlCGU/rdhs/rdhs.json
 tmb/fertility_tmb_dev.o
 tmb/fertility_tmb_dev.dll
 tmb/fertility_tmb_dev.o
+.Rhistory

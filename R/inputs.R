@@ -1,6 +1,6 @@
 make_areas_population <- function(iso3_codes, path_to_naomi_data, full=FALSE) {
 
-paths <- paste0(path_to_naomi_data, iso3_codes, "/data")
+paths <- file.path(path_to_naomi_data, iso3_codes, "data")
 
 files <- lapply(paths, function(paths) {
   
@@ -218,7 +218,7 @@ read_mics <- function(iso3_current, path_to_MICS = "~/Imperial College London/HI
   path <- grep(countrycode(iso3_current, "iso3c", "country.name"), list.files(path_to_MICS, full.names=TRUE), value=TRUE)
   uz <- lapply(path, unzip, exdir = temp)
 
-  check <- read.csv("input_data/MICS_list.csv") %>%
+  check <- read.csv(here::here("input_data/MICS_list.csv")) %>%
     filter(status == "Completed") %>%
     mutate(iso3 = countrycode(country, "country.name", "iso3c")) %>%
     filter(iso3 == iso3_current)
@@ -226,7 +226,7 @@ read_mics <- function(iso3_current, path_to_MICS = "~/Imperial College London/HI
   if(nrow(check) != length(path) ) warning(paste("Database has", nrow(check), "datasets for", toString(sort(type.convert(check$year))), "you have extracted", length(path)))
 
 
-  mics_indicators <- read_csv("input_data/MICS_indicators.csv") %>%
+  mics_indicators <- read_csv(here::here("input_data/MICS_indicators.csv")) %>%
     pivot_longer(-c(label, id, filetype))
 
  df <- lapply(uz, function(x) {
@@ -387,7 +387,7 @@ get_asfr_pred_df <- function(iso3_current, area_level, project) {
 
   if (project == FALSE) {
 
-    dat <- readRDS(paste0("countries/", iso3_current, "/data/", iso3_current, "_asfr_admin", area_level, ".rds"))
+    dat <- readRDS(here("countries", paste0(iso3_current, "/data/", iso3_current, "_asfr_admin", area_level, ".rds")))
 
     year <- unique(max(filter(dat, !is.na(surveyid))$period))
 
@@ -396,8 +396,7 @@ get_asfr_pred_df <- function(iso3_current, area_level, project) {
 
   } else {
 
-    dat <- readRDS(paste0("countries/", iso3_current, "/data/", iso3_current, "_asfr_admin", area_level, ".rds"))
-
+    dat <- readRDS(here("countries", paste0(iso3_current, "/data/", iso3_current, "_asfr_admin", area_level, ".rds")))
 
   }
   
