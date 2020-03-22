@@ -12,18 +12,24 @@ Type objective_function<Type>::operator() ()
   DATA_MATRIX(X_mf);
   PARAMETER_VECTOR(beta_mf);
 
-  DATA_SPARSE_MATRIX(M_all_observations);
+  DATA_SPARSE_MATRIX(M_obs);
+  DATA_SPARSE_MATRIX(M_obs_nat);
   
   DATA_MATRIX(X_tips_dummy);
+  DATA_MATRIX(X_tips_dummy_nat);
   PARAMETER_VECTOR(beta_tips_dummy);
 
   DATA_SPARSE_MATRIX(Z_tips);
-  DATA_SPARSE_MATRIX(Z_age);
-  DATA_SPARSE_MATRIX(Z_period);
-  DATA_SPARSE_MATRIX(Z_spatial);
+  DATA_SPARSE_MATRIX(Z_tips_nat);
+  // DATA_SPARSE_MATRIX(Z_age);
+  // DATA_SPARSE_MATRIX(Z_period);
+  // DATA_SPARSE_MATRIX(Z_spatial);
+  DATA_SPARSE_MATRIX(Z_age_mf);
+  DATA_SPARSE_MATRIX(Z_period_mf);
+  DATA_SPARSE_MATRIX(Z_spatial_mf);
 
-  DATA_SPARSE_MATRIX(Z_interaction);
-  PARAMETER_ARRAY(eta);
+  // DATA_SPARSE_MATRIX(Z_interaction);
+  // PARAMETER_ARRAY(eta);
   
 
   // DATA_SPARSE_MATRIX(Z_interaction1);
@@ -54,12 +60,16 @@ Type objective_function<Type>::operator() ()
   // DATA_SPARSE_MATRIX(A_national);
 
   DATA_SPARSE_MATRIX(A_out);
+  DATA_SPARSE_MATRIX(A_nat);
   DATA_VECTOR(pop);
 
   // observations
 
   DATA_VECTOR(log_offset);
   DATA_VECTOR(births_obs);
+
+  DATA_VECTOR(log_offset_nat);
+  DATA_VECTOR(births_obs_nat);
 
   // model
   nll -= dnorm(beta_mf, Type(0), Type(5), true).sum();
@@ -108,9 +118,9 @@ Type objective_function<Type>::operator() ()
   vector<Type> spatial = sigma_spatial * (sqrt(1 - spatial_rho) * u_spatial_iid + sqrt(spatial_rho) * u_spatial_str);
 
 
-  nll += SEPARABLE(GMRF(Q_period), SEPARABLE(GMRF(Q_age), GMRF(Q_spatial)))(eta);
-  vector<Type> eta_v(eta);
-  nll -= dnorm(eta_v, Type(0), Type(1), true).sum();
+  // nll += SEPARABLE(GMRF(Q_period), SEPARABLE(GMRF(Q_age), GMRF(Q_spatial)))(eta);
+  // vector<Type> eta_v(eta);
+  // nll -= dnorm(eta_v, Type(0), Type(1), true).sum();
 
   // nll += SEPARABLE(GMRF(Q_period), GMRF(Q_age))(eta1); 
   // nll += SEPARABLE(GMRF(Q_period), GMRF(Q_spatial))(eta2);
@@ -136,49 +146,61 @@ Type objective_function<Type>::operator() ()
     
   // }
 
-  vector<Type> mu_mf(X_mf * beta_mf);
+  vector<Type> log_lambda(X_mf * beta_mf +
+                     Z_age_mf * u_age * 1/sigma_rw_age +            // Age RW1
+                     Z_period_mf * u_period * 1/sigma_rw_period +
+                     Z_spatial_mf * spatial);
+
+  std::cout << "log_lambda: " << log_lambda << std::endl;
+  std::cout << "log_lambda size: " << log_lambda.size() << std::endl;
   
-  vector<Type> mu_obs_pred(M_all_observations * mu_mf +
-                          X_tips_dummy * beta_tips_dummy +          // TIPS fixed effect
+  vector<Type> mu_obs_pred(M_obs * log_lambda +
                           Z_tips * u_tips * 1/sigma_rw_tips   +     // TIPS RW
-                          Z_age * u_age * 1/sigma_rw_age +            // Age RW1
-                          Z_period * u_period * 1/sigma_rw_period +
-                          log_offset +
-                          Z_interaction * eta_v +
+                          X_tips_dummy * beta_tips_dummy +          // TIPS fixed effect
+                          log_offset
+                          // Z_interaction * eta_v +
                           // Z_interaction1 * eta1_v +
                           // Z_interaction2 * eta2_v +
                           // Z_interaction3 * eta3_v +
-                          Z_spatial * spatial
+                          
                           );
 
     
   nll -= dpois(births_obs, exp(mu_obs_pred), true).sum();  
 
-  vector<Type> omega(exp(mu_mf));
-  
+  vector<Type> lambda(exp(log_lambda));
+  vector<Type> births(lambda * pop);
 
-  vector<Type> births(omega * pop);
+  vector<Type> births_pred_nat(A_nat * births);
+  vector<Type> pop_nat(A_nat * pop);
+  vector<Type> lambda_nat(births_pred_nat/pop_nat);
+
+  vector<Type> mu_obs_pred_nat(M_obs_nat * log(lambda_nat) +
+                              Z_tips_nat * u_tips * 1/sigma_rw_tips   +     // TIPS RW
+                              X_tips_dummy_nat * beta_tips_dummy +          // TIPS fixed effect
+                              log_offset_nat
+
+              );
+
+  nll -= dpois(births_obs_nat, exp(mu_obs_pred_nat), true).sum();  
+
   vector<Type> births_out(A_out * births);
-
   vector<Type> population_out(A_out * pop);
-  vector<Type> omega_out(births_out / population_out);
+  vector<Type> lambda_out(births_out / population_out);
 
-  REPORT(omega_out);
-
-
-  // REPORT(spatial);
-  REPORT(u_period);
-  REPORT(u_age);
-  REPORT(u_spatial_str);
-  REPORT(u_spatial_iid);
+  REPORT(lambda_out);
+  // REPORT(u_period);
+  // REPORT(u_age);
+  // REPORT(u_spatial_str);
+  // REPORT(u_spatial_iid);
   // ADREPORT(u_tips);
   // ADREPORT(beta_tips_dummy);
-  REPORT(eta_v);
+  // REPORT(eta_v);
   // REPORT(eta2_v);
   // REPORT(eta3_v);
-  // ADREPORT(omega_out);
+  // ADREPORT(lambda_out);
 
-  // REPORT(omega);
+  // REPORT(lambda);
   // REPORT(ntl_omega);
 
   return nll;

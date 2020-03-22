@@ -59,109 +59,120 @@ mf <- crossing(period = factor(1995:2018),
          ) %>%
   arrange(period, area_id, age_group) %>%
   mutate(idx = factor(row_number()),
-         id.interaction = factor(group_indices(., age_group, period, area_id))
-         
+         id.interaction_3d = factor(group_indices(., age_group, period, area_id)),
+         # id.interaction_age_time = factor(group_indices(., age_group, period)),
+         id.interaction1 = factor(group_indices(., age_group, period)),
+         id.interaction2 = factor(group_indices(., period, area_id)),
+         id.interaction3 = factor(group_indices(., age_group, area_id)),
   )
+# 
+# ## Existing incorrect method that produces 63 replicates in the obs dataframe for each national row of data.
+# obs <- asfr %>%
+#   bind_rows(mics_asfr) %>%
+#   type.convert() %>%
+#   filter(!is.na(surveyid)) %>%
+#   select(area_id, period, age_group, tips, births, pys) %>%
+#   left_join(area_aggregation) %>%
+#   mutate(idx_obs = row_number()) %>%
+#   left_join(mf %>% type.convert, by = c("model_area_id" = "area_id", "period", "age_group")) %>%
+#   # arrange(period, area_id, age_group) %>%
+#   mutate(tips_dummy = as.integer(tips > 5),
+#          tips_f = factor(tips),
+#          model_area_id = factor(model_area_id, levels(mf$area_id)),
+#          age_group = factor(age_group, levels(mf$age_group)),
+#          period = factor(period),
+#          id.interaction = factor(id.interaction, levels(mf$id.interaction)),
+#          # id.interaction1 = factor(group_indices(., age_group, period)),
+#          # id.interaction2 = factor(group_indices(., period, model_area_id)),
+#          # id.interaction3 = factor(group_indices(., age_group, model_area_id)),
+#          x=1
+#          )
+# 
 
-## Existing incorrect method that produces 63 replicates in the obs dataframe for each national row of data.
+
 obs <- asfr %>%
-  bind_rows(mics_asfr) %>%
-  type.convert() %>%
+  # bind_rows(mics_asfr) %>%
+  mutate(period = factor(period, levels(mf$period))) %>%
   filter(!is.na(surveyid)) %>%
   select(area_id, period, age_group, tips, births, pys) %>%
-  left_join(area_aggregation) %>%
-  mutate(idx_obs = row_number()) %>%
-  left_join(mf %>% type.convert, by = c("model_area_id" = "area_id", "period", "age_group")) %>%
-  # arrange(period, area_id, age_group) %>%
+  left_join(mf) %>%
   mutate(tips_dummy = as.integer(tips > 5),
-         tips_f = factor(tips),
-         model_area_id = factor(model_area_id, levels(mf$area_id)),
+                  tips_f = factor(tips),
+                  age_group = factor(age_group, levels(mf$age_group)),
+                  area_id = factor(area_id, levels(mf$area_id)),
+                  period = factor(period, levels(mf$period)),
+                  )
+
+# join_aggr_births <- obs %>%
+#   mutate(idx_obs = row_number(),
+#          x=1) %>%
+#   left_join(area_aggregation) %>%
+#   left_join(mf, by=c("period", "age_group", "model_area_id" = "area_id")) %>%
+#   type.convert()
+# 
+# A_aggr_births <- sparseMatrix(i = join_aggr_births$idx_obs, j=join_aggr_births$idx, x=join_aggr_births$x, use.last.ij = TRUE)
+
+# join_aggr_coefs <- obs %>%
+#   mutate(idx_obs = row_number()) %>%
+#   left_join(area_aggregation) %>%
+#   mutate(
+#          id.age = group_indices(., age_group),
+#          id.period = max(id.age) + group_indices(., period),
+#          id.period = ifelse(id.period == min(id.period), 1, id.period-1),
+#          id.area_id = max(id.period) + group_indices(., model_area_id),
+#          id.area_id = ifelse(id.area_id == min(id.area_id), 1, id.area_id-1),
+#          x=1) %>%
+#   select(idx_obs, id.age, id.period, id.area_id, x) %>%
+#   pivot_longer(-c(idx_obs, x))
+# 
+# A_aggr_coefs <- sparseMatrix(i = join_aggr_coefs$idx_obs, j=join_aggr_coefs$value, x=join_aggr_coefs$x, use.last.ij = TRUE)
+
+join_nat <- crossing(area_id = "ZWE",
+                     period = unique(mf$period),
+                     age_group = unique(mf$age_group)
+  ) %>%
+  mutate(idx_out = row_number()) %>%
+  left_join(area_aggregation %>% left_join(areas_long) %>% filter(area_level !=1) %>% select(area_id, model_area_id)) %>%
+  left_join(obs) %>%
+  mutate(idx = row_number(),
+         x=1)
+
+A_nat <- sparseMatrix(i = join_nat$idx_out, j=join_nat$idx, x=join_nat$x, use.last.ij = TRUE)
+
+mf_nat <- crossing(area_id = "ZWE",
+                    period = unique(mf$period),
+                    age_group = unique(mf$age_group)
+ ) %>%
+  mutate(idx = factor(row_number()))
+
+obs_nat <- mics_asfr %>%
+  mutate(period = factor(period, levels(mf$period))) %>%
+  left_join(mf_nat) %>%
+  select(area_id, period, age_group, tips, births, pys, idx) %>%
+  mutate(tips_dummy = as.integer(tips > 5),
+         tips_f = factor(tips, levels(obs$tips_f)),
          age_group = factor(age_group, levels(mf$age_group)),
-         period = factor(period),
-         id.interaction = factor(id.interaction, levels(mf$id.interaction)),
-         # id.interaction1 = factor(group_indices(., age_group, period)),
-         # id.interaction2 = factor(group_indices(., period, model_area_id)),
-         # id.interaction3 = factor(group_indices(., age_group, model_area_id)),
-         x=1
-         )
-
-## Instead, leave obs dataframe alone and bind area_aggregation in separately to join_obs which is then used to make the aggregation matrix (currently test_m). This works fine. But problems from line 102.
-join_obs <- asfr %>%
-  bind_rows(mics_asfr) %>%
-  type.convert() %>%
-  filter(!is.na(surveyid)) %>%
-  select(area_id, period, age_group, tips, births, pys) %>%
-  mutate(idx_obs = row_number()) %>%
-  left_join(area_aggregation) %>%
-  left_join(mf %>% type.convert, by = c("model_area_id" = "area_id", "period", "age_group")) %>%
-  mutate(x=1)
-
-test_m <- sparseMatrix(i=join_obs$idx_obs, j=join_obs$idx, x=join_obs$x, use.last.ij = TRUE)
-
-## Model_area_id no longer present - run into problems with spatial design matrix. ZWE has no adjacency. 
-obs <- asfr %>%
-  bind_rows(mics_asfr) %>%
-  type.convert() %>%
-  filter(!is.na(surveyid)) %>%
-  select(area_id, period, age_group, tips, births, pys) %>%
-  mutate(tips_dummy = as.integer(tips > 5),
-         tips_f = factor(tips),
-         area_id = factor(area_id), ## Problems here
-         age_group = factor(age_group),
-         period = factor(period),
-         id.interaction = factor(id.interaction, levels(mf$id.interaction)),
-         # id.interaction1 = factor(group_indices(., age_group, period)),
-         # id.interaction2 = factor(group_indices(., period, model_area_id)),
-         # id.interaction3 = factor(group_indices(., age_group, model_area_id)),
-         x=1
+         idx =factor(idx, levels(mf_nat$idx))
   )
-
 
 X_mf <- model.matrix(~1 + age_group + period + area_id, mf)
 # X_mf <- model.matrix(~1 + age_group + period, mf)
 
+## Model frame design matrices
+
+Z_spatial_mf <- sparse.model.matrix(~0 + area_id, mf)
+Z_age_mf <- sparse.model.matrix(~0 + age_group, mf)
+Z_period_mf <- sparse.model.matrix(~0 + period, mf)
+
 #' This has dimensions (number of observations) x (number of rows in model frame (i.e crossing of age x time x space))
 #' Many more rows than mf because observations has things we need to adjust for bias (e.g. tips), but not required in model frame. 
 #' Column index (idx) has been joined onto obs dataframe from mf. So now each observation is labelled with the appropriate index in the mf
-# M_mf_obs <- Matrix::sparse.model.matrix(~0 + idx, obs) 
-M_mf_obs <- sparseMatrix(i=obs$idx_obs, j=obs$idx, x=obs$x, use.last.ij = TRUE)
- 
-### TIPS RANDOM WALK
+M_obs <- sparse.model.matrix(~0 + idx, obs) 
+M_obs_nat <- sparse.model.matrix(~0 + idx, obs_nat)
 
-Z_tips <- sparse.model.matrix(~0 + tips_f, obs)
-#' Create precision matrix for RW1
-D_tips <- diff(diag(ncol(Z_tips)), differences = 1)
-Q_tips <- as(t(D_tips) %*% D_tips, "dgCMatrix")
-# Q_tips <- INLA:::inla.rw(ncol(Z_tips), 1, scale.model = F)
+### SPATIAL MODEL
 
-### AGE RANDOM WALK
-
-Z_age <- sparse.model.matrix(~0 + age_group, obs)
-D_age <- diff(diag(ncol(Z_age)), differences = 1)
-Q_age <- t(D_age) %*% D_age
-diag(Q_age) <- diag(Q_age) + 1E-6
-Q_age <- as(Q_age, "dgCMatrix")
-# Q_age <- INLA:::inla.rw(ncol(Z_age), 1, scale.model = F)
-
-### TIME RANDOM WALK
-
-Z_period <- sparse.model.matrix(~0 + period, obs)
-D_period <- diff(diag(ncol(Z_period)), differences = 2)
-Q_period <- t(D_period) %*% D_period
-diag(Q_period) <- diag(Q_period) + 1E-6
-Q_period <- as(Q_period, "dgCMatrix")
-# Q_period <- INLA:::inla.rw(ncol(Z_period), 2, scale.model = F)
-
-# interaction_idx <- as.numeric(sort(unique(obs$id.interaction)))
-
-### TIPS FIXED EFFECT
-
-X_tips_dummy <- model.matrix(~0 + tips_dummy, obs)
-
-### ICAR
-
-# Z_spatial <- sparse.model.matrix(~0 + model_area_id, obs)
-Z_spatial <- sparse.model.matrix(~0 + area_id, obs)
+# Z_spatial <- sparse.model.matrix(~0 + area_id, obs)
 
 sh <- areas_long %>%
   filter(iso3 == iso3_current, naomi_level) %>%
@@ -177,11 +188,42 @@ nb <- sh %>%
 
 adj <- nb2mat(nb, zero.policy=TRUE, style="B")
 Q_spatial <- INLA::inla.scale.model(diag(rowSums(adj)) - 0.99*adj,
-                            constr = list(A = matrix(1, 1, nrow(adj)), e = 0))
+                                    constr = list(A = matrix(1, 1, nrow(adj)), e = 0))
 
 #####
+ 
+### TIPS RANDOM WALK
 
+Z_tips <- sparse.model.matrix(~0 + tips_f, obs)
+Z_tips_nat <- sparse.model.matrix(~0 + tips_f, obs_nat)
 
+#' Create precision matrix for RW1
+D_tips <- diff(diag(ncol(Z_tips)), differences = 1)
+Q_tips <- as(t(D_tips) %*% D_tips, "dgCMatrix")
+
+### AGE RANDOM WALK
+
+Z_age <- sparse.model.matrix(~0 + age_group, obs)
+D_age <- diff(diag(ncol(Z_age)), differences = 1)
+Q_age <- t(D_age) %*% D_age
+diag(Q_age) <- diag(Q_age) + 1E-6
+Q_age <- as(Q_age, "dgCMatrix")
+
+### TIME RANDOM WALK
+
+Z_period <- sparse.model.matrix(~0 + period, obs)
+D_period <- diff(diag(ncol(Z_period)), differences = 2)
+Q_period <- t(D_period) %*% D_period
+diag(Q_period) <- diag(Q_period) + 1E-6
+Q_period <- as(Q_period, "dgCMatrix")
+# Q_period <- INLA:::inla.rw(ncol(Z_period), 2, scale.model = F)
+
+# interaction_idx <- as.numeric(sort(unique(obs$id.interaction)))
+
+### TIPS FIXED EFFECT
+
+X_tips_dummy <- model.matrix(~0 + tips_dummy, obs)
+X_tips_dummy_nat <- model.matrix(~0 + tips_dummy, obs_nat)
 
 ## Outputs
 
@@ -215,12 +257,18 @@ compile("tmb/fertility_tmb_dev.cpp")               # Compile the C++ file
 dyn.load(dynlib("tmb/fertility_tmb_dev"))
 
 data <- list(X_mf = X_mf,
-             M_all_observations = M_mf_obs,
+             M_obs = M_obs,
+             M_obs_nat = M_obs_nat,
              X_tips_dummy = X_tips_dummy,
+             X_tips_dummy_nat = X_tips_dummy_nat,
              Z_tips = Z_tips,
-             Z_age = Z_age,
-             Z_period = Z_period,
-             Z_spatial = Z_spatial,
+             Z_tips_nat = Z_tips_nat,
+             # Z_age = Z_age,
+             # Z_period = Z_period,
+             # Z_spatial = Z_spatial,
+             Z_spatial_mf = Z_spatial_mf,
+             Z_age_mf = Z_age_mf,
+             Z_period_mf = Z_period_mf,
              # Z_interaction = sparse.model.matrix(~0 + id.interaction, obs),
              # Z_interaction1 = sparse.model.matrix(~0 + id.interaction1, obs),
              # Z_interaction2 = sparse.model.matrix(~0 + id.interaction2, obs),
@@ -232,18 +280,21 @@ data <- list(X_mf = X_mf,
              Q_spatial = Q_spatial,
              # A_national = A_national,
              log_offset = log(obs$pys),
+             log_offset_nat = log(obs_nat$pys),
              births_obs = obs$births,
+             births_obs_nat = obs_nat$births,
              pop = mf$population,
-             A_out = A_out
+             A_out = A_out,
+             A_nat = A_nat
              )
 
 par <- list(beta_mf = rep(0, ncol(X_mf)),
             beta_tips_dummy = rep(0, ncol(X_tips_dummy)),
             u_tips = rep(0, ncol(Z_tips)),
-            u_age = rep(0, ncol(Z_age)),
-            u_period = rep(0, ncol(Z_period)),
-            u_spatial_str = rep(0, ncol(Z_spatial)),
-            u_spatial_iid = rep(0, ncol(Z_spatial)),
+            u_age = rep(0, ncol(Z_age_mf)),
+            u_period = rep(0, ncol(Z_period_mf)),
+            u_spatial_str = rep(0, ncol(Z_spatial_mf)),
+            u_spatial_iid = rep(0, ncol(Z_spatial_mf)),
             # eta = array(0, c(ncol(Z_spatial), ncol(Z_age), ncol(Z_period))),
             # eta1 = array(0, c(ncol(Z_age), ncol(Z_period))),
             # eta2 = array(0, c(ncol(Z_spatial), ncol(Z_period))),
@@ -284,26 +335,6 @@ fit <- nlminb(f$par, f$fn, f$gr)
 rep <- sdreport(f)
 tmb_res <- summary(rep)
 
-foo <- split(exp(tmb_res[,1]), rownames(tmb_res))
-
-foo <- exp(tmb_res) %>% data.frame
-
-inla_r <- r_list[["ZWE"]]
-
-inla_r$id.age_group
-
-inla_res <- get_mod_results_test(zwe.r, asfr)%>%
-  mutate(source = "inla") %>%
-  rename(val = median)
-
-inla_res <- res_list[["ZWE"]] %>%
-  mutate(source = "inla") %>%
-  rename(val = median)
-
-inla_res <- readRDS("2019_12_4_workshop_data.rds")[["ZWE"]]$asfr %>%
-  rename(val = median, age_group = agegr) %>%
-  mutate(source = "inla")
-
 mf %>% 
   # left_join(areas_long) %>%
   cbind(data.frame(val = f$report()$omega)) %>%
@@ -315,8 +346,6 @@ mf %>%
     geom_line(aes(group=source, color=source)) +
     # geom_point(data = filter(readRDS("countries/ZWE/data/ZWE_asfr_admin0.rds"), age_group == "20-24", !is.na(surveyid)) %>% rename(val = asfr), aes(color=surveyid), alpha=0.6) +
     facet_wrap(~area_id)
-
-data.frame(val = f$report()$u_period)
 
 mf %>% 
   # left_join(areas_long) %>%
@@ -340,166 +369,11 @@ mics_plot <- Map(calc_asfr_mics, mics_data$wm, y=list(1),
 
 mf_out %>% 
   # left_join(areas_long) %>%
-  cbind(data.frame(val = f$report()$omega_out)) %>%
+  cbind(data.frame(val = f$report()$lambda_out)) %>%
   type.convert() %>%
   left_join(areas_long) %>%
-  filter(area_level ==0) %>%
-
+  filter(area_level ==2, age_group == "20-24") %>%
   ggplot(aes(x=period, y=val)) +
   geom_line() +
-  geom_point(data=mics_plot %>% bind_rows(asfr_nat), aes(y=asfr, color=survtype)) +
-  facet_wrap(~age_group)
-
-mics_plot %>% bind_rows(asfr)
-
-asfr <- readRDS("~/Downloads/zwe_nat_asfr.rds")
-
-asfr <- crossing(
-  agegr = unique(asfr$agegr),
-  period = 1995:2015,
-  area_id = "ZWE",
-  country = "Zimbabwe"
-) %>%
-  bind_rows(asfr) %>%
-  mutate(area_id = "ZWE") %>%
-  mutate(id.agegr = group_indices(., agegr), 
-         id.period = group_indices(., period), 
-         id.tips = ifelse(is.na(tips), NA, group_indices(., tips)), 
-         tips_dummy = ifelse(tips<5, 0, 1),
-         id = row_number())
-
-national_mod <- run_mod(asfr)
-debugonce(get_mod_results)
-zwe_res_nat <- get_mod_results_test(national_mod, asfr)
-get_mod_results(zwe_run, asfr)
-
-int <- mf_out %>% 
-  cbind(data.frame(nat = f$report()$omega)) %>%
-  left_join(areas_long) %>%
-  select(area_id,area_level,period,age_group, nat) %>%
-  mutate(period = as.numeric(as.character(period)))%>%
-  left_join(zwe_res_nat %>%
-              rename(inla = median,age_group = agegr) %>%
-              select(area_id,period,age_group,inla) %>%
-              left_join(areas_long)
-            ) %>%
-  select(area_id, area_level, period, age_group, nat, inla) %>%
-  filter(area_level == 0) %>%
-  pivot_longer(-c(area_id,period,area_level,age_group))
-
-int %>%
-  filter(age_group == "20-24") %>%
-  ggplot(aes(x=period, y=value)) +
-    geom_line(aes(color=name, group=name)) +
-    # geom_point(data= asfr_admin1 %>% filter(agegr == "20-24"), aes(x=period, y=asfr)) +
-    facet_wrap(~area_id)
-
-asfr_admin1 <- readRDS("~/Documents/GitHub/subnat_fertility/asfr_admin1_newh.rds")[["ZWE"]]
-
-obs %>%
-  type.convert %>%
-  left_join(
-    data.frame(id.interaction = 1:147, val = tmb_res[,1][rownames(tmb_res) == "eta"])
-  ) %>%
-  ggplot(aes(x=period, y=val, color=age_group, group=age_group)) +
-  geom_line()
-
-inla_mods <- readRDS("~/Documents/GitHub/subnat_fertility/2019_12_4_mods.rds")
-
-zwe_inla <- national_mod
-
-zwe_random <- lapply(zwe_inla$summary.random, function(x) select(x, ID, mean))
-
-zwe_random$id.agegr <- zwe_random$id.agegr %>%
-  rename(id.agegr = ID) %>%
-  rename(age_rw1 = mean)
-  
-zwe_random$id.period <- zwe_random$id.period %>%
-  rename(id.period = ID)%>%
-  rename(period_rw2 = mean)
-
-zwe_random$id.agegr2 <- zwe_random$id.agegr2 %>%
-  mutate(id.period = rep(1:26, each=7)) %>%
-  rename(id.agegr = ID, age_period = mean)
-
-zwe_random$id.tips <- zwe_random$id.tips %>%
-  rename(id.tips = ID, tips_rw = mean)
-
-zwe_random$id.district <- zwe_random$id.district %>%
-  mutate(thing = c(rep("top", times=63), rep("bottom", times="63"))) %>%
-  rename(id.district = ID, spatial = mean) %>%
-  filter(thing == "top")
-
-zwe_random$id.district2 <- zwe_random$id.district2 %>% 
-  mutate(thing = rep(c(rep("top", times=63), rep("bottom", times="63")), times=26),
-        id.period = rep(1:26, each=126)
-  ) %>%
-  rename(id.district = ID, space_time = mean) %>%
-  filter(thing == "top")
-
-zwe_random$id.district3 <- zwe_random$id.district3 %>%
-  mutate(thing = rep(c(rep("top", times=63), rep("bottom", times="63")), times=7),
-         id.agegr = rep(1:7, each=126)
-  ) %>%
-  rename(id.district = ID, space_age = mean) %>%
-  filter(thing == "top")
-
-int <- f$report()
-
-test <- mf %>%
-  # mutate(id.interaction1 = as.integer(id.interaction1),
-  #        id.interaction2 = as.integer(id.interaction2),
-  #        id.interaction3 = as.integer(id.interaction3)) %>%
-  # left_join(
-  #   data.frame(age_period = int$eta1_v) %>%
-  #     mutate(id.interaction1 = row_number())
-  # ) %>%
-  # left_join(
-  #   data.frame(space_time = int$eta2_v) %>%
-  #     mutate(id.interaction2 = row_number())
-  # ) %>%
-  # left_join(
-  #   data.frame(space_age = int$eta3_v) %>%
-  #     mutate(id.interaction3 = row_number())
-  # ) %>%
-  left_join(data.frame(age_rw1 = int$u_age) %>%
-              mutate(age_group = unique(mf$age_group))
-            ) %>%
-  left_join(data.frame(spatial = int$spatial) %>%
-              mutate(area_id = unique(mf$area_id))) %>%
-  left_join(data.frame(period_rw2 = int$u_period) %>%
-              mutate(period = unique(mf$period))) %>%
-  select(-c(population, idx, id.interaction1, id.interaction2, id.interaction3)) %>%
-  mutate(source = "TMB",
-         period = as.integer(as.character(period))) %>%
-  pivot_longer(-c(area_id, period, age_group, source)) %>%
-  bind_rows(
-    asfr %>%
-      select(area_id, period, age_group, id.period, id.agegr, id.district) %>%
-      distinct %>%
-      left_join(zwe_random[[1]]) %>%
-      left_join(zwe_random[[2]]) %>%
-      left_join(zwe_random[[3]]) %>%
-      select(-c(id.period, id.agegr, id.district, thing)) %>%
-      mutate(source = "INLA") %>%
-      filter(period < 2016) %>%
-      pivot_longer(-c(area_id, period, age_group, source))
-    
-  )
-
-test %>%
-  filter(name == "period_rw2") %>%
-  ggplot(aes(x=period, y=value, group=source, color=source)) +
-    geom_line()
-
-test %>%
-  filter(name == "age_rw1") %>%
-  ggplot(aes(x=age_group, y=value, group=source, color=source)) +
-  geom_line()
-
-test %>%
-  filter(name == "spatial") %>%
-  ggplot(aes(x=area_id, y=value, group=source, color=source)) +
-  geom_line()
-
-INLA:::inla.rw(5,2,TRUE)
+  # geom_point(data=mics_plot %>% bind_rows(asfr_nat), aes(y=asfr, color=survtype)) +
+  facet_wrap(~area_id)
