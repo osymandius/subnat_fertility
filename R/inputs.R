@@ -213,101 +213,144 @@ clusters_to_surveys <- function(surveys, cluster_areas, single_tips = TRUE) {
 }
 
 read_mics <- function(iso3_current, path_to_MICS = "~/Imperial College London/HIV Inference Group - Documents/Data/household surveys/MICS/datasets") {
-
+  
   temp <- tempdir()
   path <- grep(countrycode(iso3_current, "iso3c", "country.name"), list.files(path_to_MICS, full.names=TRUE), value=TRUE)
   uz <- lapply(path, unzip, exdir = temp)
-
+  
   check <- read.csv(here::here("input_data/MICS_list.csv")) %>%
     filter(status == "Completed") %>%
     mutate(iso3 = countrycode(country, "country.name", "iso3c")) %>%
     filter(iso3 == iso3_current)
-
+  
   if(nrow(check) != length(path) ) warning(paste("Database has", nrow(check), "datasets for", toString(sort(type.convert(check$year))), "you have extracted", length(path)))
-
-
+  
   mics_indicators <- read_csv(here::here("input_data/MICS_indicators.csv")) %>%
     pivot_longer(-c(label, id, filetype))
-
- df <- lapply(uz, function(x) {
   
-  wm_path <- grep("wm.sav", x, value = TRUE)
-  wm_extract <- read_sav(wm_path)
-  colnames(wm_extract) <- tolower(colnames(wm_extract))
+  df <- lapply(uz, function(x) {
+    
+    ##### HH
+    
+    hh_path <- grep("hh.sav", x, value = TRUE)
+    hh_extract <- read_sav(hh_path)
+    colnames(hh_extract) <- tolower(colnames(hh_extract))
+    
+    surv_year_id <- hh_extract %>%
+      select(starts_with("hh")) %>%
+      select(ends_with("y")) %>%
+      colnames
+    
+    surv_year <- hh_extract %>%
+      select(surv_year_id) %>%
+      count(year = get(surv_year_id)) %>%
+      slice(which.max(n)) %>%
+      select(year) %>%
+      as.integer()
+    
+    surv_round <- filter(check, year == surv_year)$round
+    
+    vars <- mics_indicators %>%
+      filter(name == surv_round, filetype=="hh") %>%
+      .$value
+    
+    names(vars) <- mics_indicators %>%
+      filter(name == surv_round, filetype=="hh") %>%
+      .$id
+    
+    hh_extract <- hh_extract %>%
+      rename(province = vars[["province"]], cluster = vars[["cluster"]], hh_number = vars[["hh_number"]])
+    
+    prov_labels <- data.frame(province = attr(hh_extract$province, "labels"), area_name = str_to_title(names(attr(hh_extract$province, "labels")))) %>%
+      left_join(areas_long %>% filter(area_level == 1))
+    
+    if(nrow(filter(prov_labels, is.na(area_id))) != 0)
+      stop(paste(nrow(filter(prov_labels, is.na(area_id))), "province labels have not been matched with area ids"))
+    
+    hh_extract <- hh_extract %>%
+      left_join(prov_labels %>% select(province, area_id))
+    
+    ##### WM
+    
+    wm_path <- grep("wm.sav", x, value = TRUE)
+    wm_extract <- read_sav(wm_path)
+    colnames(wm_extract) <- tolower(colnames(wm_extract))
+    
+    vars <- mics_indicators %>%
+      filter(name == surv_round, filetype=="wm") %>%
+      .$value
+    
+    names(vars) <- mics_indicators %>%
+      filter(name == surv_round, filetype=="wm") %>%
+      .$id
+    
+    wm_extract <- wm_extract %>%
+      mutate(survyear = surv_year,
+             surveyid = paste0(iso3_current, "MICS", survyear),
+             survtype = "MICS") %>%
+      rename(wdob = vars[["wdob"]], cluster = vars[["cluster"]], hh_number = vars[["hh_number"]], line_number = vars[["line_number"]], doi = vars[["doi"]]) %>%
+      filter(!is.na(wdob), !is.na(cluster), !is.na(hh_number), !is.na(line_number), !is.na(doi)) %>%
+      arrange(cluster, hh_number, line_number) %>%
+      mutate(unique_id = group_indices(., cluster, hh_number, line_number))
+    
+    
+    ###### BH
+    
+    bh_path <- grep("bh.sav", x, value=TRUE)
+    bh_extract <- read_sav(bh_path)
+    colnames(bh_extract) <- tolower(colnames(bh_extract))
+    
+    vars <- mics_indicators %>%
+      filter(name == surv_round, filetype == "bh") %>%
+      .$value
+    
+    names(vars) <- mics_indicators %>%
+      filter(name == surv_round, filetype == "bh") %>%
+      .$id
+    
+    bh_extract <- bh_extract %>%
+      rename(cluster = vars[["cluster"]], hh_number = vars[["hh_number"]], line_number = vars[["line_number"]], cdob = vars[["cdob"]])
+    
+    df <- list()
+    df$hh <- hh_extract
+    df$wm <- wm_extract
+    df$bh <- bh_extract
+    
+    
+    return(df)
+    
+  })
   
-  surv_year <- wm_extract %>%
-    count(wm6y) %>%
-    arrange(desc(n)) %>%
-    slice(which.max(n)) %>%
-    .$wm6y %>%
-    as.integer()
+  bh <- lapply(df, "[[", "bh")
+  wm <- lapply(df, "[[", "wm")
+  hh <- lapply(df, "[[", "hh")
   
-  surv_round <- filter(check, year == surv_year)$round
+  if(length(bh) != length(uz)) stop("Number of birth history files does not match number of surveys extracted")
+  if(length(wm) != length(uz)) stop("Number of women files does not match number of surveys extracted")
+  if(length(hh) != length(uz)) stop("Number of household files does not match number of surveys extracted")
   
-  vars <- mics_indicators %>%
-    filter(name == surv_round, filetype=="wm") %>%
-    .$value
-  
-  names(vars) <- mics_indicators %>%
-    filter(name == surv_round, filetype=="wm") %>%
-    .$id
-  
-  wm_extract <- wm_extract %>%
-    mutate(area_id = iso3_current,
-           survyear = surv_year,
-           surveyid = paste0(iso3_current, "MICS", survyear),
-           survtype = "MICS") %>%
-    rename(wdob = vars[["wdob"]], cluster = vars[["cluster"]], hh_number = vars[["hh_number"]], line_number = vars[["line_number"]], doi = vars[["doi"]]) %>%
-    filter(!is.na(wdob), !is.na(cluster), !is.na(hh_number), !is.na(line_number), !is.na(doi)) %>%
-    arrange(cluster, hh_number, line_number) %>%
-    mutate(unique_id = group_indices(., cluster, hh_number, line_number))
-  
-  bh_path <- grep("bh.sav", x, value=TRUE)
-  bh_extract <- read_sav(bh_path)
-  colnames(bh_extract) <- tolower(colnames(bh_extract))
-  
-  vars <- mics_indicators %>%
-    filter(name == surv_round, filetype == "bh") %>%
-    .$value
-  
-  names(vars) <- mics_indicators %>%
-    filter(name == surv_round, filetype == "bh") %>%
-    .$id
-  
-  bh_extract <- bh_extract %>%
-    rename(cluster = vars[["cluster"]], hh_number = vars[["hh_number"]], line_number = vars[["line_number"]], cdob = vars[["cdob"]])
-  
-  df <- list()
-  df$wm <- wm_extract
-  df$bh <- bh_extract
-
-  
-  return(df)
-  
-})
-
- bh <- lapply(df, "[[", "bh")
- wm <- lapply(df, "[[", "wm")
-
- if(length(bh) != length(uz)) stop("Number of birth history files does not match number of surveys extracted")
- if(length(wm) != length(uz)) stop("Number of women files does not match number of surveys extracted")
-
   mics_dat <- list()
   
-  mics_dat$wm <- wm
-
+  wm <- Map(function(wm, hh) {
+    
+    wm %>% 
+      left_join(hh %>% select(cluster, hh_number, area_id))
+    
+  }, wm, hh)
+  
   bh_df <- Map(function(bh, wm) {
     wm %>%
       select(cluster, hh_number, line_number, unique_id) %>%
       left_join(bh %>% select(cluster, hh_number, line_number, cdob)) %>%
       select(unique_id, cdob) %>%
       filter(!is.na(cdob))
-    }, bh, wm)
-
+  }, bh, wm)
+  
   mics_dat$bh_df <- bh_df
-
+  mics_dat$wm <- wm
+  
   return(mics_dat)
-
+  
 }
 
 cmc_to_year <- function(cmc) {
