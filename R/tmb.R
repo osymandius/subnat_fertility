@@ -141,6 +141,7 @@ join_nat <- crossing(area_id = "ZWE",
          x=1)
 
 A_nat <- sparseMatrix(i = join_nat$idx_out, j=join_nat$idx, x=join_nat$x, use.last.ij = TRUE)
+dim(A_nat)
 
 mf_nat <- crossing(area_id = "ZWE",
                     period = unique(mf$period),
@@ -271,7 +272,7 @@ data <- list(X_mf = X_mf,
              Z_spatial_mf = Z_spatial_mf,
              Z_age_mf = Z_age_mf,
              Z_period_mf = Z_period_mf,
-             # Z_interaction = sparse.model.matrix(~0 + id.interaction, obs),
+             Z_interaction = sparse.model.matrix(~0 + id.interaction_3d, mf),
              # Z_interaction1 = sparse.model.matrix(~0 + id.interaction1, obs),
              # Z_interaction2 = sparse.model.matrix(~0 + id.interaction2, obs),
              # Z_interaction3 = sparse.model.matrix(~0 + id.interaction3, obs),
@@ -297,7 +298,7 @@ par <- list(beta_mf = rep(0, ncol(X_mf)),
             u_period = rep(0, ncol(Z_period_mf)),
             u_spatial_str = rep(0, ncol(Z_spatial_mf)),
             u_spatial_iid = rep(0, ncol(Z_spatial_mf)),
-            # eta = array(0, c(ncol(Z_spatial), ncol(Z_age), ncol(Z_period))),
+            eta = array(0, c(ncol(Z_spatial_mf), ncol(Z_age_mf), ncol(Z_period_mf))),
             # eta1 = array(0, c(ncol(Z_age), ncol(Z_period))),
             # eta2 = array(0, c(ncol(Z_spatial), ncol(Z_period))),
             # eta3 = array(0, c(ncol(Z_spatial), ncol(Z_age))),
@@ -323,7 +324,7 @@ f <-  MakeADFun(data = data,
                 parameters = par,
                 DLL = "fertility_tmb_dev",
                 #random = c("beta_mf", "beta_tips_dummy", "u_tips", "u_age", "u_period", "u_spatial_str", "u_spatial_iid", "eta1", "eta2", "eta3"),
-                random = c("beta_mf", "beta_tips_dummy", "u_tips", "u_age", "u_period", "u_spatial_str", "u_spatial_iid"),
+                random = c("beta_mf", "beta_tips_dummy", "u_tips", "u_age", "u_period", "u_spatial_str", "u_spatial_iid", "eta"),
                 hessian = FALSE,
                 checkParameterOrder=FALSE)
 
@@ -370,11 +371,11 @@ mics_plot <- Map(calc_asfr_mics, mics_data$wm, y=list(1),
 
 mf_out %>% 
   # left_join(areas_long) %>%
-  cbind(data.frame(val = f$report()$lambda_out)) %>%
+  cbind(data.frame(val = int$report()$lambda_out)) %>%
   type.convert() %>%
   left_join(areas_long) %>%
-  filter(area_level ==2, age_group == "20-24") %>%
-  ggplot(aes(x=period, y=val)) +
+  filter(area_level ==0) %>%
+  ggplot(aes(x=period, y=val, group=age_group, color=age_group)) +
   geom_line() +
   # geom_point(data=mics_plot %>% bind_rows(asfr_nat), aes(y=asfr, color=survtype)) +
   facet_wrap(~area_id)

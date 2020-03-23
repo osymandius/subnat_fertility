@@ -24,12 +24,12 @@ Type objective_function<Type>::operator() ()
   // DATA_SPARSE_MATRIX(Z_age);
   // DATA_SPARSE_MATRIX(Z_period);
   // DATA_SPARSE_MATRIX(Z_spatial);
-  DATA_SPARSE_MATRIX(Z_age_mf);
-  DATA_SPARSE_MATRIX(Z_period_mf);
-  DATA_SPARSE_MATRIX(Z_spatial_mf);
+  DATA_SPARSE_MATRIX(Z_age);
+  DATA_SPARSE_MATRIX(Z_period);
+  DATA_SPARSE_MATRIX(Z_spatial);
 
-  // DATA_SPARSE_MATRIX(Z_interaction);
-  // PARAMETER_ARRAY(eta);
+  DATA_SPARSE_MATRIX(Z_interaction);
+  PARAMETER_ARRAY(eta);
   
 
   // DATA_SPARSE_MATRIX(Z_interaction1);
@@ -118,9 +118,9 @@ Type objective_function<Type>::operator() ()
   vector<Type> spatial = sigma_spatial * (sqrt(1 - spatial_rho) * u_spatial_iid + sqrt(spatial_rho) * u_spatial_str);
 
 
-  // nll += SEPARABLE(GMRF(Q_period), SEPARABLE(GMRF(Q_age), GMRF(Q_spatial)))(eta);
-  // vector<Type> eta_v(eta);
-  // nll -= dnorm(eta_v, Type(0), Type(1), true).sum();
+  nll += SEPARABLE(GMRF(Q_period), SEPARABLE(GMRF(Q_age), GMRF(Q_spatial)))(eta);
+  vector<Type> eta_v(eta);
+  nll -= dnorm(eta_v, Type(0), Type(1), true).sum();
 
   // nll += SEPARABLE(GMRF(Q_period), GMRF(Q_age))(eta1); 
   // nll += SEPARABLE(GMRF(Q_period), GMRF(Q_spatial))(eta2);
@@ -147,9 +147,10 @@ Type objective_function<Type>::operator() ()
   // }
 
   vector<Type> log_lambda(X_mf * beta_mf +
-                     Z_age_mf * u_age * 1/sigma_rw_age +            // Age RW1
-                     Z_period_mf * u_period * 1/sigma_rw_period +
-                     Z_spatial_mf * spatial);
+                     Z_age * u_age * 1/sigma_rw_age +            // Age RW1
+                     Z_period * u_period * 1/sigma_rw_period +
+                     Z_spatial * spatial +
+                     Z_interaction * eta_v);
 
   std::cout << "log_lambda: " << log_lambda << std::endl;
   std::cout << "log_lambda size: " << log_lambda.size() << std::endl;
@@ -195,7 +196,7 @@ Type objective_function<Type>::operator() ()
   // REPORT(u_spatial_iid);
   // ADREPORT(u_tips);
   // ADREPORT(beta_tips_dummy);
-  // REPORT(eta_v);
+  REPORT(eta_v);
   // REPORT(eta2_v);
   // REPORT(eta3_v);
   // ADREPORT(lambda_out);
