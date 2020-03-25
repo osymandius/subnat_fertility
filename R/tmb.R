@@ -250,6 +250,7 @@ join_rate <- crossing(area_id = unique(join_out$area_id),
   
 A_rate <- spMatrix(nrow(join_rate), nrow(A_out), join_rate$idx, as.integer(join_rate$idx_col), join_rate$x)
 
+dyn.unload(dynlib(here("tmb/fertility_tmb_dev")))
 compile(here("tmb/fertility_tmb_dev.cpp"))               # Compile the C++ file
 dyn.load(dynlib(here("tmb/fertility_tmb_dev")))
 
@@ -264,14 +265,13 @@ data <- list(X_mf = X_mf,
              Z_period = Z_period,
              Z_spatial = Z_spatial,
              # Z_interaction = sparse.model.matrix(~0 + id.interaction, mf),
-             Z_interaction1 = sparse.model.matrix(~0 + id.interaction1, mf),
-             Z_interaction2 = sparse.model.matrix(~0 + id.interaction2, mf),
-             Z_interaction3 = sparse.model.matrix(~0 + id.interaction3, mf),
+             # Z_interaction1 = sparse.model.matrix(~0 + id.interaction1, mf),
+             # Z_interaction2 = sparse.model.matrix(~0 + id.interaction2, mf),
+             # Z_interaction3 = sparse.model.matrix(~0 + id.interaction3, mf),
              Q_tips = Q_tips,
              Q_age = Q_age,
              Q_period = Q_period,
              Q_spatial = Q_spatial,
-             # A_national = A_national,
              log_offset = log(obs$pys),
              # log_offset_nat = log(obs_nat$pys),
              births_obs = obs$births,
@@ -290,9 +290,9 @@ par <- list(beta_mf = rep(0, ncol(X_mf)),
             u_spatial_str = rep(0, ncol(Z_spatial)),
             u_spatial_iid = rep(0, ncol(Z_spatial)),
             # eta = array(0, c(ncol(Z_spatial), ncol(Z_age), ncol(Z_period))),
-            eta1 = array(0, c(ncol(Z_period), ncol(Z_age))),
-            eta2 = array(0, c(ncol(Z_spatial), ncol(Z_period))),
-            eta3 = array(0, c(ncol(Z_spatial), ncol(Z_age))),
+            # eta1 = array(0, c(ncol(Z_period), ncol(Z_age))),
+            # eta2 = array(0, c(ncol(Z_spatial), ncol(Z_period))),
+            # eta3 = array(0, c(ncol(Z_spatial), ncol(Z_age))),
             log_sigma_rw_tips = log(2.5),
             log_sigma_rw_age = log(2.5),
             log_sigma_rw_period = log(2.5),
@@ -304,7 +304,6 @@ par <- list(beta_mf = rep(0, ncol(X_mf)),
 f <- mcparallel({TMB::MakeADFun(data = data,
                                       parameters = par,
                                       DLL = "fertility_tmb_dev",
-                                      random = c("beta_mf",  "u_age", "beta_tips_dummy", "u_period", "u_spatial_str", "u_spatial_iid"),
                                       silent=0,
                                       checkParameterOrder=FALSE)
   })
@@ -314,8 +313,8 @@ mccollect(f)
 obj <-  MakeADFun(data = data,
                 parameters = par,
                 DLL = "fertility_tmb_dev",
-                random = c("beta_mf", "beta_tips_dummy", "u_tips", "u_age", "u_period", "u_spatial_str", "u_spatial_iid", "eta2", "eta3"),
-                #random = c("beta_mf", "beta_tips_dummy", "u_tips", "u_age", "u_period", "u_spatial_str", "u_spatial_iid"),
+                #  random = c("beta_mf", "beta_tips_dummy", "u_tips", "u_age", "u_period", "u_spatial_str", "u_spatial_iid", "eta1", "eta2", "eta3"),
+                random = c("beta_mf", "beta_tips_dummy", "u_tips", "u_age", "u_period", "u_spatial_str", "u_spatial_iid"),
                 hessian = FALSE,
                 checkParameterOrder=FALSE)
 
@@ -339,8 +338,8 @@ mf_out %>%
   geom_line(aes(color=age_group)) +
   geom_ribbon(aes(ymin = lower, ymax = upper, fill=age_group), alpha=0.3) +
   facet_wrap(~area_id) +
-  ylim(0,1)
-# 
+  ylim(0,2)
+ 
 # tfr <- mf_out %>%
 #   cbind(fit$sample$lambda_out) %>%
 #   select(-c(age_group, out_idx)) %>%
