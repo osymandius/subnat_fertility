@@ -50,7 +50,7 @@ surveys <- dhs_surveys(surveyIds = unique(clusters$DHS_survey_id)) %>%
   )
 
 ## Needs check to ensure level is < max_level
-cluster_areas <- assign_cluster_area(clusters, 0)
+cluster_areas <- assign_cluster_area(clusters, 1)
 
 dat <- clusters_to_surveys(surveys, cluster_areas, single_tips = FALSE)
 
