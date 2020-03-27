@@ -809,61 +809,46 @@ interpolate_fertility_population <- function(population_agesex, calendar_quarter
   
 }
 
-UniquePanelCoords <- ggplot2::ggproto(
-  "UniquePanelCoords", ggplot2::CoordCartesian,
+sample_tmb_test <- function(fit, nsample = 1000, rng_seed = NULL,
+                            random_only = FALSE, verbose = FALSE) {
   
-  num_of_panels = 1,
-  panel_counter = 1,
-  panel_ranges = NULL,
   
-  setup_layout = function(self, layout, params) {
-    self$num_of_panels <- length(unique(layout$PANEL))
-    self$panel_counter <- 1
-    layout
-  },
-  
-  setup_panel_params =  function(self, scale_x, scale_y, params = list()) {
-    if (!is.null(self$panel_ranges) & length(self$panel_ranges) != self$num_of_panels)
-      stop("Number of panel ranges does not equal the number supplied")
+  if(!random_only) {
+    if(verbose) print("Calculating joint precision")
+    hess <- sdreport_joint_precision(fit$obj, fit$par.fixed)
     
-    train_cartesian <- function(scale, limits, name, given_range = NULL) {
-      if (is.null(given_range))
-        range <- ggplot2:::scale_range(scale, limits, self$expand)
-      else
-        range <- given_range
-      
-      out <- scale$break_info(range)
-      out$arrange <- scale$axis_order()
-      names(out) <- paste(name, names(out), sep = ".")
-      out
-    }
+    if(verbose) print("Inverting precision for joint covariance")
+    cov <- solve(hess)
     
-    cur_panel_ranges <- self$panel_ranges[[self$panel_counter]]
-    if (self$panel_counter < self$num_of_panels)
-      self$panel_counter <- self$panel_counter + 1
-    else
-      self$panel_counter <- 1
+    if(verbose) print("Drawing sample")
+    ## TODO: write a version of rmvnorm that uses precision instead of covariance
+    smp <- mvtnorm::rmvnorm(nsample, fit$par.full, as.matrix(cov))
     
-    c(train_cartesian(scale_x, self$limits$x, "x", cur_panel_ranges$x),
-      train_cartesian(scale_y, self$limits$y, "y", cur_panel_ranges$y))
+  } else {
+    r <- fit$obj$env$random
+    par_f <- fit$par.full[-r]
+    
+    par_r <- fit$par.full[r]
+    hess_r <- fit$obj$env$spHess(fit$par.full, random = TRUE)
+    smp_r <- rmvnorm_sparseprec(nsample, par_r, hess_r)
+    
+    smp <- matrix(0, nsample, length(fit$par.full))
+    smp[ , r] <- smp_r
+    smp[ ,-r] <- matrix(par_f, nsample, length(par_f), byrow = TRUE)
+    colnames(smp)[r] <- colnames(smp_r)
+    colnames(smp)[-r] <- names(par_f)
   }
-)
-
-coord_panel_ranges <- function(panel_ranges, expand = TRUE, default = FALSE, clip = "on") 
-{
-  ggplot2::ggproto(NULL, UniquePanelCoords, panel_ranges = panel_ranges, 
-                   expand = expand, default = default, clip = clip)
-}
-
-grid_arrange_shared_legend <- function(...) {
-  plots <- list(...)
-  g <- ggplotGrob(plots[[1]] + theme(legend.position="right"))$grobs
-  legend <- g[[which(sapply(g, function(x) x$name) == "guide-box")]]
-  lheight <- sum(legend$height)
-  grid.arrange(
-    do.call(arrangeGrob, lapply(plots, function(x)
-      x + theme(legend.position="none"))),
-    legend,
-    ncol = 3,
-    heights = unit.c(unit(1, "npc") - lheight, lheight))
+  
+  if(verbose) print("Simulating outputs")
+  sim <- apply(smp, 1, fit$obj$report)
+  
+  r <- fit$obj$report()
+  
+  if(verbose) print("Returning sample")
+  fit$sample <- Map(vapply, list(sim), "[[", lapply(lengths(r), numeric), names(r))
+  is_vector <- vapply(fit$sample, class, character(1)) == "numeric"
+  fit$sample[is_vector] <- lapply(fit$sample[is_vector], as.matrix, nrow = 1)
+  names(fit$sample) <- names(r)
+  
+  fit
 }

@@ -282,7 +282,9 @@ data <- list(X_mf = X_mf,
              # A_rate = A_rate
              )
 
-par <- list(beta_mf = rep(0, ncol(X_mf)),
+par <- list(
+            beta_mf = rep(0, ncol(X_mf)),
+            # beta_0 = 0,
             beta_tips_dummy = rep(0, ncol(X_tips_dummy)),
             u_tips = rep(0, ncol(Z_tips)),
             u_age = rep(0, ncol(Z_age)),
@@ -293,9 +295,14 @@ par <- list(beta_mf = rep(0, ncol(X_mf)),
             # eta1 = array(0, c(ncol(Z_period), ncol(Z_age))),
             # eta2 = array(0, c(ncol(Z_spatial), ncol(Z_period))),
             # eta3 = array(0, c(ncol(Z_spatial), ncol(Z_age))),
-            log_sigma_rw_tips = log(2.5),
-            log_sigma_rw_age = log(2.5),
-            log_sigma_rw_period = log(2.5),
+            # log_sigma_rw_period = log(2.5),
+            # log_sigma_rw_tips = log(2.5),
+            # log_sigma_rw_age = log(2.5),
+            # log_sigma_eta1 = log(2.5),
+            log_prec_rw_period = 0,
+            log_prec_rw_tips = 0,
+            log_prec_rw_age = 0,
+            # log_prec_eta1 = log(2.5),
             log_sigma_spatial = log(2.5),
             logit_spatial_rho = 0
             )
@@ -326,6 +333,10 @@ fit <- c(f, obj = list(obj))
 fit$sdreport <- sdreport(fit$obj, fit$par)
 fit <- sample_tmb_test(fit)
 
+
+
+summary(fit$sdreport)
+
 qtls <- apply(fit$sample$lambda_out, 1, quantile, c(0.025, 0.5, 0.975))
 
 mf_out %>%
@@ -333,12 +344,12 @@ mf_out %>%
          median = qtls[2,],
          upper = qtls[3,]) %>%
   left_join(areas_long) %>%
-  filter(area_level ==2) %>%
+  filter(area_level ==0) %>%
   ggplot(aes(x=period, y=median, group=age_group)) +
   geom_line(aes(color=age_group)) +
   geom_ribbon(aes(ymin = lower, ymax = upper, fill=age_group), alpha=0.3) +
   facet_wrap(~area_id) +
-  ylim(0,2)
+  ylim(0,0.5)
  
 # tfr <- mf_out %>%
 #   cbind(fit$sample$lambda_out) %>%
