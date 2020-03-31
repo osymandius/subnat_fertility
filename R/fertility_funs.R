@@ -714,27 +714,13 @@ get_mod_results_test <- function(mod, asfr_pred_country_subnat) {
   ident <- asfr_pred_country_subnat[ind.effect, ] %>%
     select(area_id, age_group, period)
   
-    # 
-    # left_join(pop_areas) %>%
-    # filter(period>1999) %>%
-    # mutate(ratio0 = population/id0_agepop,
-    #        ratio1 = population/id1_agepop,
-    #        ratio2 = population/id2_agepop,
-    #        ratio3 = population/id3_agepop,
-    #        ratio4 = population/id4_agepop
-    # )
+  qtls <- apply(sapply(samples.effect, cbind), 1, quantile, c(0.025, 0.5, 0.975))
   
-  samples_ident <- sapply(samples.effect, cbind) %>%
-    data.frame %>%
-    # mutate(id =row_number()) %>%
-    # left_join(asfr_pred_country_subnat[ind.effect , c("iso3", "area_id", "period", "age_group", "id")], by="id") %>%
-    # select(-id) %>%
-    cbind(ident)
-  
-  samples_ident$median <- apply(samples_ident[, 1:1000], 1, median)
-  
-  samples_ident <- samples_ident %>%
-    select(area_id, period, age_group, median)
+  samples_ident <- ident %>%
+    mutate(lower = qtls[1,],
+           median = qtls[2,],
+           upper = qtls[3,]
+    )
   
   return(samples_ident)
   
