@@ -68,6 +68,8 @@ We specify diffuse normal priors on the model fixed effects ($\mu, \beta_1 \sim 
 
 Each of the smoothing random effects over age, time, and TIPS have variances parameters which are estimated from the data -  $\alpha{_a} \sim RW1(\sigma_\alpha^{2})$; $\gamma{_t} \sim RW2(\sigma_\gamma^{2})$; and $\omega_{TIPS} \sim RW1(\sigma^2_\omega)$. Gamma priors are specified on the precisions: $\sigma_\alpha^{-2}, \sigma_\gamma^{-2}, \sigma_{\omega}^{-2} \sim \Gamma(1, 0.0005)$
 
+<< interactions not yet included as I don't know what's going on with them... >>
+
 **Computation**
 
 Survey datasets extracted with the R package *rdhs* [@Watson2019] and space-age-time stratified number of births and person years were calculated with the package *demogsurv* [@Eaton]. The statistical model was fit separately to each country using Template Model Builder in C++ through the *tmb* R package [@Kristensen2016], and 1000 posterior samples taken. WorldPop pixel-level populations, published for quinquennial periods, were overlaid with district-resolution national shapefiles to calculate district populations, and linearly interpolated to single year estimates. UN Population Division World Population Prospects 2019 national popualtions were interpolated from quinquennial periods to single year, and district populations were then calibrated to interpolated national totals by both age and sex. These district populations were then used to aggregate district fertility rates to higher administrative levels. 
