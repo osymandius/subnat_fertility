@@ -838,3 +838,166 @@ sample_tmb_test <- function(fit, nsample = 1000, rng_seed = NULL,
   
   fit
 }
+
+make_adjacency_matrix <- function(iso3_current, areas_long, boundaries, level=2) {
+  
+  sh <- areas_long %>%
+    filter(iso3 == iso3_current, area_level == level) %>%
+    mutate(area_idx = row_number())
+  
+  #' Neighbor list
+  nb <- sh %>%
+    left_join(boundaries) %>%
+    st_as_sf %>%
+    as("Spatial") %>%
+    spdep::poly2nb() %>%
+    `names<-`(sh$area_idx)
+  
+  adj <- nb2mat(nb, zero.policy=TRUE, style="B")
+  R_spatial <- INLA::inla.scale.model(diag(rowSums(adj)) - 0.99*adj,
+                                      constr = list(A = matrix(1, 1, nrow(adj)), e = 0))
+  
+  return(R_spatial)
+  
+}
+
+
+make_rw_structure_matrix <- function(x, order, adjust_diagonal = TRUE) {
+  
+  D_mat <- diff(diag(x), differences = order)
+  R_mat <- t(D_mat) %*% D_mat
+  
+  if(adjust_diagonal) {
+    diag(R_mat) <- diag(R_mat) + 1E-6
+  }
+  
+  R_mat <- as(R_mat, "dgCMatrix")
+  
+  return(R_mat)
+  
+}
+
+make_model_frames <- function(iso3_current, population, asfr, mics_asfr = NULL) {
+  
+  population <- population %>%
+    filter(period == min(period), sex=="female")
+  
+  area_merged <- st_read(file.path(naomi_data_path, iso3_current, "data", paste0(tolower(iso3_current), "_areas.geojson")))
+  areas <- create_areas(area_merged = area_merged)
+  area_aggregation <- create_area_aggregation(area_merged$area_id[area_merged$naomi_level], areas)
+  
+  
+  ## Make model frame.
+  mf_model <- crossing(period = factor(1995:2015),
+                 age_group = c("15-19", "20-24", "25-29", "30-34", "35-39", "40-44", "45-49"),
+                 area_id = filter(areas_long, iso3 == iso3_current, area_level == 2)$area_id) %>%
+    left_join(population %>%
+                select(area_id, age_group, population)
+    ) %>%
+    mutate(area_id = factor(area_id, levels = filter(areas_long, iso3 == iso3_current,  area_level == 2)$area_id),
+           age_group = factor(age_group, levels = c("15-19", "20-24", "25-29", "30-34", "35-39", "40-44", "45-49"))
+    ) %>%
+    arrange(period, area_id, age_group) %>%
+    mutate(idx = factor(row_number()),
+           id.interaction_3d = factor(group_indices(., age_group, period, area_id)),
+           # id.interaction_age_time = factor(group_indices(., age_group, period)),
+           id.interaction1 = factor(group_indices(., age_group, period)),
+           id.interaction2 = factor(group_indices(., period, area_id)),
+           id.interaction3 = factor(group_indices(., age_group, area_id))
+    )
+  
+  obs <- asfr %>%
+    mutate(period = factor(period, levels(mf_model$period))) %>%
+    filter(!is.na(surveyid)) %>%
+    select(area_id, period, age_group, tips, births, pys) %>%
+    left_join(mf_model) %>%
+    mutate(tips_dummy = as.integer(tips > 5),
+           tips_f = factor(tips),
+           age_group = factor(age_group, levels(mf_model$age_group)),
+           area_id = factor(area_id, levels(mf_model$area_id)),
+           period = factor(period, levels(mf_model$period)),
+    )
+  
+  ## Outputs
+  
+  # age_group_out <- c(as.character(unique(mf$age_group)), "15-49")
+  # 
+  # age_group_join <- get_age_groups() %>%
+  #   filter(age_group %in% age_group_out) %>%
+  #   setNames(paste0(names(.), "_out")) %>%
+  #   crossing(get_age_groups() %>%
+  #              filter(age_group %in% unique(mf$age_group))) %>%
+  #   filter(age_group_start_out <= age_group_start,
+  #          age_group_span_out == Inf |
+  #            (age_group_start + age_group_span) <=
+  #            (age_group_start_out + age_group_span_out)) %>%
+  #   select(age_group_out, age_group)
+  
+  mf_out <- crossing(
+    area_id = area_aggregation$area_id,
+    age_group = unique(mf_model$age_group),
+    period = unique(mf_model$period)
+  ) %>%
+    arrange(area_id, age_group, period) %>%
+    mutate(out_idx = row_number())
+  
+  join_out <- crossing(area_aggregation, 
+                       age_group = unique(mf_model$age_group),
+                       period = unique(mf_model$period)) %>%
+    full_join(mf_model %>%
+                select(area_id, age_group, period, idx), by = c("model_area_id" = "area_id", 
+                                                                "age_group", 
+                                                                "period")
+    ) %>%
+    full_join(mf_out) %>%
+    # full_join(mf_out, by=c("area_id",
+    #                        "period",
+    #                        "age_group_out" = "age_group")
+    #           ) %>%
+    mutate(x=1)
+  
+  A_out <- spMatrix(nrow(mf_out), nrow(mf_model), join_out$out_idx, as.integer(join_out$idx), join_out$x)
+  
+  mf <- list()
+  
+  mf$mf_model <- mf_model
+  mf$out$mf_out <- mf_out
+  mf$out$A_out <- A_out
+  mf$dist$obs <- obs
+  
+  if(!is.null(mics_asfr)) {
+    
+    mf_mics <- crossing(area_id = unique(mics_asfr$area_id),
+                       period = unique(mf_model$period),
+                       age_group = unique(mf_model$age_group)
+    ) %>%
+      mutate(idx = factor(row_number()))
+    
+    join_mics <- mf_mics %>%
+      rename(idx_row = idx) %>%
+      left_join(area_aggregation) %>%
+      left_join(mf_model, by=c("age_group", "period", "model_area_id" = "area_id")) %>%
+      mutate(idx_col = row_number(),
+             x=1) %>%
+      type.convert()
+    
+    A_mics <- sparseMatrix(i = join_mics$idx_row, j=join_mics$idx_col, x=join_mics$x, use.last.ij = TRUE)
+    
+    
+    obs_mics <- mics_asfr %>%
+      mutate(period = factor(period, levels(mf_model$period))) %>%
+      left_join(mf_mics) %>%
+      select(area_id, period, age_group, tips, births, pys, idx) %>%
+      mutate(tips_dummy = as.integer(tips > 5),
+             tips_f = factor(tips, levels(obs$tips_f)),
+             age_group = factor(age_group, levels(mf_model$age_group)),
+             idx =factor(idx, levels(mf_mics$idx))
+      )
+    
+    mf$mics$obs <- mics_obs
+    mf$mics$A_mics <- A_mics
+    
+  }
+  
+  return(mf)
+}
