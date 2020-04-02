@@ -73,9 +73,23 @@ dyn.load(dynlib(here("tmb/fertility_tmb_dev")))
 
 data <- list(X_mf = X_mf,
              M_obs = M_obs,
+             
+             # M_obs_mics = M_obs_mics,
+             # X_tips_dummy_mics = X_tips_dummy_mics,
+             # Z_tips_mics = Z_tips_mics,
+             # births_obs_mics = mf$mics$obs$births,
+             # log_offset_mics = log(mf$mics$obs$pys),
+             # A_mics = mf$mics$A_mics,
+             
+             X_tips_dummy = X_tips_dummy,
+             Z_tips = Z_tips,
              Z_age = Z_age,
              Z_period = Z_period,
              Z_spatial = Z_spatial,
+             # Z_interaction = sparse.model.matrix(~0 + id.interaction, mf$mf_model),
+             # Z_interaction1 = sparse.model.matrix(~0 + id.interaction1, mf$mf_model),
+             # Z_interaction2 = sparse.model.matrix(~0 + id.interaction2, mf$mf_model),
+             # Z_interaction3 = sparse.model.matrix(~0 + id.interaction3, mf$mf_model),
              R_tips = R_tips,
              R_age = R_age,
              R_period = R_period,
@@ -87,13 +101,26 @@ data <- list(X_mf = X_mf,
              )
 
 par <- list(
-            beta_mf = rep(0, ncol(X_mf)),
+            # beta_mf = rep(0, ncol(X_mf)),
+            beta_0 = 0,
+            beta_tips_dummy = rep(0, ncol(X_tips_dummy)),
+            u_tips = rep(0, ncol(Z_tips)),
             u_age = rep(0, ncol(Z_age)),
             u_period = rep(0, ncol(Z_period)),
             u_spatial_str = rep(0, ncol(Z_spatial)),
             u_spatial_iid = rep(0, ncol(Z_spatial)),
+            # eta = array(0, c(ncol(Z_spatial), ncol(Z_age), ncol(Z_period))),
+            # eta1 = array(0, c(ncol(Z_period), ncol(Z_age))),
+            # eta2 = array(0, c(ncol(Z_spatial), ncol(Z_period))),
+            # eta3 = array(0, c(ncol(Z_spatial), ncol(Z_age))),
             log_sigma_rw_period = log(2.5),
             log_sigma_rw_age = log(2.5),
+            log_sigma_rw_tips = log(2.5),
+            # log_sigma_eta1 = log(2.5),
+            # log_prec_rw_period = 4,
+            # log_prec_rw_age = 4,
+            # log_prec_rw_tips = 4,
+            # log_prec_eta1 = log(2.5),
             log_sigma_spatial = log(2.5),
             logit_spatial_rho = 0
             )
@@ -102,7 +129,7 @@ obj <-  MakeADFun(data = data,
                 parameters = par,
                 DLL = "fertility_tmb_dev",
                 #  random = c("beta_mf", "beta_tips_dummy", "u_tips", "u_age", "u_period", "u_spatial_str", "u_spatial_iid", "eta1", "eta2", "eta3"),
-                random = c("beta_mf", "u_age", "u_period", "u_spatial_str", "u_spatial_iid"),
+                random = c("beta_0", "beta_tips_dummy", "u_tips", "u_age", "u_period", "u_spatial_str", "u_spatial_iid"),
                 hessian = FALSE)
 
 f <- nlminb(obj$par, obj$fn, obj$gr)
@@ -123,10 +150,12 @@ qtls <- apply(fit$sample$lambda_out, 1, quantile, c(0.025, 0.5, 0.975))
 
 ```{r message=FALSE, warning=FALSE, results="hide"}
 
-formula <- births ~ 
-  f(id.age_group, model="rw1") + 
-  f(id.period, model="rw2") + 
-  f(id.district, model="bym2", graph=here("countries/ZWE/adj/ZWE_admin2.adj"))
+formula <- births ~
+  f(id.age_group, model="rw1") +
+  f(id.period, model="rw2") +
+  f(id.district, model="bym2", graph=here("countries/ZWE/adj/ZWE_admin2.adj")) +
+  f(id.tips, model="rw1") +
+  tips_dummy
 
 ## inla_mod <- run_mod_nat(formula, asfr)
 
