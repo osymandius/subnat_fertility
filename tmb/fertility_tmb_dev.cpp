@@ -98,10 +98,11 @@ Type objective_function<Type>::operator() ()
 
   //RW AGE
   Type sigma_rw_age = exp(log_sigma_rw_age);
-  Type tau_rw_age(1/(sigma_rw_age * sigma_rw_age));
+  Type log_tau_rw_age(log(1/(sigma_rw_age * sigma_rw_age)));
   nll -= dnorm(sigma_rw_age, Type(0), Type(2.5), true) + log_sigma_rw_age;
 
   // Type prec_rw_age = exp(log_prec_rw_age);
+  // nll -= dlgamma(log_prec_rw_age, Type(1), Type(5000));
   // nll -= dgamma(prec_rw_age, Type(1), Type(50000), true) + log_prec_rw_age;
 
   nll -= Type(-0.5) * (u_age * (R_age * u_age)).sum();
@@ -109,10 +110,11 @@ Type objective_function<Type>::operator() ()
 
   // RW PERIOD
   Type sigma_rw_period = exp(log_sigma_rw_period);
-  Type tau_rw_period(1/(sigma_rw_period * sigma_rw_period));
+  Type log_tau_rw_period(log(1/(sigma_rw_period * sigma_rw_period)));
   nll -= dnorm(sigma_rw_period, Type(0), Type(2.5), true) + log_sigma_rw_period;
 
   // Type prec_rw_period = exp(log_prec_rw_period);
+  // nll -= dlgamma(log_prec_rw_period, Type(1), Type(5000));
   // nll -= dgamma(prec_rw_period, Type(1), Type(50000), true) + log_prec_rw_period;
 
   nll -= Type(-0.5) * (u_period * (R_period * u_period)).sum();
@@ -160,8 +162,8 @@ Type objective_function<Type>::operator() ()
 
   vector<Type> log_lambda(
                      X_mf * beta_mf
-                     + Z_age * u_age * 1/sigma_rw_age     // Age RW1
-                     + Z_period * u_period * 1/sigma_rw_period
+                     + Z_age * u_age * 1/(sigma_rw_age * sigma_rw_age)     // Age RW1
+                     + Z_period * u_period * 1/(sigma_rw_period * sigma_rw_period)
                      + Z_spatial * spatial
                      // + Z_interaction1 * eta1_v * 1/sigma_eta1
                      // + Z_interaction2 * eta2_v
@@ -199,8 +201,14 @@ Type objective_function<Type>::operator() ()
   vector<Type> lambda_out(births_out / population_out);
 
   REPORT(lambda_out);
-  REPORT(tau_rw_period);
-  REPORT(tau_rw_age);
+  REPORT(log_sigma_rw_period);
+  REPORT(log_sigma_rw_age);
+  REPORT(log_sigma_spatial);
+  REPORT(logit_spatial_rho);
+  REPORT(log_tau_rw_period);
+  REPORT(log_tau_rw_age);
+  // REPORT(log_tau_rw_period);
+  // REPORT(tau_rw_age);
   // ADREPORT(prec_eta1);
 
 

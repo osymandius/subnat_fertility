@@ -1,5 +1,5 @@
 ---
-title: "Small area estimation of fertility at the district-level in sub-Saharan Africa"
+title: "Small area estimation of district-level fertility in sub-Saharan Africa"
 output: pdf_document
 bibliography: "biblio.bib"
 ---
