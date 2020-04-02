@@ -207,6 +207,7 @@ Type objective_function<Type>::operator() ()
   Type log_tau2_rw_tips(-2 * log_sigma_rw_tips);
     
   REPORT(lambda_out);
+  REPORT(logit_spatial_rho);
 
   REPORT(log_tau2_rw_age);
   REPORT(log_tau2_rw_period);
