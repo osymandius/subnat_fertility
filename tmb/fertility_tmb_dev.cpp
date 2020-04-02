@@ -173,7 +173,6 @@ Type objective_function<Type>::operator() ()
 
   
   vector<Type> mu_obs_pred(M_obs * log_lambda
-                          + Z_tips * u_tips * sigma_rw_tips
                           + Z_tips * u_tips * sigma_rw_tips  // TIPS RW
                           + X_tips_dummy * beta_tips_dummy          // TIPS fixed effect
                           + log_offset    
