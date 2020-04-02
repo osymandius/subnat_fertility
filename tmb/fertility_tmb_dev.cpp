@@ -10,18 +10,18 @@ Type objective_function<Type>::operator() ()
   Type nll = 0;
 
   DATA_MATRIX(X_mf);
-  PARAMETER_VECTOR(beta_mf);
-  // PARAMETER(beta_0);
+  // PARAMETER_VECTOR(beta_mf);
+  PARAMETER(beta_0);
 
   DATA_SPARSE_MATRIX(M_obs);
-  // DATA_SPARSE_MATRIX(M_obs_nat);
+  DATA_SPARSE_MATRIX(M_obs_mics);
   
-  // DATA_MATRIX(X_tips_dummy);
-  // DATA_MATRIX(X_tips_dummy_nat);
-  // PARAMETER_VECTOR(beta_tips_dummy);
+  DATA_MATRIX(X_tips_dummy);
+  DATA_MATRIX(X_tips_dummy_mics);
+  PARAMETER_VECTOR(beta_tips_dummy);
 
-  // DATA_SPARSE_MATRIX(Z_tips);
-  // DATA_SPARSE_MATRIX(Z_tips_nat);
+  DATA_SPARSE_MATRIX(Z_tips);
+  DATA_SPARSE_MATRIX(Z_tips_mics);
 
   DATA_SPARSE_MATRIX(Z_age);
   DATA_SPARSE_MATRIX(Z_period);
@@ -39,12 +39,12 @@ Type objective_function<Type>::operator() ()
   // DATA_SPARSE_MATRIX(Z_interaction3);
   // PARAMETER_ARRAY(eta3);
 
-  // DATA_SPARSE_MATRIX(R_tips);
+  DATA_SPARSE_MATRIX(R_tips);
   DATA_SPARSE_MATRIX(R_age);
   DATA_SPARSE_MATRIX(R_period);
   DATA_SPARSE_MATRIX(R_spatial);
 
-  // PARAMETER(log_sigma_rw_tips);
+  PARAMETER(log_sigma_rw_tips);
   PARAMETER(log_sigma_rw_age);
   PARAMETER(log_sigma_rw_period);
   // PARAMETER(log_sigma_eta1);
@@ -54,7 +54,7 @@ Type objective_function<Type>::operator() ()
   // PARAMETER(log_prec_rw_period);
   // PARAMETER(log_prec_eta1);
 
-  // PARAMETER_VECTOR(u_tips);
+  PARAMETER_VECTOR(u_tips);
   PARAMETER_VECTOR(u_age);
   PARAMETER_VECTOR(u_period);
 
@@ -63,10 +63,8 @@ Type objective_function<Type>::operator() ()
   PARAMETER(logit_spatial_rho);
   PARAMETER(log_sigma_spatial);
 
-  // DATA_SPARSE_MATRIX(A_national);
-
   DATA_SPARSE_MATRIX(A_out);
-  // DATA_SPARSE_MATRIX(A_nat);
+  DATA_SPARSE_MATRIX(A_mics);
   // DATA_SPARSE_MATRIX(A_rate);
   DATA_VECTOR(pop);
 
@@ -75,26 +73,27 @@ Type objective_function<Type>::operator() ()
   DATA_VECTOR(log_offset);
   DATA_VECTOR(births_obs);
 
-  // DATA_VECTOR(log_offset_nat);
-  // DATA_VECTOR(births_obs_nat);
+  DATA_VECTOR(log_offset_mics);
+  DATA_VECTOR(births_obs_mics);
 
   // model
-  nll -= dnorm(beta_mf, Type(0), Type(5), true).sum();
+  // nll -= dnorm(beta_mf, Type(0), Type(5), true).sum();
+  nll -= dnorm(beta_0, Type(0), Type(5), true);
 
-  //Fixed effect TIPS dummy
-  // nll -= dnorm(beta_tips_dummy, Type(0), Type(1), true).sum();
+  // Fixed effect TIPS dummy
+  nll -= dnorm(beta_tips_dummy, Type(0), Type(1), true).sum();
 
-  // // RW TIPS
+  // RW TIPS
 
-  // Type sigma_rw_tips = exp(log_sigma_rw_tips);
-  // // Type tau_rw_tips(1/(sigma_rw_tips * sigma_rw_tips));
-  // nll -= dnorm(sigma_rw_tips, Type(0), Type(2.5), true) + log_sigma_rw_tips;
+  Type sigma_rw_tips = exp(log_sigma_rw_tips);
+  Type tau_rw_tips(1/(sigma_rw_tips * sigma_rw_tips));
+  nll -= dnorm(sigma_rw_tips, Type(0), Type(2.5), true) + log_sigma_rw_tips;
 
-  // // Type prec_rw_tips = exp(log_prec_rw_tips);
-  // // nll -= dgamma(prec_rw_tips, Type(1), Type(50000), true) + log_prec_rw_tips;
+  // Type prec_rw_tips = exp(log_prec_rw_tips);
+  // nll -= dgamma(prec_rw_tips, Type(1), Type(50000), true) + log_prec_rw_tips;
 
-  // nll -= Type(-0.5) * (u_tips * (R_tips * u_tips)).sum();
-  // nll -= dnorm(u_tips.sum(), Type(0), Type(0.01) * u_tips.size(), true);
+  nll -= Type(-0.5) * (u_tips * (R_tips * u_tips)).sum();
+  nll -= dnorm(u_tips.sum(), Type(0), Type(0.01) * u_tips.size(), true);
 
   //RW AGE
   Type sigma_rw_age = exp(log_sigma_rw_age);
@@ -118,7 +117,7 @@ Type objective_function<Type>::operator() ()
   // nll -= dgamma(prec_rw_period, Type(1), Type(50000), true) + log_prec_rw_period;
 
   nll -= Type(-0.5) * (u_period * (R_period * u_period)).sum();
-  nll -= dnorm(u_period.sum(), Type(0), Type(0.001) * u_period.size(), true);
+  nll -= dnorm(u_period.sum(), Type(0), Type(0.01) * u_period.size(), true);
 
   //// SPATIAL
   // ICAR
@@ -161,9 +160,10 @@ Type objective_function<Type>::operator() ()
   // nll -= dnorm(sigma_eta3, Type(0), Type(2.5), true) + log_sigma_eta3;
 
   vector<Type> log_lambda(
-                     X_mf * beta_mf
-                     + Z_age * u_age * 1/(sigma_rw_age * sigma_rw_age)     // Age RW1
-                     + Z_period * u_period * 1/(sigma_rw_period * sigma_rw_period)
+                     // X_mf * beta_mf
+                     beta_0
+                     + Z_age * u_age * sigma_rw_age
+                     + Z_period * u_period * sigma_rw_period
                      + Z_spatial * spatial
                      // + Z_interaction1 * eta1_v * 1/sigma_eta1
                      // + Z_interaction2 * eta2_v
@@ -172,8 +172,8 @@ Type objective_function<Type>::operator() ()
 
   
   vector<Type> mu_obs_pred(M_obs * log_lambda
-                          // + Z_tips * u_tips * 1/(sigma_rw_tips * sigma_rw_tips)  // TIPS RW
-                          // + X_tips_dummy * beta_tips_dummy          // TIPS fixed effect
+                          + Z_tips * u_tips * sigma_rw_tips
+                          + X_tips_dummy * beta_tips_dummy          // TIPS fixed effect
                           + log_offset    
                           );
 
@@ -183,18 +183,18 @@ Type objective_function<Type>::operator() ()
   vector<Type> lambda(exp(log_lambda));
   vector<Type> births(lambda * pop);
 
-  // vector<Type> births_pred_nat(A_nat * births);
-  // vector<Type> pop_nat(A_nat * pop);
-  // vector<Type> lambda_nat(births_pred_nat/pop_nat);
+  vector<Type> births_pred_mics(A_mics * births);
+  vector<Type> pop_mics(A_mics * pop);
+  vector<Type> lambda_mics(births_pred_mics/pop_mics);
 
-  // vector<Type> mu_obs_pred_nat(M_obs_nat * log(lambda_nat) +
-  //                             Z_tips_nat * u_tips * 1/sigma_rw_tips   +     // TIPS RW
-  //                             X_tips_dummy_nat * beta_tips_dummy +          // TIPS fixed effect
-  //                             log_offset_nat
+  vector<Type> mu_obs_pred_mics(M_obs_mics * log(lambda_mics) +
+                              Z_tips_mics * u_tips * 1/(sigma_rw_tips * sigma_rw_tips)   +     // TIPS RW
+                              X_tips_dummy_mics * beta_tips_dummy +          // TIPS fixed effect
+                              log_offset_mics
 
-  //             );
+              );
 
-  // nll -= dpois(births_obs_nat, exp(mu_obs_pred_nat), true).sum();  
+  nll -= dpois(births_obs_mics, exp(mu_obs_pred_mics), true).sum();  
 
   vector<Type> births_out(A_out * births);
   vector<Type> population_out(A_out * pop);
