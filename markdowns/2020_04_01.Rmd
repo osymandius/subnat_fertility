@@ -22,12 +22,12 @@ library(haven)
 library(survival)
 library(parallel)
 library(demogsurv)
-devtools::load_all("~/Documents/GitHub/naomi")
-# library(naomi)
+## devtools::load_all("~/Documents/GitHub/naomi")
+library(naomi)
 library(here)
 
-naomi_data_path <- "~/Documents/GitHub/naomi-data"
-# naomi_data_path <- "~/GitHub/naomi-data"
+## naomi_data_path <- "~/Documents/GitHub/naomi-data"
+naomi_data_path <- "~/naomi-data"
 
 source(here("R/inputs.R"))
 source(here("R/fertility_funs.R"))
@@ -111,7 +111,9 @@ f$par.full <- obj$env$last.par
 
 fit <- c(f, obj = list(obj))
 fit$sdreport <- sdreport(fit$obj, fit$par)
-fit <- sample_tmb_test(fit)
+
+class(fit) <- "naomi_fit"  # this is hacky...
+fit <- sample_tmb(fit)
 
 qtls <- apply(fit$sample$lambda_out, 1, quantile, c(0.025, 0.5, 0.975))
 
@@ -126,7 +128,16 @@ formula <- births ~
   f(id.period, model="rw2") + 
   f(id.district, model="bym2", graph=here("countries/ZWE/adj/ZWE_admin2.adj"))
 
-inla_mod <- run_mod_nat(formula, asfr)
+## inla_mod <- run_mod_nat(formula, asfr)
+
+inla_mod <- inla(formula, family="poisson", data=asfr, E=pys,
+                 control.family=list(link='log'),
+                 control.predictor=list(compute=TRUE, link=1),
+                 control.inla = list(strategy = "gaussian", int.strategy = "eb"),
+                 ## control.compute=list(config = TRUE, dic= TRUE, cpo=TRUE),
+                 control.compute=list(config = TRUE),
+                 verbose=TRUE)
+
 inla_res <- get_mod_results_test(inla_mod, asfr)
 
 ```
@@ -164,19 +175,19 @@ inla_untransformed_hyper <- list(
 )
 
 gridExtra::grid.arrange(
-data.frame(val=fit$sample$log_tau_rw_age, source = "tmb log tau") %>%
+data.frame(val=fit$sample$log_tau2_rw_age, source = "tmb log tau^2") %>%
   ggplot(aes(color=source)) +
     geom_density(aes(x=val)) +
     geom_point(data=inla_untransformed_hyper$age %>% mutate(source = "INLA log precision"), aes(x=x, y=y)) +
     labs(title="Age"),
 
-data.frame(val=fit$sample$log_tau_rw_period, source = "tmb log tau") %>%
+data.frame(val=fit$sample$log_tau2_rw_period, source = "tmb log tau^2") %>%
   ggplot(aes(color=source)) +
   geom_density(aes(x=val)) +
   geom_point(data=inla_untransformed_hyper$period %>% mutate(source = "INLA log precision"), aes(x=x, y=y)) +
   labs(title="Period"),
 
-data.frame(val=fit$sample$log_sigma_spatial, source = "tmb log sigma") %>%
+data.frame(val=fit$sample$log_tau2_spatial, source = "tmb log tau^2") %>%
   ggplot(aes(color=source)) +
   geom_density(aes(x=val)) +
   geom_point(data=inla_untransformed_hyper$district %>% mutate(source = "INLA log precision"), aes(x=x, y=y)) +
@@ -188,4 +199,10 @@ data.frame(val=fit$sample$logit_spatial_rho, source = "tmb logit rho") %>%
   geom_point(data=inla_untransformed_hyper$district_phi %>% mutate(source = "INLA logit phi"), aes(x=x, y=y)) +
   labs(title="Rho (tmb), phi (INLA")
 )
+```
+
+The log precisions from INLA are close to -2 times the log standard devations from TMB.
+```{r compare_hyperpar}
+inla_mod$internal.summary.hyperpar
+fit$sdreport
 ```
