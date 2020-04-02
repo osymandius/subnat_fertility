@@ -100,7 +100,6 @@ Type objective_function<Type>::operator() ()
 
   //RW AGE
   Type sigma_rw_age = exp(log_sigma_rw_age);
-  Type log_tau_rw_age(log(1/(sigma_rw_age * sigma_rw_age)));
   nll -= dnorm(sigma_rw_age, Type(0), Type(2.5), true) + log_sigma_rw_age;
 
   // Type prec_rw_age = exp(log_prec_rw_age);
@@ -112,7 +111,6 @@ Type objective_function<Type>::operator() ()
 
   // RW PERIOD
   Type sigma_rw_period = exp(log_sigma_rw_period);
-  Type log_tau_rw_period(log(1/(sigma_rw_period * sigma_rw_period)));
   nll -= dnorm(sigma_rw_period, Type(0), Type(2.5), true) + log_sigma_rw_period;
 
   // Type prec_rw_period = exp(log_prec_rw_period);
