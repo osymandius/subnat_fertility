@@ -200,7 +200,8 @@ inla_untransformed_hyper <- list(
   age = data.frame(x=hyper[[1]][,1], y=hyper[[1]][,2]),
   period = data.frame(x=hyper[[2]][,1], y=hyper[[2]][,2]),
   district = data.frame(x=hyper[[3]][,1], y=hyper[[3]][,2]),
-  district_phi = data.frame(x=hyper[[4]][,1], y=hyper[[4]][,2])
+  district_phi = data.frame(x=hyper[[4]][,1], y=hyper[[4]][,2]),
+  tips = data.frame(x=hyper[[5]][,1], y=hyper[[5]][,2])
 )
 
 gridExtra::grid.arrange(
@@ -226,7 +227,13 @@ data.frame(val=fit$sample$logit_spatial_rho, source = "tmb logit rho") %>%
   ggplot(aes(color=source)) +
   geom_density(aes(x=val)) +
   geom_point(data=inla_untransformed_hyper$district_phi %>% mutate(source = "INLA logit phi"), aes(x=x, y=y)) +
-  labs(title="Rho (tmb), phi (INLA")
+  labs(title="Rho (tmb), phi (INLA"),
+
+data.frame(val=fit$sample$log_tau2_rw_tips, source = "tmb log tau") %>%
+  ggplot(aes(color=source)) +
+  geom_density(aes(x=val)) +
+  geom_point(data=inla_untransformed_hyper$tips %>% mutate(source = "INLA log precison"), aes(x=x, y=y)) +
+  labs(title="TIPS")
 )
 ```
 
