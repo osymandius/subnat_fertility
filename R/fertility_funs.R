@@ -888,7 +888,7 @@ make_model_frames <- function(iso3_current, population, asfr, mics_asfr = NULL) 
   
   
   ## Make model frame.
-  mf_model <- crossing(period = factor(1995:2015),
+  mf_model <- crossing(period = factor(1995:2018),
                  age_group = c("15-19", "20-24", "25-29", "30-34", "35-39", "40-44", "45-49"),
                  area_id = filter(areas_long, iso3 == iso3_current, area_level == 2)$area_id) %>%
     left_join(population %>%
@@ -994,7 +994,7 @@ make_model_frames <- function(iso3_current, population, asfr, mics_asfr = NULL) 
              idx =factor(idx, levels(mf_mics$idx))
       )
     
-    mf$mics$obs <- mics_obs
+    mf$mics$obs <- obs_mics
     mf$mics$A_mics <- A_mics
     
   }
