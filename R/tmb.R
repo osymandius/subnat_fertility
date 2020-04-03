@@ -20,12 +20,15 @@ naomi_data_path <- "~/Documents/GitHub/naomi-data"
 source(here("R/inputs.R"))
 source(here("R/fertility_funs.R"))
 
-iso3_current <- "ZWE"
+iso3_current <- "ZMB"
+exc <- ""
+# exc <- "MWI_5_07"
 
 ##sorry..
-list2env(make_areas_population("ZWE", naomi_data_path, full = FALSE), globalenv())
+list2env(make_areas_population(iso3_current, naomi_data_path, full = FALSE), globalenv())
 
-asfr <- get_asfr_pred_df("ZWE", 2, project = FALSE)
+asfr <- get_asfr_pred_df(iso3_current, 2, project = FALSE) %>%
+  filter(!area_id %in% exc)
 
 # mics_data <- read_mics(iso3_current)
 # mics_asfr <- Map(calc_asfr_mics, mics_data$wm, y=list(1),
@@ -40,7 +43,7 @@ asfr <- get_asfr_pred_df("ZWE", 2, project = FALSE)
 #   filter(period <= survyear) %>%
 #   rename(age_group = agegr)
 
-mf <- make_model_frames(iso3_current, population, asfr, mics_asfr = NULL)
+mf <- make_model_frames(iso3_current, population, asfr, mics_asfr = NULL, exclude_districts = exc, project=FALSE)
 
 X_mf <- model.matrix(~1, mf$mf_model)
 
@@ -52,11 +55,11 @@ M_obs <- sparse.model.matrix(~0 + idx, mf$dist$obs)
 Z_tips <- sparse.model.matrix(~0 + tips_f, mf$dist$obs)
 X_tips_dummy <- model.matrix(~0 + tips_dummy, mf$dist$obs)
 
-M_obs_mics <- sparse.model.matrix(~0 + idx, mf$mics$obs)
-Z_tips_mics <- sparse.model.matrix(~0 + tips_f, mf$mics$obs)
-X_tips_dummy_mics <- model.matrix(~0 + tips_dummy, mf$mics$obs)
+# M_obs_mics <- sparse.model.matrix(~0 + idx, mf$mics$obs)
+# Z_tips_mics <- sparse.model.matrix(~0 + tips_f, mf$mics$obs)
+# X_tips_dummy_mics <- model.matrix(~0 + tips_dummy, mf$mics$obs)
 
-R_spatial <- make_adjacency_matrix("ZWE", areas_long, boundaries, 2)
+R_spatial <- make_adjacency_matrix(iso3_current, areas_long, boundaries, exclude_districts = exc, 2)
 R_tips <- make_rw_structure_matrix(ncol(Z_tips), 1, TRUE)
 R_age <- make_rw_structure_matrix(ncol(Z_age), 1, TRUE)
 R_period <- make_rw_structure_matrix(ncol(Z_period), 2, TRUE)
@@ -144,16 +147,26 @@ fit <- c(f, obj = list(obj))
 fit$sdreport <- sdreport(fit$obj, fit$par)
 fit <- sample_tmb_test(fit)
 
+summary(fit$sdreport)
+
 qtls <- apply(fit$sample$lambda_out, 1, quantile, c(0.025, 0.5, 0.975))
+
+asfr_edit <- asfr %>%
+  select(surveyid, area_id, period, age_group, births, pys, tips, tips_dummy) %>%
+  mutate(id.age_group = group_indices(., age_group),
+         id.period = group_indices(., period),
+         id.district = group_indices(., area_id),
+         id.tips = ifelse(is.na(tips), NA, group_indices(., tips))
+         )
 
 formula <- births ~
   f(id.age_group, model="rw1") +
   f(id.period, model="rw2") +
-  f(id.district, model="bym2", graph=here("countries/ZWE/adj/ZWE_admin2.adj")) +
+  f(id.district, model="bym2", graph=here("countries/ZMB/adj/ZMB_admin2.adj")) +
   f(id.tips, model="rw1") +
   tips_dummy
 
-inla_mod2 <- inla(formula, family="poisson", data=asfr, E=pys,
+inla_mod <- inla(formula, family="poisson", data=asfr, E=pys,
                               control.family=list(link='log'),
                               control.predictor=list(compute=TRUE, link=1),
                               control.inla = list(strategy = "gaussian", int.strategy = "eb"),
@@ -334,3 +347,37 @@ plot(inla_untransformed_hyper$district, xlim=c(2,6), main="Log prec space"),
 plot(inla_untransformed_hyper$district_phi, xlim=c(2,6), main="Logit phi"),
 )
 
+df <- data.frame(est = summary(fit$sdreport)[,1], id = rownames(summary(fit$sdreport)))
+df_inla <- data.frame(coef = inla_mod$summary.random$id.tips %>% mutate(ID = as.numeric(ID)) %>% arrange(ID) %>% .$mean)
+
+filter(df, id == "beta_tips_dummy")$est
+
+df %>%
+  filter(id == "u_tips") %>%
+  mutate(id = row_number()-1,
+         dummy = ifelse(id<6, 0, filter(df, id == "beta_tips_dummy")$est),
+         trans = exp(est*exp(-3.2458875) + dummy),
+  )
+
+data.frame(inla = df_inla %>%
+             mutate(
+                    id = row_number()-1,
+                    dummy = ifelse(id<6, 0, inla_mod$summary.fixed$mean[[2]]),
+                    trans = coef + dummy
+                    ) %>% 
+             .$trans,
+           tmb = df %>%
+             filter(id == "u_tips") %>%
+             mutate(id = row_number()-1,
+                    dummy = ifelse(id<6, 0, filter(df, id == "beta_tips_dummy")$est),
+                    trans = est*exp(-3.2458875) + dummy,
+             ) %>%
+             .$trans
+           ) %>%
+  mutate(id = row_number()-1) %>%
+  pivot_longer(-id) %>%
+  ggplot(aes(x=id, y=value)) +
+    geom_point(aes(color=name)) +
+    geom_line(aes(group=name, color=name))
+
+mwi_dummy <- inla_mod

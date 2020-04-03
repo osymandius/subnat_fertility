@@ -19,7 +19,7 @@ Type objective_function<Type>::operator() ()
   
   DATA_MATRIX(X_tips_dummy);
  
-  // PARAMETER_VECTOR(beta_tips_dummy);
+  PARAMETER_VECTOR(beta_tips_dummy);
 
   DATA_SPARSE_MATRIX(Z_tips);
 
@@ -85,7 +85,7 @@ Type objective_function<Type>::operator() ()
   nll -= dnorm(beta_0, Type(0), Type(5), true);
 
   // Fixed effect TIPS dummy
-  // nll -= dnorm(beta_tips_dummy, Type(0), Type(1), true).sum();
+  nll -= dnorm(beta_tips_dummy, Type(0), Type(1), true).sum();
 
   // RW TIPS
 
@@ -174,7 +174,7 @@ Type objective_function<Type>::operator() ()
   
   vector<Type> mu_obs_pred(M_obs * log_lambda
                           + Z_tips * u_tips * sigma_rw_tips  // TIPS RW
-                          // + X_tips_dummy * beta_tips_dummy          // TIPS fixed effect
+                          + X_tips_dummy * beta_tips_dummy          // TIPS fixed effect
                           + log_offset    
                           );
 
