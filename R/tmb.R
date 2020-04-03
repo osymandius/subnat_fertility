@@ -153,7 +153,14 @@ formula <- births ~
   f(id.tips, model="rw1") +
   tips_dummy
 
-inla_mod <- run_mod_nat(formula, asfr)
+inla_mod2 <- inla(formula, family="poisson", data=asfr, E=pys,
+                              control.family=list(link='log'),
+                              control.predictor=list(compute=TRUE, link=1),
+                              control.inla = list(strategy = "gaussian", int.strategy = "eb"),
+                              ## control.compute=list(config = TRUE, dic= TRUE, cpo=TRUE),
+                              control.compute=list(config = TRUE),
+                              verbose=TRUE)
+
 inla_res <- get_mod_results_test(inla_mod, asfr)
 
 mf$out$mf_out %>%
