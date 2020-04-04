@@ -43,7 +43,6 @@ asfr <- get_asfr_pred_df(iso3_current, 0, project = FALSE) %>%
 #   filter(period <= survyear) %>%
 #   rename(age_group = agegr)
 
-debugonce(make_model_frames)
 mf <- make_model_frames(iso3_current, population, asfr, mics_asfr = NULL, exclude_districts = exc, project=FALSE)
 
 X_mf <- model.matrix(~1, mf$mf_model)
@@ -66,8 +65,8 @@ R_tips <- make_rw_structure_matrix(ncol(Z_tips), 1, TRUE)
 R_age <- make_rw_structure_matrix(ncol(Z_age), 1, TRUE)
 R_period <- make_rw_structure_matrix(ncol(Z_period), 2, TRUE)
 
-R_age <- INLA:::inla.rw(ncol(Z_age), 1, scale.model=TRUE)
-R_period <- INLA:::inla.rw(ncol(Z_period), 2, scale.model=TRUE)
+# R_age <- INLA:::inla.rw(ncol(Z_age), 1, scale.model=TRUE)
+# R_period <- INLA:::inla.rw(ncol(Z_period), 2, scale.model=TRUE)
 
 dyn.unload(dynlib(here("tmb/fertility_tmb_dev")))
 compile(here("tmb/fertility_tmb_dev.cpp"))               # Compile the C++ file
@@ -87,7 +86,7 @@ data <- list(X_mf = X_mf,
              Z_tips = Z_tips,
              Z_age = Z_age,
              Z_period = Z_period,
-             Z_spatial = Z_spatial,
+             # Z_spatial = Z_spatial,
              # Z_interaction = sparse.model.matrix(~0 + id.interaction, mf$mf_model),
              Z_interaction1 = sparse.model.matrix(~0 + id.interaction1, mf$mf_model),
              # Z_interaction2 = sparse.model.matrix(~0 + id.interaction2, mf$mf_model),
@@ -95,7 +94,7 @@ data <- list(X_mf = X_mf,
              R_tips = R_tips,
              R_age = R_age,
              R_period = R_period,
-             R_spatial = R_spatial,
+             # R_spatial = R_spatial,
              log_offset = log(mf$dist$obs$pys),
              births_obs = mf$dist$obs$births,
              pop = mf$mf_model$population
@@ -112,13 +111,13 @@ par <- list(
             # u_spatial_str = rep(0, ncol(Z_spatial)),
             # u_spatial_iid = rep(0, ncol(Z_spatial)),
             # eta = array(0, c(ncol(Z_spatial), ncol(Z_age), ncol(Z_period))),
-            eta1 = array(0, c(ncol(Z_period), ncol(Z_age))),
+            # eta1 = array(0, c(ncol(Z_period), ncol(Z_age))),
             # eta2 = array(0, c(ncol(Z_spatial), ncol(Z_period))),
             # eta3 = array(0, c(ncol(Z_spatial), ncol(Z_age))),
             log_sigma_rw_period = log(2.5),
-            log_sigma_rw_age = log(2.5),
+            log_sigma_rw_age = log(2.5)
             # log_sigma_rw_tips = log(2.5),
-            log_sigma_eta1 = log(2.5)
+            # log_sigma_eta1 = log(2.5)
             # log_prec_rw_period = 4,
             # log_prec_rw_age = 4,
             # log_prec_rw_tips = 4,
@@ -141,7 +140,7 @@ obj <-  MakeADFun(data = data,
                 parameters = par,
                 DLL = "fertility_tmb_dev",
                 #  random = c("beta_mf", "beta_tips_dummy", "u_tips", "u_age", "u_period", "u_spatial_str", "u_spatial_iid", "eta1", "eta2", "eta3"),
-                random = c("beta_0", "u_age", "u_period", "eta1"),
+                random = c("beta_0", "u_age", "u_period"),
                 hessian = FALSE)
 
 f <- nlminb(obj$par, obj$fn, obj$gr)

@@ -65,7 +65,7 @@ boundaries <- lapply(files, "[[", "areas") %>%
 population <- lapply(files, "[[", "population") %>%
   lapply(read_csv) %>%
   bind_rows %>%
-  mutate(period = year_labels(calendar_quarter_to_quarter_id(calendar_quarter))) %>%
+  mutate(period = year_labels(naomi:::calendar_quarter_to_quarter_id(calendar_quarter))) %>%
   select("area_id" , "area_name", "source", "sex", "age_group", "population", "period")
 
 
