@@ -61,6 +61,11 @@ R_tips <- make_rw_structure_matrix(ncol(Z_tips), 1, TRUE)
 R_age <- make_rw_structure_matrix(ncol(Z_age), 1, TRUE)
 R_period <- make_rw_structure_matrix(ncol(Z_period), 2, TRUE)
 
+R_spatial0 <- .sparseDiagonal(nrow(R_spatial), shape = "t")
+R_period0 <- .sparseDiagonal(nrow(R_period), shape = "t")
+R_age0 <- .sparseDiagonal(nrow(R_age), shape = "t")
+
+
 ```
 
 ## Run TMB model
@@ -71,16 +76,17 @@ R_period <- make_rw_structure_matrix(ncol(Z_period), 2, TRUE)
 compile(here("tmb/fertility_tmb_dev.cpp"))               # Compile the C++ file
 dyn.load(dynlib(here("tmb/fertility_tmb_dev")))
 
+ar1_phi_age <- 0.99
+ar1_phi_period <- 0.99
+  
 data <- list(X_mf = X_mf,
              M_obs = M_obs,
-             
              # M_obs_mics = M_obs_mics,
              # X_tips_dummy_mics = X_tips_dummy_mics,
              # Z_tips_mics = Z_tips_mics,
              # births_obs_mics = mf$mics$obs$births,
              # log_offset_mics = log(mf$mics$obs$pys),
              # A_mics = mf$mics$A_mics,
-             
              # X_tips_dummy = X_tips_dummy,
              # Z_tips = Z_tips,
              Z_age = Z_age,
@@ -94,6 +100,8 @@ data <- list(X_mf = X_mf,
              R_age = R_age,
              R_period = R_period,
              # R_spatial = R_spatial,
+             ar1_phi_age = ar1_phi_age,
+             ar1_phi_period = ar1_phi_period,
              log_offset = log(mf$dist$obs$pys),
              births_obs = mf$dist$obs$births,
              pop = mf$mf_model$population
