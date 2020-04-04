@@ -66,8 +66,8 @@ R_tips <- make_rw_structure_matrix(ncol(Z_tips), 1, TRUE)
 R_age <- make_rw_structure_matrix(ncol(Z_age), 1, TRUE)
 R_period <- make_rw_structure_matrix(ncol(Z_period), 2, TRUE)
 
-# R_age <- INLA:::inla.rw(ncol(Z_age), 1, scale.model=TRUE)
-# R_period <- INLA:::inla.rw(ncol(Z_period), 2, scale.model=TRUE)
+R_age <- INLA:::inla.rw(ncol(Z_age), 1, scale.model=TRUE)
+R_period <- INLA:::inla.rw(ncol(Z_period), 2, scale.model=TRUE)
 
 dyn.unload(dynlib(here("tmb/fertility_tmb_dev")))
 compile(here("tmb/fertility_tmb_dev.cpp"))               # Compile the C++ file
@@ -112,13 +112,13 @@ par <- list(
             # u_spatial_str = rep(0, ncol(Z_spatial)),
             # u_spatial_iid = rep(0, ncol(Z_spatial)),
             # eta = array(0, c(ncol(Z_spatial), ncol(Z_age), ncol(Z_period))),
-            # eta1 = array(0, c(ncol(Z_period), ncol(Z_age))),
+            eta1 = array(0, c(ncol(Z_period), ncol(Z_age))),
             # eta2 = array(0, c(ncol(Z_spatial), ncol(Z_period))),
             # eta3 = array(0, c(ncol(Z_spatial), ncol(Z_age))),
             log_sigma_rw_period = log(2.5),
-            log_sigma_rw_age = log(2.5)
+            log_sigma_rw_age = log(2.5),
             # log_sigma_rw_tips = log(2.5),
-            # log_sigma_eta1 = log(2.5)
+            log_sigma_eta1 = log(2.5)
             # log_prec_rw_period = 4,
             # log_prec_rw_age = 4,
             # log_prec_rw_tips = 4,
@@ -141,7 +141,7 @@ obj <-  MakeADFun(data = data,
                 parameters = par,
                 DLL = "fertility_tmb_dev",
                 #  random = c("beta_mf", "beta_tips_dummy", "u_tips", "u_age", "u_period", "u_spatial_str", "u_spatial_iid", "eta1", "eta2", "eta3"),
-                random = c("beta_0", "u_age", "u_period"),
+                random = c("beta_0", "u_age", "u_period", "eta1"),
                 hessian = FALSE)
 
 f <- nlminb(obj$par, obj$fn, obj$gr)
@@ -154,7 +154,7 @@ fit <- sample_tmb_test(fit)
 
 summary(fit$sdreport)
 
-qtls <- apply(fit$sample$lambda_out, 1, quantile, c(0.025, 0.5, 0.975))
+qtls <- apply(fit$sample$lambda, 1, quantile, c(0.025, 0.5, 0.975))
 
 asfr_edit <- asfr %>%
   select(surveyid, area_id, period, age_group, births, pys, tips, tips_dummy) %>%
@@ -182,7 +182,7 @@ inla_mod <- inla(formula, family="poisson", data=asfr, E=pys,
 
 inla_res <- get_mod_results_test(inla_mod, asfr)
 
-mf$out$mf_out %>%
+mf$mf_model %>%
   mutate(lower = qtls[1,],
          median = qtls[2,],
          upper = qtls[3,],
