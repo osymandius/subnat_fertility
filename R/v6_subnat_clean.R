@@ -13,17 +13,17 @@ library(naomi)
 
 library(here)
 
-naomi_data_path <- "~/naomi-data"
-## naomi_data_path <- "~/Documents/GitHub/naomi-data/"
+# naomi_data_path <- "~/naomi-data"
+naomi_data_path <- "~/Documents/GitHub/naomi-data/"
 
 source(here("R/inputs.R"))
 source(here("R/fertility_funs.R"))
 
 iso3 <- c("LSO", "MOZ", "MWI", "NAM", "TZA", "UGA", "ZMB", "ZWE")
 
-list2env(make_areas_population(iso3, naomi_data_path), globalenv())
+list2env(make_areas_population(iso3_current, naomi_data_path), globalenv())
 
-## set_rdhs_config(email="o.stevens@imperial.ac.uk", project="Subnational fertility", config_path = "~/.rdhs.json")
+# set_rdhs_config(email="o.stevens@imperial.ac.uk", project="Subnational fertility", config_path = "~/.rdhs.json")
 
 dhs_iso3 <- dhs_countries(returnFields=c("CountryName", "DHS_CountryCode")) %>%
   mutate(iso3 = countrycode(CountryName, "country.name", "iso3c"),
@@ -37,7 +37,7 @@ clusters <- readRDS(here("input_data/clusters_2019_11_21.rds")) %>%
   mutate(DHS_survey_id = paste0(DHS_CountryCode, surv)) %>%
   separate(surv, into=c(NA, "SurveyType"), sep=-3) %>%
   filter(iso3 == iso3_current, DHS_CountryCode != "OS") %>%
-  filter(!survey_id %in% c("MOZ2009AIS", "TZA2003AIS", "UGA2011AIS")) 
+  filter(!survey_id %in% c("MOZ2009AIS", "TZA2003AIS", "UGA2011AIS"))
 
 ## Get surveys for which we have clusters. Split into country list.
 surveys <- dhs_surveys(surveyIds = unique(clusters$DHS_survey_id)) %>%
@@ -50,7 +50,7 @@ surveys <- dhs_surveys(surveyIds = unique(clusters$DHS_survey_id)) %>%
   )
 
 ## Needs check to ensure level is < max_level
-cluster_areas <- assign_cluster_area(clusters, 1)
+cluster_areas <- assign_cluster_area(clusters, 0)
 
 dat <- clusters_to_surveys(surveys, cluster_areas, single_tips = FALSE)
 
@@ -69,10 +69,22 @@ asfr <- Map(calc_asfr1, dat$ir,
          iso3 = ifelse(country == "Eswatini", "SWZ", iso3)) %>%
   select(-country)
 
+tfr <- Map(calc_tfr, dat$ir,
+            by = list(~country + surveyid + survtype + survyear + area_id),
+            tips = dat$tips_surv,
+            agegr= list(3:10*5),
+            period = list(1995:2017)) %>%
+  bind_rows %>%
+  type.convert %>%
+  filter(period<=survyear) %>%
+  mutate(iso3 = countrycode(country, "country.name", "iso3c"),
+         iso3 = ifelse(country == "Eswatini", "SWZ", iso3)) %>%
+  select(-country)
 
+mics_data <- read_mics("ZWE")
 mics_asfr <- Map(calc_asfr_mics, mics_data$wm, y=list(1),
                  by = list(~area_id + survyear + surveyid + survtype),
-                 tips = list(c(0:5)),
+                 tips = list(c(0:15)),
                  agegr= list(3:10*5),
                  period = list(1995:2017),
                  counts = TRUE,

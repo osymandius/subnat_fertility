@@ -33,8 +33,8 @@ Type objective_function<Type>::operator() ()
   // DATA_SPARSE_MATIX(Z_interaction);
   // PARAMETER_ARRAY(eta);
 
-  // DATA_SPARSE_MATRIX(Z_interaction1);
-  // PARAMETER_ARRAY(eta1);
+  DATA_SPARSE_MATRIX(Z_interaction1);
+  PARAMETER_ARRAY(eta1);
 
   // DATA_SPARSE_MATRIX(Z_interaction2);
   // PARAMETER_ARRAY(eta2);
@@ -53,7 +53,7 @@ Type objective_function<Type>::operator() ()
   // PARAMETER(log_sigma_rw_tips);
   PARAMETER(log_sigma_rw_age);
   PARAMETER(log_sigma_rw_period);
-  // PARAMETER(log_sigma_eta1);
+  PARAMETER(log_sigma_eta1);
 
   // PARAMETER(log_prec_rw_tips);
   // PARAMETER(log_prec_rw_age);
@@ -64,6 +64,9 @@ Type objective_function<Type>::operator() ()
   PARAMETER_VECTOR(u_age);
   PARAMETER_VECTOR(u_period);
 
+  // PARAMETER(lag_logit_rho_age);
+  // PARAMETER(lag_logit_rho_period);
+  
   // PARAMETER_VECTOR(u_spatial_str);
   // PARAMETER_VECTOR(u_spatial_iid); 
   // PARAMETER(logit_spatial_rho);
@@ -147,10 +150,15 @@ Type objective_function<Type>::operator() ()
   // nll += SEPARABLE(GMRF(R_period), SEPARABLE(GMRF(R_age), GMRF(R_spatial)))(eta);
   // vector<Type> eta_v(eta);
   
-  // Type sigma_eta1 = exp(log_sigma_eta1);
-  // nll -= dnorm(sigma_eta1, Type(0), Type(2.5), true) + log_sigma_eta1;
+  Type sigma_eta1 = exp(log_sigma_eta1);
+  nll -= dnorm(sigma_eta1, Type(0), Type(2.5), true) + log_sigma_eta1;
+
+  // Type rho_age(2*exp(lag_logit_rho_age)/(1+exp(lag_logit_rho_age))-1);
+  // nll -= dnorm(lag_logit_rho_age, Type(0), Type(0.15));
+
+  // Type rho_period(2*exp(lag_logit_rho_period)/(1+exp(lag_logit_rho_period))-1);
+  // nll -= dnorm(rho_period, Type(0), Type(0.15));
   
-  // nll += SEPARABLE(GMRF(R_age), GMRF(R_period))(eta1);
   nll += SEPARABLE(AR1(Type(ar1_phi_age)), AR1(Type(ar1_phi_period)))(eta1);
   
   vector<Type> eta1_v(eta1);
@@ -173,7 +181,7 @@ Type objective_function<Type>::operator() ()
                      + Z_age * u_age * sigma_rw_age
                      + Z_period * u_period * sigma_rw_period
                      // + Z_spatial * spatial
-                     // + Z_interaction1 * eta1_v * sigma_eta1
+                     + Z_interaction1 * eta1_v * sigma_eta1
                      // + Z_interaction2 * eta2_v
                      // + Z_interaction3 * eta3_v
                      );
@@ -212,7 +220,7 @@ Type objective_function<Type>::operator() ()
   Type log_tau2_rw_period(-2 * log_sigma_rw_period);
   // Type log_tau2_spatial(-2 * log_sigma_spatial);
   // Type log_tau2_rw_tips(-2 * log_sigma_rw_tips);
-  // Type log_tau2_eta1(-2 * log_sigma_eta1);
+  Type log_tau2_eta1(-2 * log_sigma_eta1);
     
   // REPORT(lambda_out);
   REPORT(lambda);
@@ -222,7 +230,7 @@ Type objective_function<Type>::operator() ()
   REPORT(log_tau2_rw_period);
   // REPORT(log_tau2_spatial);
   // REPORT(log_tau2_rw_tips);
-  // REPORT(log_tau2_eta1);
+  REPORT(log_tau2_eta1);
 
   REPORT(eta1);
   REPORT(eta1_v);
