@@ -20,14 +20,14 @@ naomi_data_path <- "~/Documents/GitHub/naomi-data"
 source(here("R/inputs.R"))
 source(here("R/fertility_funs.R"))
 
-iso3_current <- "ZMB"
+iso3_current <- "ZWE"
 exc <- ""
 # exc <- "MWI_5_07"
 
 ##sorry..
 list2env(make_areas_population(iso3_current, naomi_data_path, full = FALSE), globalenv())
 
-asfr <- get_asfr_pred_df(iso3_current, 2, project = FALSE) %>%
+asfr <- get_asfr_pred_df(iso3_current, 0, project = FALSE) %>%
   filter(!area_id %in% exc)
 
 # mics_data <- read_mics(iso3_current)
@@ -43,6 +43,7 @@ asfr <- get_asfr_pred_df(iso3_current, 2, project = FALSE) %>%
 #   filter(period <= survyear) %>%
 #   rename(age_group = agegr)
 
+debugonce(make_model_frames)
 mf <- make_model_frames(iso3_current, population, asfr, mics_asfr = NULL, exclude_districts = exc, project=FALSE)
 
 X_mf <- model.matrix(~1, mf$mf_model)
@@ -61,8 +62,12 @@ X_tips_dummy <- model.matrix(~0 + tips_dummy, mf$dist$obs)
 
 R_spatial <- make_adjacency_matrix(iso3_current, areas_long, boundaries, exclude_districts = exc, 2)
 R_tips <- make_rw_structure_matrix(ncol(Z_tips), 1, TRUE)
+
 R_age <- make_rw_structure_matrix(ncol(Z_age), 1, TRUE)
 R_period <- make_rw_structure_matrix(ncol(Z_period), 2, TRUE)
+
+# R_age <- INLA:::inla.rw(ncol(Z_age), 1, scale.model=TRUE)
+# R_period <- INLA:::inla.rw(ncol(Z_period), 2, scale.model=TRUE)
 
 dyn.unload(dynlib(here("tmb/fertility_tmb_dev")))
 compile(here("tmb/fertility_tmb_dev.cpp"))               # Compile the C++ file
@@ -84,7 +89,7 @@ data <- list(X_mf = X_mf,
              Z_period = Z_period,
              Z_spatial = Z_spatial,
              # Z_interaction = sparse.model.matrix(~0 + id.interaction, mf$mf_model),
-             # Z_interaction1 = sparse.model.matrix(~0 + id.interaction1, mf$mf_model),
+             Z_interaction1 = sparse.model.matrix(~0 + id.interaction1, mf$mf_model),
              # Z_interaction2 = sparse.model.matrix(~0 + id.interaction2, mf$mf_model),
              # Z_interaction3 = sparse.model.matrix(~0 + id.interaction3, mf$mf_model),
              R_tips = R_tips,
@@ -93,33 +98,33 @@ data <- list(X_mf = X_mf,
              R_spatial = R_spatial,
              log_offset = log(mf$dist$obs$pys),
              births_obs = mf$dist$obs$births,
-             pop = mf$mf_model$population,
-             A_out = mf$out$A_out
+             pop = mf$mf_model$population
+             # A_out = mf$out$A_out
              )
 
 par <- list(
             # beta_mf = rep(0, ncol(X_mf)),
             beta_0 = 0,
-            beta_tips_dummy = rep(0, ncol(X_tips_dummy)),
-            u_tips = rep(0, ncol(Z_tips)),
+            # beta_tips_dummy = rep(0, ncol(X_tips_dummy)),
+            # u_tips = rep(0, ncol(Z_tips)),
             u_age = rep(0, ncol(Z_age)),
             u_period = rep(0, ncol(Z_period)),
-            u_spatial_str = rep(0, ncol(Z_spatial)),
-            u_spatial_iid = rep(0, ncol(Z_spatial)),
+            # u_spatial_str = rep(0, ncol(Z_spatial)),
+            # u_spatial_iid = rep(0, ncol(Z_spatial)),
             # eta = array(0, c(ncol(Z_spatial), ncol(Z_age), ncol(Z_period))),
             # eta1 = array(0, c(ncol(Z_period), ncol(Z_age))),
             # eta2 = array(0, c(ncol(Z_spatial), ncol(Z_period))),
             # eta3 = array(0, c(ncol(Z_spatial), ncol(Z_age))),
             log_sigma_rw_period = log(2.5),
-            log_sigma_rw_age = log(2.5),
-            log_sigma_rw_tips = log(2.5),
-            # log_sigma_eta1 = log(2.5),
+            log_sigma_rw_age = log(2.5)
+            # log_sigma_rw_tips = log(2.5),
+            # log_sigma_eta1 = log(2.5)
             # log_prec_rw_period = 4,
             # log_prec_rw_age = 4,
             # log_prec_rw_tips = 4,
             # log_prec_eta1 = log(2.5),
-            log_sigma_spatial = log(2.5),
-            logit_spatial_rho = 0
+            # log_sigma_spatial = log(2.5),
+            # logit_spatial_rho = 0
             )
 
 
@@ -136,7 +141,7 @@ obj <-  MakeADFun(data = data,
                 parameters = par,
                 DLL = "fertility_tmb_dev",
                 #  random = c("beta_mf", "beta_tips_dummy", "u_tips", "u_age", "u_period", "u_spatial_str", "u_spatial_iid", "eta1", "eta2", "eta3"),
-                random = c("beta_0", "beta_tips_dummy", "u_tips", "u_age", "u_period", "u_spatial_str", "u_spatial_iid"),
+                random = c("beta_0", "u_age", "u_period"),
                 hessian = FALSE)
 
 f <- nlminb(obj$par, obj$fn, obj$gr)
@@ -162,9 +167,10 @@ asfr_edit <- asfr %>%
 formula <- births ~
   f(id.age_group, model="rw1") +
   f(id.period, model="rw2") +
-  f(id.district, model="bym2", graph=here("countries/ZMB/adj/ZMB_admin2.adj")) +
-  f(id.tips, model="rw1") +
-  tips_dummy
+  f(id.age_group2, model="rw1", group=id.period, control.group=list(model="rw2"))
+  f(id.district, model="bym2", graph=here("countries/ZWE/adj/ZWE_admin2.adj"))
+  # f(id.tips, model="rw1") +
+  # tips_dummy
 
 inla_mod <- inla(formula, family="poisson", data=asfr, E=pys,
                               control.family=list(link='log'),
@@ -182,13 +188,13 @@ mf$out$mf_out %>%
          upper = qtls[3,],
          source = "tmb") %>%
   type.convert() %>%
-  bind_rows(inla_res %>% mutate(source = "inla")) %>%
+  # bind_rows(inla_res %>% mutate(source = "inla")) %>%
   left_join(areas_long) %>%
-  filter(area_level ==2, age_group == "20-24") %>%
+  filter(area_level ==0) %>%
   ggplot(aes(x=period, y=median, group=source)) +
     geom_line(aes(color = source)) +
     geom_ribbon(aes(ymin = lower, ymax = upper, fill=source), alpha=0.3) +
-    facet_wrap(~area_id) +
+    facet_wrap(~age_group) +
     ylim(0,0.5)
  
 # mics_plot <- Map(calc_asfr_mics, mics_data$wm, y=list(1),
@@ -278,9 +284,10 @@ inla_transformed_hyper <- list(
 inla_untransformed_hyper <- list(
   age = data.frame(x=hyper[[1]][,1], y=hyper[[1]][,2]),
   period = data.frame(x=hyper[[2]][,1], y=hyper[[2]][,2]),
-  district = data.frame(x=hyper[[3]][,1], y=hyper[[3]][,2]),
-  district_phi = data.frame(x=hyper[[4]][,1], y=hyper[[4]][,2]),
-  tips = data.frame(x=hyper[[5]][,1], y=hyper[[5]][,2])
+  eta1 = data.frame(x=hyper[[3]][,1], y=hyper[[3]][,2])
+  # district = data.frame(x=hyper[[3]][,1], y=hyper[[3]][,2]),
+  # district_phi = data.frame(x=hyper[[4]][,1], y=hyper[[4]][,2]),
+  # tips = data.frame(x=hyper[[5]][,1], y=hyper[[5]][,2])
 )
 
 inla_untransformed_hyper_default <- list(
@@ -309,23 +316,29 @@ data.frame(val=fit$sample$log_tau2_rw_period, source = "tmb log tau") %>%
   geom_point(data=inla_untransformed_hyper$period %>% mutate(source = "INLA log precision"), aes(x=x, y=y)) +
   labs(title="Period"),
 
-data.frame(val=fit$sample$log_tau2_spatial, source = "tmb log sigma") %>%
-  ggplot(aes(color=source)) +
-  geom_density(aes(x=val)) +
-  geom_point(data=inla_untransformed_hyper$district %>% mutate(source = "INLA log precision"), aes(x=x, y=y)) +
-  labs(title="Spatial"),
+# data.frame(val=fit$sample$log_tau2_spatial, source = "tmb log sigma") %>%
+#   ggplot(aes(color=source)) +
+#   geom_density(aes(x=val)) +
+#   geom_point(data=inla_untransformed_hyper$district %>% mutate(source = "INLA log precision"), aes(x=x, y=y)) +
+#   labs(title="Spatial"),
+# 
+# data.frame(val=fit$sample$logit_spatial_rho, source = "tmb logit rho") %>%
+#   ggplot(aes(color=source)) +
+#   geom_density(aes(x=val)) +
+#   geom_point(data=inla_untransformed_hyper$district_phi %>% mutate(source = "INLA logit phi"), aes(x=x, y=y)) +
+#   labs(title="Rho (tmb), phi (INLA"),
+# 
+# data.frame(val=fit$sample$log_tau2_rw_tips, source = "tmb log tau") %>%
+#   ggplot(aes(color=source)) +
+#   geom_density(aes(x=val)) +
+#   geom_point(data=inla_untransformed_hyper$tips %>% mutate(source = "INLA log precison"), aes(x=x, y=y)) +
+#   labs(title="TIPS"),
 
-data.frame(val=fit$sample$logit_spatial_rho, source = "tmb logit rho") %>%
+data.frame(val=fit$sample$log_tau2_eta1, source = "tmb log tau") %>%
   ggplot(aes(color=source)) +
   geom_density(aes(x=val)) +
-  geom_point(data=inla_untransformed_hyper$district_phi %>% mutate(source = "INLA logit phi"), aes(x=x, y=y)) +
-  labs(title="Rho (tmb), phi (INLA"),
-
-data.frame(val=fit$sample$log_tau2_rw_tips, source = "tmb log tau") %>%
-  ggplot(aes(color=source)) +
-  geom_density(aes(x=val)) +
-  geom_point(data=inla_untransformed_hyper$tips %>% mutate(source = "INLA log precison"), aes(x=x, y=y)) +
-  labs(title="TIPS")
+  geom_point(data=inla_untransformed_hyper$eta1 %>% mutate(source = "INLA log precison"), aes(x=x, y=y)) +
+  labs(title="Eta1")
 )
 
 fit$sample$log_tau_rw_period
