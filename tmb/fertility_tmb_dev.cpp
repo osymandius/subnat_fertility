@@ -17,11 +17,11 @@ Type objective_function<Type>::operator() ()
 
   // DATA_SPARSE_MATRIX(M_obs_mics);
   
-  DATA_MATRIX(X_tips_dummy);
+  // DATA_MATRIX(X_tips_dummy);
  
   // PARAMETER_VECTOR(beta_tips_dummy);
 
-  DATA_SPARSE_MATRIX(Z_tips);
+  // DATA_SPARSE_MATRIX(Z_tips);
 
   //  DATA_MATRIX(X_tips_dummy_mics);
   // DATA_SPARSE_MATRIX(Z_tips_mics);
@@ -42,7 +42,7 @@ Type objective_function<Type>::operator() ()
   // DATA_SPARSE_MATRIX(Z_interaction3);
   // PARAMETER_ARRAY(eta3);
 
-  DATA_SPARSE_MATRIX(R_tips);
+  // DATA_SPARSE_MATRIX(R_tips);
   DATA_SPARSE_MATRIX(R_age);
   DATA_SPARSE_MATRIX(R_period);
   // DATA_SPARSE_MATRIX(R_spatial);
