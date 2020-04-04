@@ -150,7 +150,7 @@ fit$sdreport <- sdreport(fit$obj, fit$par)
 class(fit) <- "naomi_fit"  # this is hacky...
 fit <- sample_tmb(fit)
 
-qtls <- apply(fit$sample$lambda_out, 1, quantile, c(0.025, 0.5, 0.975))
+qtls <- apply(fit$sample$lambda, 1, quantile, c(0.025, 0.5, 0.975))
 
 ```
 
@@ -186,13 +186,24 @@ mf$mf_model %>%
          source = "tmb") %>%
   type.convert() %>%
   bind_rows(inla_res %>% mutate(source = "inla")) %>%
-  left_join(areas_long) %>%
-  filter(area_level ==2, age_group == "20-24") %>%
-  ggplot(aes(x=period, y=median, group=source)) +
-    geom_line(aes(color = source)) +
-    geom_ribbon(aes(ymin = lower, ymax = upper, fill=source), alpha=0.3) +
-    facet_wrap(~area_id) +
-    ylim(0,0.5)
+  ggplot(aes(period, median, ymin = lower, ymax = upper,
+             fill = age_group, color = age_group)) +
+    geom_line() +
+    geom_ribbon(color = NA, alpha=0.3) +
+    facet_wrap(~source)
+
+mf$mf_model %>%
+  mutate(lower = qtls[1,],
+         median = qtls[2,],
+         upper = qtls[3,],
+         source = "tmb") %>%
+  type.convert() %>%
+  bind_rows(inla_res %>% mutate(source = "inla")) %>%
+  ggplot(aes(x=period, y=median, ymin = lower, ymax = upper,
+             fill=source, color=source)) +
+    geom_line() +
+    geom_ribbon(color = NA, alpha=0.3) +
+    facet_wrap(~age_group)
 
 ```
 
