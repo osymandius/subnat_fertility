@@ -13,17 +13,17 @@ Type objective_function<Type>::operator() ()
 
   DATA_SPARSE_MATRIX(M_obs);
 
-  DATA_SPARSE_MATRIX(M_obs_mics);
+  // DATA_SPARSE_MATRIX(M_obs_mics);
   
   DATA_MATRIX(X_tips_dummy);
  // 
   PARAMETER_VECTOR(beta_tips_dummy);
-  PARAMETER_VECTOR(beta_tips_dummy_mics);
+  // PARAMETER_VECTOR(beta_tips_dummy_mics);
 
   DATA_SPARSE_MATRIX(Z_tips);
 
-   DATA_MATRIX(X_tips_dummy_mics);
-  DATA_SPARSE_MATRIX(Z_tips_mics);
+   // DATA_MATRIX(X_tips_dummy_mics);
+  // DATA_SPARSE_MATRIX(Z_tips_mics);
 
   DATA_SPARSE_MATRIX(Z_age);
   DATA_SPARSE_MATRIX(Z_period);
@@ -34,12 +34,15 @@ Type objective_function<Type>::operator() ()
 
   DATA_SPARSE_MATRIX(Z_interaction1);
   PARAMETER_ARRAY(eta1);
+  PARAMETER(log_sigma_eta1);
 
   // DATA_SPARSE_MATRIX(Z_interaction2);
   // PARAMETER_ARRAY(eta2);
+  // PARAMETER(log_sigma_eta2);
 
   // DATA_SPARSE_MATRIX(Z_interaction3);
   // PARAMETER_ARRAY(eta3);
+  // PARAMETER(log_sigma_eta3);
 
   DATA_SPARSE_MATRIX(R_tips);
   DATA_SPARSE_MATRIX(R_age);
@@ -52,7 +55,7 @@ Type objective_function<Type>::operator() ()
   PARAMETER(log_sigma_rw_tips);
   PARAMETER(log_sigma_rw_age);
   PARAMETER(log_sigma_rw_period);
-  PARAMETER(log_sigma_eta1);
+
 
   PARAMETER_VECTOR(u_tips);
   PARAMETER_VECTOR(u_age);
@@ -63,11 +66,11 @@ Type objective_function<Type>::operator() ()
   PARAMETER(logit_spatial_rho);
   PARAMETER(log_sigma_spatial);
 
-  DATA_SPARSE_MATRIX(A_out);
+  // DATA_SPARSE_MATRIX(A_out);
 
-  DATA_SPARSE_MATRIX(A_mics);
-  DATA_VECTOR(log_offset_mics);
-  DATA_VECTOR(births_obs_mics);
+  // DATA_SPARSE_MATRIX(A_mics);
+  // DATA_VECTOR(log_offset_mics);
+  // DATA_VECTOR(births_obs_mics);
 
   // observations
 
@@ -83,7 +86,7 @@ Type objective_function<Type>::operator() ()
 
   // // Fixed effect TIPS dummy
   nll -= dnorm(beta_tips_dummy, Type(0), Type(1), true).sum();
-  nll -= dnorm(beta_tips_dummy_mics, Type(0), Type(1), true).sum();
+  // nll -= dnorm(beta_tips_dummy_mics, Type(0), Type(1), true).sum();
 
   // RW TIPS
 
@@ -109,7 +112,7 @@ Type objective_function<Type>::operator() ()
   nll -= Type(-0.5) * (u_period * (R_period * u_period)).sum();
   nll -= dnorm(u_period.sum(), Type(0), Type(0.01) * u_period.size(), true);
 
-  //// SPATIAL
+  // SPATIAL
   // ICAR
   nll -= Type(-0.5) * (u_spatial_str * (R_spatial * u_spatial_str)).sum();
   nll -= dnorm(u_spatial_str.sum(), Type(0), Type(0.01) * u_spatial_str.size(), 1);
@@ -134,33 +137,28 @@ Type objective_function<Type>::operator() ()
   
   Type sigma_eta1 = exp(log_sigma_eta1);
   nll -= dnorm(sigma_eta1, Type(0), Type(2.5), true) + log_sigma_eta1;
-  
-  // nll += SEPARABLE(GMRF(R_age), GMRF(R_period))(eta1);
   nll += SEPARABLE(AR1(Type(ar1_phi_age)), AR1(Type(ar1_phi_period)))(eta1);
-  
   vector<Type> eta1_v(eta1);
 
-  
-
-  // nll += SEPARABLE(GMRF(R_period), GMRF(R_spatial))(eta2);
-  // vector<Type> eta2_v(eta2);
   // Type sigma_eta2 = exp(log_sigma_eta2);
   // nll -= dnorm(sigma_eta2, Type(0), Type(2.5), true) + log_sigma_eta2;
-
-  // nll += SEPARABLE(GMRF(R_age), GMRF(R_spatial))(eta3);
-  // vector<Type> eta3_v(eta3);
+  // nll += SEPARABLE(AR1(Type(ar1_phi_period)), GMRF(R_spatial))(eta2);
+  // vector<Type> eta2_v(eta2);
+  
   // Type sigma_eta3 = exp(log_sigma_eta3);
   // nll -= dnorm(sigma_eta3, Type(0), Type(2.5), true) + log_sigma_eta3;
+  // nll += SEPARABLE(AR1(Type(ar1_phi_age)), GMRF(R_spatial))(eta3);
+  // vector<Type> eta3_v(eta3);
 
   vector<Type> log_lambda(
                      // X_mf * beta_mf
                      beta_0
                      + Z_age * u_age * sigma_rw_age
                      + Z_period * u_period * sigma_rw_period
-                     + Z_spatial * spatial
+                     // + Z_spatial * spatial
 		                 + Z_interaction1 * eta1_v * sigma_eta1
-                     // + Z_interaction2 * eta2_v
-                     // + Z_interaction3 * eta3_v
+                     // + Z_interaction2 * eta2_v * sigma_eta2
+                     // + Z_interaction3 * eta3_v * sigma_eta3
                      );
 
   
@@ -174,24 +172,24 @@ Type objective_function<Type>::operator() ()
   nll -= dpois(births_obs, exp(mu_obs_pred), true).sum();  
 
   vector<Type> lambda(exp(log_lambda));
-  vector<Type> births(lambda * pop);
+  // vector<Type> births(lambda * pop);
 
-  vector<Type> births_pred_mics(A_mics * births);
-  vector<Type> pop_mics(A_mics * pop);
-  vector<Type> lambda_mics(births_pred_mics/pop_mics);
+  // vector<Type> births_pred_mics(A_mics * births);
+  // vector<Type> pop_mics(A_mics * pop);
+  // vector<Type> lambda_mics(births_pred_mics/pop_mics);
 
-  vector<Type> mu_obs_pred_mics(M_obs_mics * log(lambda_mics) +
-                              Z_tips_mics * u_tips * sigma_rw_tips   +     // TIPS RW
-                              X_tips_dummy_mics * beta_tips_dummy_mics +          // TIPS fixed effect
-                              log_offset_mics
+  // vector<Type> mu_obs_pred_mics(M_obs_mics * log(lambda_mics) +
+  //                             Z_tips_mics * u_tips * sigma_rw_tips   +     // TIPS RW
+  //                             X_tips_dummy_mics * beta_tips_dummy_mics +          // TIPS fixed effect
+  //                             log_offset_mics
 
-              );
+  //             );
 
-  nll -= dpois(births_obs_mics, exp(mu_obs_pred_mics), true).sum();  
+  // nll -= dpois(births_obs_mics, exp(mu_obs_pred_mics), true).sum();  
 
-  vector<Type> births_out(A_out * births);
-  vector<Type> population_out(A_out * pop);
-  vector<Type> lambda_out(births_out / population_out);
+  // vector<Type> births_out(A_out * births);
+  // vector<Type> population_out(A_out * pop);
+  // vector<Type> lambda_out(births_out / population_out);
 
   Type log_tau2_rw_age(-2 * log_sigma_rw_age);
   Type log_tau2_rw_period(-2 * log_sigma_rw_period);
@@ -199,8 +197,8 @@ Type objective_function<Type>::operator() ()
   // Type log_tau2_rw_tips(-2 * log_sigma_rw_tips);
   // Type log_tau2_eta1(-2 * log_sigma_eta1);
     
-  REPORT(lambda_out);
-  // REPORT(lambda);
+  // REPORT(lambda_out);
+  REPORT(lambda);
   // REPORT(logit_spatial_rho);
 
   REPORT(log_tau2_rw_age);
