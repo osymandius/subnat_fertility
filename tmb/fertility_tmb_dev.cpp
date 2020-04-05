@@ -36,13 +36,13 @@ Type objective_function<Type>::operator() ()
   PARAMETER_ARRAY(eta1);
   PARAMETER(log_sigma_eta1);
 
-  // DATA_SPARSE_MATRIX(Z_interaction2);
-  // PARAMETER_ARRAY(eta2);
-  // PARAMETER(log_sigma_eta2);
+  DATA_SPARSE_MATRIX(Z_interaction2);
+  PARAMETER_ARRAY(eta2);
+  PARAMETER(log_sigma_eta2);
 
-  // DATA_SPARSE_MATRIX(Z_interaction3);
-  // PARAMETER_ARRAY(eta3);
-  // PARAMETER(log_sigma_eta3);
+  DATA_SPARSE_MATRIX(Z_interaction3);
+  PARAMETER_ARRAY(eta3);
+  PARAMETER(log_sigma_eta3);
 
   DATA_SPARSE_MATRIX(R_tips);
   DATA_SPARSE_MATRIX(R_age);
@@ -135,15 +135,15 @@ Type objective_function<Type>::operator() ()
   nll += SEPARABLE(AR1(Type(ar1_phi_age)), AR1(Type(ar1_phi_period)))(eta1);
   vector<Type> eta1_v(eta1);
 
-  // Type sigma_eta2 = exp(log_sigma_eta2);
-  // nll -= dnorm(sigma_eta2, Type(0), Type(2.5), true) + log_sigma_eta2;
-  // nll += SEPARABLE(AR1(Type(ar1_phi_period)), GMRF(R_spatial))(eta2);
-  // vector<Type> eta2_v(eta2);
+  Type sigma_eta2 = exp(log_sigma_eta2);
+  nll -= dnorm(sigma_eta2, Type(0), Type(2.5), true) + log_sigma_eta2;
+  nll += SEPARABLE(AR1(Type(ar1_phi_period)), GMRF(R_spatial))(eta2);
+  vector<Type> eta2_v(eta2);
   
-  // Type sigma_eta3 = exp(log_sigma_eta3);
-  // nll -= dnorm(sigma_eta3, Type(0), Type(2.5), true) + log_sigma_eta3;
-  // nll += SEPARABLE(AR1(Type(ar1_phi_age)), GMRF(R_spatial))(eta3);
-  // vector<Type> eta3_v(eta3);
+  Type sigma_eta3 = exp(log_sigma_eta3);
+  nll -= dnorm(sigma_eta3, Type(0), Type(2.5), true) + log_sigma_eta3;
+  nll += SEPARABLE(AR1(Type(ar1_phi_age)), GMRF(R_spatial))(eta3);
+  vector<Type> eta3_v(eta3);
 
   vector<Type> log_lambda(
                      // X_mf * beta_mf
@@ -152,8 +152,8 @@ Type objective_function<Type>::operator() ()
                      + Z_period * u_period * sigma_rw_period
                      + Z_spatial * spatial
 		                 + Z_interaction1 * eta1_v * sigma_eta1
-                     // + Z_interaction2 * eta2_v * sigma_eta2
-                     // + Z_interaction3 * eta3_v * sigma_eta3
+                     + Z_interaction2 * eta2_v * sigma_eta2
+                     + Z_interaction3 * eta3_v * sigma_eta3
                      );
 
   

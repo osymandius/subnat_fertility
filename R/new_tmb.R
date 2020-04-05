@@ -20,7 +20,8 @@ naomi_data_path <- "~/Documents/GitHub/naomi-data"
 source(here("R/inputs.R"))
 source(here("R/fertility_funs.R"))
 
-iso3_current <- "ZWE"
+iso3_current <- "MWI"
+
 
 ##sorry..
 list2env(make_areas_population(iso3_current, naomi_data_path, full = FALSE), globalenv())
@@ -38,12 +39,10 @@ mics_asfr <- Map(calc_asfr_mics, mics_data$wm, y=list(1),
   bind_rows %>%
   type.convert() %>%
   filter(period <= survyear) %>%
-  rename(age_group = agegr) %>%
-  mutate(area_id = "ZWE")
+  rename(age_group = agegr)
 
-comb_asfr <- asfr %>% bind_rows(mics_asfr)
-
-mf <- make_model_frames(iso3_current, population, asfr, mics_asfr = mics_asfr, exclude_districts = "", project=FALSE)
+debugonce(make_model_frames)
+mf <- make_model_frames(iso3_current, population, asfr, mics_asfr = mics_asfr, exclude_districts = "ZWE_2_1", project=FALSE)
 
 X_mf <- model.matrix(~1, mf$mf_model)
 
@@ -59,7 +58,7 @@ M_obs_mics <- sparse.model.matrix(~0 + idx, mf$mics$obs)
 Z_tips_mics <- sparse.model.matrix(~0 + tips_f, mf$mics$obs)
 X_tips_dummy_mics <- model.matrix(~0 + tips_dummy, mf$mics$obs)
 
-R_spatial <- make_adjacency_matrix(iso3_current, areas_long, boundaries, 2)
+R_spatial <- make_adjacency_matrix(iso3_current, areas_long, boundaries, exclude_districts = "ZWE_2_1", level=2)
 R_tips <- make_rw_structure_matrix(ncol(Z_tips), 1, TRUE)
 R_age <- make_rw_structure_matrix(ncol(Z_age), 1, TRUE)
 R_period <- make_rw_structure_matrix(ncol(Z_period), 2, TRUE)
@@ -87,8 +86,8 @@ data <- list(X_mf = X_mf,
              Z_spatial = Z_spatial,
              # Z_interaction = sparse.model.matrix(~0 + id.interaction, mf$mf_model),
              Z_interaction1 = sparse.model.matrix(~0 + id.interaction1, mf$mf_model),
-             # Z_interaction2 = sparse.model.matrix(~0 + id.interaction2, mf$mf_model),
-             # Z_interaction3 = sparse.model.matrix(~0 + id.interaction3, mf$mf_model),
+             Z_interaction2 = sparse.model.matrix(~0 + id.interaction2, mf$mf_model),
+             Z_interaction3 = sparse.model.matrix(~0 + id.interaction3, mf$mf_model),
              R_tips = R_tips,
              R_age = R_age,
              R_period = R_period,
@@ -169,6 +168,40 @@ mf$out$mf_out %>%
     geom_ribbon(aes(ymin = lower, ymax = upper, fill=age_group), alpha=0.3) +
     facet_wrap(~area_id)
 
+mf$out$mf_out %>%
+  mutate(lower = qtls[1,],
+         median = qtls[2,],
+         upper = qtls[3,],
+         source = "tmb") %>%
+  type.convert() %>%
+  filter(period == 2017) %>%
+  group_by(area_id) %>%
+  summarise(tfr = 5*sum(median)) %>%
+  left_join(areas_long) %>%
+  filter(area_level == 1) %>%
+  left_join(boundaries) %>%
+  st_as_sf  %>%
+  ggplot() +
+    geom_sf(aes(geometry = geometry, fill=tfr)) +
+    scale_fill_viridis(guide = guide_colorbar(frame.colour = "black", frame.linewidth = 1, ticks.colour = "black"))+
+    coord_sf(datum=NA)+
+    labs(title="", fill="TFR")
+
+mf$out$mf_out %>%
+  mutate(lower = qtls[1,],
+         median = qtls[2,],
+         upper = qtls[3,],
+         source = "tmb") %>%
+  type.convert() %>%
+  group_by(area_id, period) %>%
+  summarise(tfr = 5*sum(median)) %>%
+  left_join(areas_long) %>%
+  filter(area_level == 1) %>%
+  ggplot(aes(x=period, y=tfr)) +
+    geom_line() +
+    geom_point(data=foo %>% left_join(areas_long %>% select(area_id, area_name)) %>% filter(area_id != "ZWE_1_10"), aes(color=survtype)) +
+    facet_wrap(~area_name)
+
 mics_plot <- Map(calc_asfr_mics, mics_data$wm, y=list(1),
                  by = list(~area_id + survyear + surveyid + survtype),
                  tips = list(c(0,15)),
@@ -180,3 +213,35 @@ mics_plot <- Map(calc_asfr_mics, mics_data$wm, y=list(1),
   type.convert() %>%
   filter(period <= survyear) %>%
   rename(age_group = agegr)
+
+admin1_tfr <- Map(calc_tfr, dat$ir,
+            by = list(~country + surveyid + survtype + survyear + area_id),
+            tips = list(c(0,15)),
+            agegr= list(3:10*5),
+            period = list(1995:2017)) %>%
+  bind_rows %>%
+  type.convert %>%
+  filter(period<=survyear) %>%
+  mutate(iso3 = countrycode(country, "country.name", "iso3c"),
+         iso3 = ifelse(country == "Eswatini", "SWZ", iso3)) %>%
+  select(-country)
+
+foo <- admin1_tfr %>% bind_rows(mics_plot %>%
+  group_by(area_id, period, surveyid, survtype) %>%
+  summarise(tfr = 5*sum(asfr))
+)
+
+debugonce(calc_tfr)
+calc_tfr(mics_data$wm[[1]], by = ~surveyid + survtype + survyear + area_id,
+         tips = c(0,15),
+         agegr= c(3:10*5),
+         period = c(1995:2017),
+         clusters=~cluster,
+         id="unique_id",
+         dob="wdob",
+         strata=NULL,
+         intv = "doi",
+         weight= "wmweight",
+         bvars = "cdob",
+         bhdata = mics_data$bh_df[[1]]
+)

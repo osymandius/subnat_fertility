@@ -976,10 +976,13 @@ make_model_frames <- function(iso3_current, population, asfr, mics_asfr = NULL, 
   
   if(!is.null(mics_asfr)) {
     
+    
+    
     mf_mics <- crossing(area_id = unique(mics_asfr$area_id),
                        period = unique(mf_model$period),
                        age_group = unique(mf_model$age_group)
     ) %>%
+      filter(!area_id %in% unique(filter(areas_wide, area_id %in% exclude_districts)$area_id1)) %>%
       mutate(idx = factor(row_number()))
     
     join_mics <- mf_mics %>%
@@ -994,6 +997,7 @@ make_model_frames <- function(iso3_current, population, asfr, mics_asfr = NULL, 
     
     
     obs_mics <- mics_asfr %>%
+      filter(!area_id %in% unique(filter(areas_wide, area_id %in% exclude_districts)$area_id1)) %>%
       mutate(period = factor(period, levels(mf_model$period))) %>%
       left_join(mf_mics) %>%
       select(area_id, period, age_group, tips, births, pys, idx) %>%
