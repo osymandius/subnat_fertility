@@ -10,8 +10,8 @@ library(haven)
 library(survival)
 library(parallel)
 library(demogsurv)
-## devtools::load_all("~/Documents/GitHub/naomi")
-library(naomi)
+devtools::load_all("~/Documents/GitHub/naomi")
+# library(naomi)
 library(here)
 
 naomi_data_path <- "~/Documents/GitHub/naomi-data"
@@ -60,8 +60,8 @@ data <- list(X_mf = X_mf,
              # births_obs_mics = mf$mics$obs$births,
              # log_offset_mics = log(mf$mics$obs$pys),
              # A_mics = mf$mics$A_mics,
-             # X_tips_dummy = X_tips_dummy,
-             # Z_tips = Z_tips,
+             X_tips_dummy = X_tips_dummy,
+             Z_tips = Z_tips,
              Z_age = Z_age,
              Z_period = Z_period,
              # Z_spatial = Z_spatial,
@@ -69,7 +69,7 @@ data <- list(X_mf = X_mf,
              Z_interaction1 = sparse.model.matrix(~0 + id.interaction1, mf$mf_model),
              # Z_interaction2 = sparse.model.matrix(~0 + id.interaction2, mf$mf_model),
              # Z_interaction3 = sparse.model.matrix(~0 + id.interaction3, mf$mf_model),
-             # R_tips = R_tips,
+             R_tips = R_tips,
              R_age = R_age,
              R_period = R_period,
              # R_spatial = R_spatial,
@@ -84,8 +84,8 @@ data <- list(X_mf = X_mf,
 par <- list(
   # beta_mf = rep(0, ncol(X_mf)),
   beta_0 = 0,
-  # beta_tips_dummy = rep(0, ncol(X_tips_dummy)),
-  # u_tips = rep(0, ncol(Z_tips)),
+  beta_tips_dummy = rep(0, ncol(X_tips_dummy)),
+  u_tips = rep(0, ncol(Z_tips)),
   u_age = rep(0, ncol(Z_age)),
   u_period = rep(0, ncol(Z_period)),
   # u_spatial_str = rep(0, ncol(Z_spatial)),
@@ -96,7 +96,7 @@ par <- list(
   # eta3 = array(0, c(ncol(Z_spatial), ncol(Z_age))),
   log_sigma_rw_period = log(2.5),
   log_sigma_rw_age = log(2.5),
-  # log_sigma_rw_tips = log(2.5),
+  log_sigma_rw_tips = log(2.5),
   log_sigma_eta1 = log(2.5)
   # log_prec_rw_period = 4,
   # log_prec_rw_age = 4,
