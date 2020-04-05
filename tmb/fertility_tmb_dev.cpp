@@ -16,7 +16,7 @@ Type objective_function<Type>::operator() ()
   // DATA_SPARSE_MATRIX(M_obs_mics);
   
   DATA_MATRIX(X_tips_dummy);
- 
+ // 
   PARAMETER_VECTOR(beta_tips_dummy);
 
   DATA_SPARSE_MATRIX(Z_tips);
@@ -93,12 +93,6 @@ Type objective_function<Type>::operator() ()
   //RW AGE
   Type sigma_rw_age = exp(log_sigma_rw_age);
   nll -= dnorm(sigma_rw_age, Type(0), Type(2.5), true) + log_sigma_rw_age;
-
-  // Type prec_rw_age = exp(log_prec_rw_age);
-  // nll -= dlgamma(log_prec_rw_age, Type(1), Type(5000));
-  // nll -= dgamma(prec_rw_age, Type(1), Type(50000), true) + log_prec_rw_age;
-
-  // nll -= Type(-0.5) * (u_age * (R_age * u_age)).sum();
   nll += GMRF(R_age)(u_age);
   nll -= dnorm(u_age.sum(), Type(0), Type(0.01) * u_age.size(), true);
 
