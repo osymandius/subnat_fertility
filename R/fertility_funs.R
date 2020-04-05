@@ -964,7 +964,7 @@ make_model_frames <- function(iso3_current, population, asfr, mics_asfr = NULL, 
     #           ) %>%
     mutate(x=1) %>%
     filter(!is.na(model_area_id))
-
+  
   A_out <- spMatrix(nrow(mf_out), nrow(mf_model), join_out$out_idx, as.integer(join_out$idx), join_out$x)
 
   mf <- list()

@@ -10,8 +10,8 @@ library(haven)
 library(survival)
 library(parallel)
 library(demogsurv)
-## devtools::load_all("~/Documents/GitHub/naomi")
-library(naomi)
+devtools::load_all("~/Documents/GitHub/naomi")
+# library(naomi)
 library(here)
 
 naomi_data_path <- "~/Documents/GitHub/naomi-data"
@@ -87,8 +87,8 @@ data <- list(X_mf = X_mf,
              Z_spatial = Z_spatial,
              # Z_interaction = sparse.model.matrix(~0 + id.interaction, mf$mf_model),
              Z_interaction1 = sparse.model.matrix(~0 + id.interaction1, mf$mf_model),
-             Z_interaction2 = sparse.model.matrix(~0 + id.interaction2, mf$mf_model),
-             Z_interaction3 = sparse.model.matrix(~0 + id.interaction3, mf$mf_model),
+             # Z_interaction2 = sparse.model.matrix(~0 + id.interaction2, mf$mf_model),
+             # Z_interaction3 = sparse.model.matrix(~0 + id.interaction3, mf$mf_model),
              R_tips = R_tips,
              R_age = R_age,
              R_period = R_period,
