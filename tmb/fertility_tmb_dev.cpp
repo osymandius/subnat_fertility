@@ -26,7 +26,7 @@ Type objective_function<Type>::operator() ()
 
   DATA_SPARSE_MATRIX(Z_age);
   DATA_SPARSE_MATRIX(Z_period);
-  // DATA_SPARSE_MATRIX(Z_spatial);
+  DATA_SPARSE_MATRIX(Z_spatial);
 
   // DATA_SPARSE_MATIX(Z_interaction);
   // PARAMETER_ARRAY(eta);
@@ -43,7 +43,7 @@ Type objective_function<Type>::operator() ()
   DATA_SPARSE_MATRIX(R_tips);
   DATA_SPARSE_MATRIX(R_age);
   DATA_SPARSE_MATRIX(R_period);
-  // DATA_SPARSE_MATRIX(R_spatial);
+  DATA_SPARSE_MATRIX(R_spatial);
 
   DATA_SCALAR(ar1_phi_age);
   DATA_SCALAR(ar1_phi_period);
@@ -57,12 +57,12 @@ Type objective_function<Type>::operator() ()
   PARAMETER_VECTOR(u_age);
   PARAMETER_VECTOR(u_period);
 
-  // PARAMETER_VECTOR(u_spatial_str);
-  // PARAMETER_VECTOR(u_spatial_iid); 
-  // PARAMETER(logit_spatial_rho);
-  // PARAMETER(log_sigma_spatial);
+  PARAMETER_VECTOR(u_spatial_str);
+  PARAMETER_VECTOR(u_spatial_iid); 
+  PARAMETER(logit_spatial_rho);
+  PARAMETER(log_sigma_spatial);
 
-  // DATA_SPARSE_MATRIX(A_out);
+  DATA_SPARSE_MATRIX(A_out);
 
   // DATA_SPARSE_MATRIX(A_mics);
   // DATA_VECTOR(log_offset_mics);
@@ -107,24 +107,24 @@ Type objective_function<Type>::operator() ()
   nll -= Type(-0.5) * (u_period * (R_period * u_period)).sum();
   nll -= dnorm(u_period.sum(), Type(0), Type(0.01) * u_period.size(), true);
 
-  // //// SPATIAL
-  // // ICAR
-  // nll -= Type(-0.5) * (u_spatial_str * (R_spatial * u_spatial_str)).sum();
-  // nll -= dnorm(u_spatial_str.sum(), Type(0), Type(0.01) * u_spatial_str.size(), 1);
+  //// SPATIAL
+  // ICAR
+  nll -= Type(-0.5) * (u_spatial_str * (R_spatial * u_spatial_str)).sum();
+  nll -= dnorm(u_spatial_str.sum(), Type(0), Type(0.01) * u_spatial_str.size(), 1);
   
-  // // IID
-  // nll -= dnorm(u_spatial_iid, Type(0), Type(1), true).sum();
+  // IID
+  nll -= dnorm(u_spatial_iid, Type(0), Type(1), true).sum();
   
-  // // Rho
-  // Type spatial_rho(exp(logit_spatial_rho)/(1+exp(logit_spatial_rho)));
-  // nll -= log(spatial_rho) +  log(1 - spatial_rho); // Jacobian adjustment for inverse logit'ing the parameter... 
-  // nll -= dbeta(spatial_rho, Type(0.5), Type(0.5), true);
+  // Rho
+  Type spatial_rho(exp(logit_spatial_rho)/(1+exp(logit_spatial_rho)));
+  nll -= log(spatial_rho) +  log(1 - spatial_rho); // Jacobian adjustment for inverse logit'ing the parameter... 
+  nll -= dbeta(spatial_rho, Type(0.5), Type(0.5), true);
   
-  // // Sigma
-  // Type sigma_spatial = exp(log_sigma_spatial);
-  // nll -= dnorm(sigma_spatial, Type(0), Type(2.5), true) + log_sigma_spatial;
+  // Sigma
+  Type sigma_spatial = exp(log_sigma_spatial);
+  nll -= dnorm(sigma_spatial, Type(0), Type(2.5), true) + log_sigma_spatial;
   
-  // vector<Type> spatial = sigma_spatial * (sqrt(1 - spatial_rho) * u_spatial_iid + sqrt(spatial_rho) * u_spatial_str);
+  vector<Type> spatial = sigma_spatial * (sqrt(1 - spatial_rho) * u_spatial_iid + sqrt(spatial_rho) * u_spatial_str);
 
 
   // nll += SEPARABLE(GMRF(R_period), SEPARABLE(GMRF(R_age), GMRF(R_spatial)))(eta);
@@ -155,7 +155,7 @@ Type objective_function<Type>::operator() ()
                      beta_0
                      + Z_age * u_age * sigma_rw_age
                      + Z_period * u_period * sigma_rw_period
-                     // + Z_spatial * spatial
+                     + Z_spatial * spatial
 		                 + Z_interaction1 * eta1_v * sigma_eta1
                      // + Z_interaction2 * eta2_v
                      // + Z_interaction3 * eta3_v
@@ -172,7 +172,7 @@ Type objective_function<Type>::operator() ()
   nll -= dpois(births_obs, exp(mu_obs_pred), true).sum();  
 
   vector<Type> lambda(exp(log_lambda));
-  // vector<Type> births(lambda * pop);
+  vector<Type> births(lambda * pop);
 
   // vector<Type> births_pred_mics(A_mics * births);
   // vector<Type> pop_mics(A_mics * pop);
@@ -187,9 +187,9 @@ Type objective_function<Type>::operator() ()
 
   // nll -= dpois(births_obs_mics, exp(mu_obs_pred_mics), true).sum();  
 
-  // vector<Type> births_out(A_out * births);
-  // vector<Type> population_out(A_out * pop);
-  // vector<Type> lambda_out(births_out / population_out);
+  vector<Type> births_out(A_out * births);
+  vector<Type> population_out(A_out * pop);
+  vector<Type> lambda_out(births_out / population_out);
 
   Type log_tau2_rw_age(-2 * log_sigma_rw_age);
   Type log_tau2_rw_period(-2 * log_sigma_rw_period);
@@ -197,8 +197,8 @@ Type objective_function<Type>::operator() ()
   // Type log_tau2_rw_tips(-2 * log_sigma_rw_tips);
   // Type log_tau2_eta1(-2 * log_sigma_eta1);
     
-  // REPORT(lambda_out);
-  REPORT(lambda);
+  REPORT(lambda_out);
+  // REPORT(lambda);
   // REPORT(logit_spatial_rho);
 
   REPORT(log_tau2_rw_age);

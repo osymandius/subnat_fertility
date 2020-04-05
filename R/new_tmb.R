@@ -25,13 +25,13 @@ iso3_current <- "ZWE"
 ##sorry..
 list2env(make_areas_population(iso3_current, naomi_data_path, full = FALSE), globalenv())
 
-asfr <- get_asfr_pred_df(iso3_current, 0, project = FALSE)
+asfr <- get_asfr_pred_df(iso3_current, 2, project = FALSE)
 
 mf <- make_model_frames(iso3_current, population, asfr, mics_asfr = NULL) # I've done an ugly hack to make this function work at national level.
 
 X_mf <- model.matrix(~1, mf$mf_model)
 
-# Z_spatial <- sparse.model.matrix(~0 + area_id, mf$mf_model)
+Z_spatial <- sparse.model.matrix(~0 + area_id, mf$mf_model)
 Z_age <- sparse.model.matrix(~0 + age_group, mf$mf_model)
 Z_period <- sparse.model.matrix(~0 + period, mf$mf_model)
 
@@ -39,13 +39,13 @@ M_obs <- sparse.model.matrix(~0 + idx, mf$dist$obs)
 Z_tips <- sparse.model.matrix(~0 + tips_f, mf$dist$obs)
 X_tips_dummy <- model.matrix(~0 + tips_dummy, mf$dist$obs)
 
-# R_spatial <- make_adjacency_matrix(iso3_current, areas_long, boundaries, 2)
+R_spatial <- make_adjacency_matrix(iso3_current, areas_long, boundaries, 2)
 R_tips <- make_rw_structure_matrix(ncol(Z_tips), 1, TRUE)
 R_age <- make_rw_structure_matrix(ncol(Z_age), 1, TRUE)
 R_period <- make_rw_structure_matrix(ncol(Z_period), 2, TRUE)
 
 
-# dyn.unload(dynlib(here("tmb/fertility_tmb_dev")))
+dyn.unload(dynlib(here("tmb/fertility_tmb_dev")))
 compile(here("tmb/fertility_tmb_dev.cpp"))               # Compile the C++ file
 dyn.load(dynlib(here("tmb/fertility_tmb_dev")))
 
@@ -64,7 +64,7 @@ data <- list(X_mf = X_mf,
              Z_tips = Z_tips,
              Z_age = Z_age,
              Z_period = Z_period,
-             # Z_spatial = Z_spatial,
+             Z_spatial = Z_spatial,
              # Z_interaction = sparse.model.matrix(~0 + id.interaction, mf$mf_model),
              Z_interaction1 = sparse.model.matrix(~0 + id.interaction1, mf$mf_model),
              # Z_interaction2 = sparse.model.matrix(~0 + id.interaction2, mf$mf_model),
@@ -72,13 +72,13 @@ data <- list(X_mf = X_mf,
              R_tips = R_tips,
              R_age = R_age,
              R_period = R_period,
-             # R_spatial = R_spatial,
+             R_spatial = R_spatial,
              ar1_phi_age = ar1_phi_age,
              ar1_phi_period = ar1_phi_period,
              log_offset = log(mf$dist$obs$pys),
              births_obs = mf$dist$obs$births,
-             pop = mf$mf_model$population
-             # A_out = mf$out$A_out
+             pop = mf$mf_model$population,
+             A_out = mf$out$A_out
 )
 
 par <- list(
@@ -88,8 +88,8 @@ par <- list(
   u_tips = rep(0, ncol(Z_tips)),
   u_age = rep(0, ncol(Z_age)),
   u_period = rep(0, ncol(Z_period)),
-  # u_spatial_str = rep(0, ncol(Z_spatial)),
-  # u_spatial_iid = rep(0, ncol(Z_spatial)),
+  u_spatial_str = rep(0, ncol(Z_spatial)),
+  u_spatial_iid = rep(0, ncol(Z_spatial)),
   # eta = array(0, c(ncol(Z_spatial), ncol(Z_age), ncol(Z_period))),
   eta1 = array(0, c(ncol(Z_period), ncol(Z_age))),
   # eta2 = array(0, c(ncol(Z_spatial), ncol(Z_period))),
@@ -97,13 +97,9 @@ par <- list(
   log_sigma_rw_period = log(2.5),
   log_sigma_rw_age = log(2.5),
   log_sigma_rw_tips = log(2.5),
-  log_sigma_eta1 = log(2.5)
-  # log_prec_rw_period = 4,
-  # log_prec_rw_age = 4,
-  # log_prec_rw_tips = 4,
-  # log_prec_eta1 = log(2.5),
-  # log_sigma_spatial = log(2.5),
-  # logit_spatial_rho = 0
+  log_sigma_eta1 = log(2.5),
+  log_sigma_spatial = log(2.5),
+  logit_spatial_rho = 0
 )
 
 
@@ -120,7 +116,7 @@ obj <-  MakeADFun(data = data,
                   parameters = par,
                   DLL = "fertility_tmb_dev",
                   #  random = c("beta_mf", "beta_tips_dummy", "u_tips", "u_age", "u_period", "u_spatial_str", "u_spatial_iid", "eta1", "eta2", "eta3"),
-                  random = c("beta_0", "beta_tips_dummy", "u_tips", "u_age", "u_period", "eta1"),
+                  random = c("beta_0", "beta_tips_dummy", "u_tips", "u_age", "u_period", "u_spatial_str", "u_spatial_iid", "eta1"),
                   hessian = FALSE)
 
 f <- nlminb(obj$par, obj$fn, obj$gr)
@@ -135,12 +131,14 @@ fit <- sample_tmb(fit)
 
 qtls <- apply(fit$sample$lambda, 1, quantile, c(0.025, 0.5, 0.975))
 
-mf$mf_model %>%
+mf$out$mf_out %>%
   mutate(lower = qtls[1,],
          median = qtls[2,],
          upper = qtls[3,],
          source = "tmb") %>%
   type.convert() %>%
+  left_join(areas_long) %>%
+  filter(area_level == 0) %>%
   # bind_rows(inla_res %>% mutate(source = "inla")) %>%
   ggplot(aes(x=period, y=median, group=age_group)) +
   geom_line(aes(color = age_group)) +
