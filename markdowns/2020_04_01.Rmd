@@ -129,6 +129,15 @@ par <- list(
             # log_sigma_spatial = log(2.5),
             # logit_spatial_rho = 0
             )
+
+f <- mcparallel({TMB::MakeADFun(data = data,
+                                parameters = par,
+                                DLL = "fertility_tmb_dev",
+                                silent=0,
+                                checkParameterOrder=FALSE)
+})
+
+mccollect(f)
              
 obj <-  MakeADFun(data = data,
                 parameters = par,

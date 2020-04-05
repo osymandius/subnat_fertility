@@ -995,7 +995,7 @@ make_model_frames <- function(iso3_current, population, asfr, mics_asfr = NULL, 
       mutate(period = factor(period, levels(mf_model$period))) %>%
       left_join(mf_mics) %>%
       select(area_id, period, age_group, tips, births, pys, idx) %>%
-      mutate(tips_dummy = as.integer(tips > 5),
+      mutate(tips_dummy = as.integer(tips > 2),
              tips_f = factor(tips, levels(obs$tips_f)),
              age_group = factor(age_group, levels(mf_model$age_group)),
              idx =factor(idx, levels(mf_mics$idx))

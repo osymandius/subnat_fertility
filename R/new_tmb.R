@@ -27,7 +27,20 @@ list2env(make_areas_population(iso3_current, naomi_data_path, full = FALSE), glo
 
 asfr <- get_asfr_pred_df(iso3_current, 2, project = FALSE)
 
-mf <- make_model_frames(iso3_current, population, asfr, mics_asfr = NULL) # I've done an ugly hack to make this function work at national level.
+mics_data <- read_mics(iso3_current)
+mics_asfr <- Map(calc_asfr_mics, mics_data$wm, y=list(1),
+                 by = list(~area_id + survyear + surveyid + survtype),
+                 tips = list(c(0:15)),
+                 agegr= list(3:10*5),
+                 period = list(1995:2019),
+                 counts = TRUE,
+                 bhdata = mics_data$bh_df) %>%
+  bind_rows %>%
+  type.convert() %>%
+  filter(period <= survyear) %>%
+  rename(age_group = agegr)
+
+mf <- make_model_frames(iso3_current, population, asfr, mics_asfr = mics_asfr, exclude_districts = "", project=FALSE)
 
 X_mf <- model.matrix(~1, mf$mf_model)
 
@@ -38,6 +51,10 @@ Z_period <- sparse.model.matrix(~0 + period, mf$mf_model)
 M_obs <- sparse.model.matrix(~0 + idx, mf$dist$obs) 
 Z_tips <- sparse.model.matrix(~0 + tips_f, mf$dist$obs)
 X_tips_dummy <- model.matrix(~0 + tips_dummy, mf$dist$obs)
+
+M_obs_mics <- sparse.model.matrix(~0 + idx, mf$mics$obs) 
+Z_tips_mics <- sparse.model.matrix(~0 + tips_f, mf$mics$obs)
+X_tips_dummy_mics <- model.matrix(~0 + tips_dummy, mf$mics$obs)
 
 R_spatial <- make_adjacency_matrix(iso3_current, areas_long, boundaries, 2)
 R_tips <- make_rw_structure_matrix(ncol(Z_tips), 1, TRUE)
@@ -54,12 +71,12 @@ ar1_phi_period <- 0.99
 
 data <- list(X_mf = X_mf,
              M_obs = M_obs,
-             # M_obs_mics = M_obs_mics,
-             # X_tips_dummy_mics = X_tips_dummy_mics,
-             # Z_tips_mics = Z_tips_mics,
-             # births_obs_mics = mf$mics$obs$births,
-             # log_offset_mics = log(mf$mics$obs$pys),
-             # A_mics = mf$mics$A_mics,
+             M_obs_mics = M_obs_mics,
+             X_tips_dummy_mics = X_tips_dummy_mics,
+             Z_tips_mics = Z_tips_mics,
+             births_obs_mics = mf$mics$obs$births,
+             log_offset_mics = log(mf$mics$obs$pys),
+             A_mics = mf$mics$A_mics,
              X_tips_dummy = X_tips_dummy,
              Z_tips = Z_tips,
              Z_age = Z_age,
@@ -85,6 +102,7 @@ par <- list(
   # beta_mf = rep(0, ncol(X_mf)),
   beta_0 = 0,
   beta_tips_dummy = rep(0, ncol(X_tips_dummy)),
+  beta_tips_dummy_mics = rep(0, ncol(X_tips_dummy_mics)),
   u_tips = rep(0, ncol(Z_tips)),
   u_age = rep(0, ncol(Z_age)),
   u_period = rep(0, ncol(Z_period)),
@@ -140,7 +158,20 @@ mf$out$mf_out %>%
   left_join(areas_long) %>%
   filter(area_level == 0) %>%
   # bind_rows(inla_res %>% mutate(source = "inla")) %>%
-  ggplot(aes(x=period, y=median, group=age_group)) +
-  geom_line(aes(color = age_group)) +
-  geom_ribbon(aes(ymin = lower, ymax = upper, fill=age_group), alpha=0.3) +
-  facet_wrap(~area_id)
+  ggplot(aes(x=period, y=median)) +
+    geom_line() +
+    geom_point(data=mics_plot %>% bind_rows(asfr_plot), aes(y=asfr, group=survtype, color=survtype)) +
+    geom_ribbon(aes(ymin = lower, ymax = upper), alpha=0.3) +
+    facet_wrap(~age_group)
+
+mics_plot <- Map(calc_asfr_mics, mics_data$wm, y=list(1),
+                 by = list(~survyear + surveyid + survtype),
+                 tips = list(c(0,15)),
+                 agegr= list(3:10*5),
+                 period = list(1995:2019),
+                 counts = TRUE,
+                 bhdata = mics_data$bh_df) %>%
+  bind_rows %>%
+  type.convert() %>%
+  filter(period <= survyear) %>%
+  rename(age_group = agegr)
