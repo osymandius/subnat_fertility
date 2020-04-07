@@ -21,12 +21,14 @@ source(here("R/inputs.R"))
 source(here("R/fertility_funs.R"))
 
 iso3_current <- "MWI"
+# exc <- areas_wide$area_id[areas_wide$area_id1 == "TZA_1_2"]
+# exc <- c("UGA_3_029", "UGA_3_046")
+exc <- c("MOZ_2_0107", "MOZ_2_1009")
+exc <- "MWI_5_07"
 
-
-##sorry..
 list2env(make_areas_population(iso3_current, naomi_data_path, full = FALSE), globalenv())
 
-asfr <- get_asfr_pred_df(iso3_current, 2, project = FALSE)
+asfr <- get_asfr_pred_df(iso3_current, 5, project = FALSE)
 
 mics_data <- read_mics(iso3_current)
 mics_asfr <- Map(calc_asfr_mics, mics_data$wm, y=list(1),
@@ -41,8 +43,7 @@ mics_asfr <- Map(calc_asfr_mics, mics_data$wm, y=list(1),
   filter(period <= survyear) %>%
   rename(age_group = agegr)
 
-debugonce(make_model_frames)
-mf <- make_model_frames(iso3_current, population, asfr, mics_asfr = mics_asfr, exclude_districts = "ZWE_2_1", project=FALSE)
+mf <- make_model_frames(iso3_current, population, asfr, mics_asfr = NULL, exclude_districts = exc, project=FALSE)
 
 X_mf <- model.matrix(~1, mf$mf_model)
 
@@ -58,7 +59,7 @@ M_obs_mics <- sparse.model.matrix(~0 + idx, mf$mics$obs)
 Z_tips_mics <- sparse.model.matrix(~0 + tips_f, mf$mics$obs)
 X_tips_dummy_mics <- model.matrix(~0 + tips_dummy, mf$mics$obs)
 
-R_spatial <- make_adjacency_matrix(iso3_current, areas_long, boundaries, exclude_districts = "ZWE_2_1", level=2)
+R_spatial <- make_adjacency_matrix(iso3_current, areas_long, boundaries, exclude_districts = exc, level=5)
 R_tips <- make_rw_structure_matrix(ncol(Z_tips), 1, TRUE)
 R_age <- make_rw_structure_matrix(ncol(Z_age), 1, TRUE)
 R_period <- make_rw_structure_matrix(ncol(Z_period), 2, TRUE)
@@ -73,12 +74,12 @@ ar1_phi_period <- 0.99
 
 data <- list(X_mf = X_mf,
              M_obs = M_obs,
-             M_obs_mics = M_obs_mics,
-             X_tips_dummy_mics = X_tips_dummy_mics,
-             Z_tips_mics = Z_tips_mics,
-             births_obs_mics = mf$mics$obs$births,
-             log_offset_mics = log(mf$mics$obs$pys),
-             A_mics = mf$mics$A_mics,
+             # M_obs_mics = M_obs_mics,
+             # X_tips_dummy_mics = X_tips_dummy_mics,
+             # Z_tips_mics = Z_tips_mics,
+             # births_obs_mics = mf$mics$obs$births,
+             # log_offset_mics = log(mf$mics$obs$pys),
+             # A_mics = mf$mics$A_mics,
              X_tips_dummy = X_tips_dummy,
              Z_tips = Z_tips,
              Z_age = Z_age,
@@ -104,7 +105,7 @@ par <- list(
   # beta_mf = rep(0, ncol(X_mf)),
   beta_0 = 0,
   beta_tips_dummy = rep(0, ncol(X_tips_dummy)),
-  beta_tips_dummy_mics = rep(0, ncol(X_tips_dummy_mics)),
+  # beta_tips_dummy_mics = rep(0, ncol(X_tips_dummy_mics)),
   u_tips = rep(0, ncol(Z_tips)),
   u_age = rep(0, ncol(Z_age)),
   u_period = rep(0, ncol(Z_period)),
@@ -138,7 +139,7 @@ obj <-  MakeADFun(data = data,
                   parameters = par,
                   DLL = "fertility_tmb_dev",
                   #  random = c("beta_mf", "beta_tips_dummy", "u_tips", "u_age", "u_period", "u_spatial_str", "u_spatial_iid", "eta1", "eta2", "eta3"),
-                  random = c("beta_0", "beta_tips_dummy", "beta_tips_dummy_mics","u_tips", "u_age", "u_period", "u_spatial_str", "u_spatial_iid", "eta1", "eta2", "eta3"),
+                  random = c("beta_0", "beta_tips_dummy", "u_tips", "u_age", "u_period", "u_spatial_str", "u_spatial_iid", "eta1", "eta2", "eta3"),
                   hessian = FALSE)
 
 f <- nlminb(obj$par, obj$fn, obj$gr)
@@ -199,7 +200,7 @@ mf$out$mf_out %>%
   filter(area_level == 1) %>%
   ggplot(aes(x=period, y=tfr)) +
     geom_line() +
-    geom_point(data=foo %>% left_join(areas_long %>% select(area_id, area_name)) %>% filter(area_id != "ZWE_1_10"), aes(color=survtype)) +
+    geom_point(data= admin1_tfr %>% left_join(areas_long %>% select(area_id, area_name)) %>% filter(area_id != "ZWE_1_10"), aes(color=survtype)) +
     facet_wrap(~area_name)
 
 mics_plot <- Map(calc_asfr_mics, mics_data$wm, y=list(1),
@@ -216,7 +217,7 @@ mics_plot <- Map(calc_asfr_mics, mics_data$wm, y=list(1),
 
 admin1_tfr <- Map(calc_tfr, dat$ir,
             by = list(~country + surveyid + survtype + survyear + area_id),
-            tips = list(c(0,15)),
+            tips = dat$tips_surv,
             agegr= list(3:10*5),
             period = list(1995:2017)) %>%
   bind_rows %>%

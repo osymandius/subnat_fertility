@@ -13,15 +13,16 @@ library(naomi)
 
 library(here)
 
-naomi_data_path <- "~/naomi-data"
-## naomi_data_path <- "~/Documents/GitHub/naomi-data/"
+# naomi_data_path <- "~/naomi-data"
+naomi_data_path <- "~/Documents/GitHub/naomi-data"
 
 source(here("R/inputs.R"))
 source(here("R/fertility_funs.R"))
 
-iso3 <- c("LSO", "MOZ", "MWI", "NAM", "TZA", "UGA", "ZMB", "ZWE")
-
-list2env(make_areas_population(iso3, naomi_data_path), globalenv())
+iso3_current <- "MWI"
+# iso3 <- c("LSO", "MOZ", "MWI", "NAM", "TZA", "UGA", "ZMB", "ZWE")
+# 
+list2env(make_areas_population(iso3_current, naomi_data_path), globalenv())
 
 ## set_rdhs_config(email="o.stevens@imperial.ac.uk", project="Subnational fertility", config_path = "~/.rdhs.json")
 
@@ -37,7 +38,8 @@ clusters <- readRDS(here("input_data/clusters_2019_11_21.rds")) %>%
   mutate(DHS_survey_id = paste0(DHS_CountryCode, surv)) %>%
   separate(surv, into=c(NA, "SurveyType"), sep=-3) %>%
   filter(iso3 == iso3_current, DHS_CountryCode != "OS") %>%
-  filter(!survey_id %in% c("MOZ2009AIS", "TZA2003AIS", "UGA2011AIS")) 
+  filter(!survey_id %in% c("MOZ2009AIS", "TZA2003AIS", "UGA2011AIS")) %>%
+  filter(survey_id == "MWI2015DHS")
 
 ## Get surveys for which we have clusters. Split into country list.
 surveys <- dhs_surveys(surveyIds = unique(clusters$DHS_survey_id)) %>%
@@ -50,7 +52,7 @@ surveys <- dhs_surveys(surveyIds = unique(clusters$DHS_survey_id)) %>%
   )
 
 ## Needs check to ensure level is < max_level
-cluster_areas <- assign_cluster_area(clusters, 1)
+cluster_areas <- assign_cluster_area(clusters, 0)
 
 dat <- clusters_to_surveys(surveys, cluster_areas, single_tips = FALSE)
 

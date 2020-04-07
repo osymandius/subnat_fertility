@@ -13,17 +13,17 @@ Type objective_function<Type>::operator() ()
 
   DATA_SPARSE_MATRIX(M_obs);
 
-  DATA_SPARSE_MATRIX(M_obs_mics);
+  // DATA_SPARSE_MATRIX(M_obs_mics);
   
   DATA_MATRIX(X_tips_dummy);
  // 
   PARAMETER_VECTOR(beta_tips_dummy);
-  PARAMETER_VECTOR(beta_tips_dummy_mics);
+  // PARAMETER_VECTOR(beta_tips_dummy_mics);
 
   DATA_SPARSE_MATRIX(Z_tips);
 
-   DATA_MATRIX(X_tips_dummy_mics);
-  DATA_SPARSE_MATRIX(Z_tips_mics);
+   // DATA_MATRIX(X_tips_dummy_mics);
+  // DATA_SPARSE_MATRIX(Z_tips_mics);
 
   DATA_SPARSE_MATRIX(Z_age);
   DATA_SPARSE_MATRIX(Z_period);
@@ -68,9 +68,9 @@ Type objective_function<Type>::operator() ()
 
   DATA_SPARSE_MATRIX(A_out);
 
-  DATA_SPARSE_MATRIX(A_mics);
-  DATA_VECTOR(log_offset_mics);
-  DATA_VECTOR(births_obs_mics);
+  // DATA_SPARSE_MATRIX(A_mics);
+  // DATA_VECTOR(log_offset_mics);
+  // DATA_VECTOR(births_obs_mics);
 
   // observations
 
@@ -86,7 +86,7 @@ Type objective_function<Type>::operator() ()
 
   // // Fixed effect TIPS dummy
   nll -= dnorm(beta_tips_dummy, Type(0), Type(1), true).sum();
-  nll -= dnorm(beta_tips_dummy_mics, Type(0), Type(1), true).sum();
+  // nll -= dnorm(beta_tips_dummy_mics, Type(0), Type(1), true).sum();
 
   // RW TIPS
 
@@ -169,18 +169,18 @@ Type objective_function<Type>::operator() ()
   vector<Type> lambda(exp(log_lambda));
   vector<Type> births(lambda * pop);
 
-  vector<Type> births_pred_mics(A_mics * births);
-  vector<Type> pop_mics(A_mics * pop);
-  vector<Type> lambda_mics(births_pred_mics/pop_mics);
+  // vector<Type> births_pred_mics(A_mics * births);
+  // vector<Type> pop_mics(A_mics * pop);
+  // vector<Type> lambda_mics(births_pred_mics/pop_mics);
 
-  vector<Type> mu_obs_pred_mics(M_obs_mics * log(lambda_mics) +
-                              Z_tips_mics * u_tips * sigma_rw_tips   +     // TIPS RW
-                              X_tips_dummy_mics * beta_tips_dummy_mics +          // TIPS fixed effect
-                              log_offset_mics
+  // vector<Type> mu_obs_pred_mics(M_obs_mics * log(lambda_mics) +
+  //                             Z_tips_mics * u_tips * sigma_rw_tips   +     // TIPS RW
+  //                             X_tips_dummy_mics * beta_tips_dummy_mics +          // TIPS fixed effect
+  //                             log_offset_mics
 
-              );
+  //             );
 
-  nll -= dpois(births_obs_mics, exp(mu_obs_pred_mics), true).sum();  
+  // nll -= dpois(births_obs_mics, exp(mu_obs_pred_mics), true).sum();  
 
   vector<Type> births_out(A_out * births);
   vector<Type> population_out(A_out * pop);
