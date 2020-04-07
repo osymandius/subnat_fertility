@@ -23,64 +23,26 @@ library(sf)
 library(devtools)
 library(extrafont)
 library(countrycode)
+library(viridis)
+library(gridExtra)
 devtools::load_all("~/Documents/GitHub/naomi")
 source(here("R/inputs.R"))
 source(here("R/fertility_funs.R"))
-list2env(make_areas_population("ZWE", "~/Documents/GitHub/naomi-data", full = FALSE), globalenv())
 df <- readRDS(here("presentations/2020_04 UNPD/unpd_df.rds"))
+list2env(make_areas_population(c("MWI", "UGA"), "~/Documents/GitHub/naomi-data", full = FALSE), globalenv())
 loadfonts()
 ```
 
+## Introduction {.t}
 
-## Introduction | Background {.t}
-
-* UNAIDS Reference Group for Estimates, Modelling and Projections provides technical recommendations to UNAIDS for the creation of annual HIV estimates
-* Newly created subnational estimation model - Naomi
-  * District-level estimates of prevalence, incidence, ART coverage by sex and 5 year age groups
-
-## Introduction | Background {.t}
-
-* UNAIDS Reference Group for Estimates, Modelling and Projections provides technical recommendations to UNAIDS for the creation of annual HIV estimates
-* Newly created subnational estimation model - Naomi
-  * District-level estimates of prevalence, incidence, ART coverage by sex and 5 year age groups
-  
-```{r echo=FALSE, warning = FALSE, out.height="50%", fig.align="center", message=FALSE}
-
-df$difference_tfr_zwe %>% 
-  left_join(areas_long) %>%
-  filter(area_id %in% c("ZWE_2_1", "ZWE_2_57")) %>%
-  group_by(period, area_name, surveyid) %>%
-  summarise(tfr = 5*sum(asfr)) %>%
-  ggplot(aes(x=period, y=tfr, group = area_name, color=area_name)) +
-    geom_point(aes(shape = surveyid), show.legend = F) +
-    geom_smooth(se=FALSE, method="loess", formula = y~x) +
-    labs(x="", y="TFR", color="District", shape = "Survey ID") +
-    ylim(0,7.5) +
-    scale_x_continuous(expand=c(0,0))+
-    theme_minimal() +
-    theme(
-      text = element_text(family='CMU Sans Serif'),
-      axis.text=element_text(size=17),
-      axis.text.x = element_text(size=17, margin = margin(t = 0, r = 10, b = 0, l = 10, unit = "pt")),
-      legend.position = 'bottom',
-      legend.key.width=unit(1.5,"cm"),
-      legend.key.height = unit(0.1, 'in'),
-      title = element_text(size=16),
-      legend.text = element_text(size = 12),
-      strip.text = element_text(size=14),
-      )
-```  
-
-## Introduction | Background {.t}
-
-* UNAIDS Reference Group for Estimates, Modelling and Projections provides technical recommendations to UNAIDS for the creation of annual HIV estimates
-* Newly created subnational estimation model - Naomi
-  * District-level estimates of prevalence, incidence, treatment coverage by sex and 5 year age groups
 * District level estimates of fertility desired for:
+  * Improved population projections at subnational levels
   * Estimation of children living with HIV
     * Key epidemic indicator
     * Resource allocation for prevention of mother-to-child transmission
-  * Improved projections at district level
+  * Evaluation of family planning programamtic scaleup
+
+**Objective** Estimate annual age-specific fertility rates at district level for SSA countries from household survey data
   
 <!-- ## Introduction | Outputs {.t} -->
 
@@ -92,18 +54,19 @@ df$difference_tfr_zwe %>%
 
 <!-- by single year up to short term projection (c. 2025), at the district level -->
 
-## Data and workflow | Zimbabwe {.t}
+## Data sources | Malawi {.t}
 
-* Demographic Health Surveys
-  * Geomasked coordinates assigned to district
-  * 1999, 2005, 2010, 2015
-* Multiple Indicator Cluster Survey
-  * Survey region indicator
-  * 2009, 2014, 2019
-* Birth history data:
+* Household surveys with full birth histories
+  * Demographic Health Surveys (2000, 2004, 2010, 2015)
+  * Malaria Indicator Survey (2012, 2014, 2017)
+  * Multiple Indicator Cluster Survey (2006, 2013)
+
+* Full birth history data:
   * DHS, MICS: 15 years
-  * (Malaria Indicator Survey/AIDS Indicator Surveys): 5 years
-  
+  * MIS: 5 years
+
+* Summary birth histories from censuses - to be included
+
 ``` {r echo=FALSE, warning = FALSE, out.width = "50%", fig.align="right"}
 
 # data.frame(year = c(1999, 2005, 2010, 2015, 2009, 2014, 2019),
@@ -119,81 +82,137 @@ df$difference_tfr_zwe %>%
 
 ```
 
-## Data and workflow | Zimbabwe {.t}
+## Challenges {.t}
 
-* R packages *rdhs* and *demogsurv* 
-* Reconstruct survey-weighted births and observed person years, by single year, 5 year age groups, and district
-  * CMC respondent's birth
-  * CMC respondent's births
-  * CMC interview
-
+* Non sampling biases
+  * Displacing
+  * Omitting
+* Data available at different spatial resolutions
+  * DHS: geomasked coordinates --> district
+  * MICS: coordinates unavailable --> province
 
 ## Data and workflow | Non-sampling bias in household surveys  {.t}
 
-* DHS collects full birth histories for children in the previous 5 years, and an abbreviated question set thereafter
-* Interviewers can reduce workload by:
-  * Displacing
-  * Omitting
+* DHS collects full birth histories for children in the 5 years preceding the survey, and an abbreviated question set thereafter
+* Births are asked about "in the order in which they occured"
+
 
 ## Data and workflow | Non-sampling bias in household surveys {.t}
 
-* DHS collects full birth histories for children in the previous 5 years, and an abbreviated question set thereafter
-* Interviewers can reduce workload by:
-  * Displacing
-  * Omitting
   
-``` {r echo=FALSE, warning = FALSE, out.height = "50%", fig.align="center"}
+``` {r echo=FALSE, warning = FALSE, message = FALSE, out.height = "80%", fig.align="center"}
 
-df$tfr_ZMB2013DHS %>%
-  filter(period > 2003) %>%
+df$admin0_tfr[["MWI"]] %>%
+  filter(surveyid == "MW2015DHS", period > 2005) %>%
   ggplot(aes(x=period, y=tfr)) +
-  scale_x_continuous(breaks=seq(2004,2013, 1), labels=as.character(seq(2004,2013, 1)))+
-    geom_point(size=2) +
-    geom_line(size=0.75) +
-    annotate(geom = "text", x = 2004:2013, y = 4.75, label = as.character(9:0), size=6) +
-    geom_vline(aes(xintercept = 2007.5), color="red", linetype=2)+
-    coord_cartesian(ylim = c(5, 7), expand = FALSE, clip = "off") +
-    labs(y="TFR", title="TFR | Zambia 2013 DHS") +
+  scale_x_continuous(breaks=seq(2006,2015, 1), labels=as.character(seq(2006,2015, 1)))+
+  # scale_x_reverse() +
+  scale_y_continuous(breaks=seq(4,7, 0.5), labels=as.character(seq(4,7, 0.5)))+
+    geom_point(size=2.5) +
+    geom_line(data = df$admin0_tfr[["MWI"]] %>%
+      filter(surveyid == "MW2015DHS", period > 2005, period < 2010), size=1) +
+    geom_line(data = df$admin0_tfr[["MWI"]] %>%
+      filter(surveyid == "MW2015DHS", period > 2009), size=1) +
+    # geom_line(data = df$admin0_tfr[["MWI"]] %>%
+    #     filter(surveyid == "MW2015DHS", period > 2009), aes(y=tfr+0.7), linetype=2, color="red", size=1) +
+    geom_segment(aes(x=2009, xend=2009, y=6, yend=5.2), arrow = arrow(length = unit(0.5, "cm")), size=1.5) +
+    geom_segment(aes(x=2009, xend=2009, yend=6, y=5.2), arrow = arrow(length = unit(0.5, "cm")), size=1.5) +
+    annotate(geom = "text", x = 2006:2015, y = 3.8, label = as.character(9:0), size=8) +
+    # geom_vline(aes(xintercept = 2007.5), color="red", linetype=2)+
+    # coord_cartesian(ylim = c(4, 7), expand = FALSE, clip = "off") +
+    labs(y="TFR", x="", title="TFR | Malawi 2015 DHS") +
     theme_minimal() +
     theme(
-      axis.title.x = element_blank(),
-      title = element_text(size=16),
-      plot.margin = unit(c(1, 1, 4, 1), "lines"),
+      axis.title.x = element_text(size=26, margin=margin(t=20)),
+      axis.title.y = element_text(size=26),
+      title = element_text(size=18),
+      plot.margin = unit(c(1, 1, 5, 1), "lines"),
       text = element_text(family='CMU Sans Serif'),
-      axis.text=element_text(size=17)
+      axis.text.x = element_text(size=25),
+      axis.text.y = element_text(size=25)
     )
-```
-    
+
+# df$tfr_ZMB2013DHS %>%
+#   filter(period > 2003) %>%
+#   ggplot(aes(x=period, y=tfr)) +
+#   scale_x_continuous(breaks=seq(2004,2013, 1), labels=as.character(seq(2004,2013, 1)))+
+#     geom_point(size=2) +
+#     geom_line(size=0.75) +
+#     annotate(geom = "text", x = 2004:2013, y = 4.75, label = as.character(9:0), size=6) +
+#     geom_vline(aes(xintercept = 2007.5), color="red", linetype=2)+
+#     coord_cartesian(ylim = c(5, 7), expand = FALSE, clip = "off") +
+#     labs(y="TFR", title="TFR | Zambia 2013 DHS") +
+#     theme_minimal() +
+#     theme(
+#       axis.title.x = element_blank(),
+#       title = element_text(size=16),
+#       plot.margin = unit(c(1, 1, 4, 1), "lines"),
+#       text = element_text(family='CMU Sans Serif'),
+#       axis.text=element_text(size=17)
+#     )
+```    
   
 ## Data and workflow | Non-sampling bias in household surveys  {.t}
 
-* Intersurvey analysis can estimate magnitude of bias due to overlap in recall periods
-  * Many countries within SSA have surveys of moderate or poor quality
+* Intersurvey analysis can estimate magnitude of bias due to overlap in recall periods (Masquelier, 2013; Schoumaker, 2014)
+
+``` {r echo=FALSE, warning = FALSE, fig.width=14, fig.height = 7, out.height="65%", fig.align="center"}
+
+df$admin0_tfr[["MWI"]] %>%
+  filter(!surveyid %in% c("MW2015DHS")) %>%
+  ggplot(aes(x=period,y=tfr, group=surveyid)) +
+  geom_point(size=2.5) +
+  geom_line(size=1) +
+  geom_point(data = df$admin0_tfr[["MWI"]] %>%
+               filter(surveyid %in% c("MW2015DHS")), aes(color=surveyid), size=2.5) +
+  geom_line(data = df$admin0_tfr[["MWI"]] %>%
+              filter(surveyid == "MW2015DHS"), aes(color=surveyid), size=1) +
+  labs(x="", y="TFR", title="TFR | Malawi") +
+    theme_minimal() +
+    theme(
+      text = element_text(family='CMU Sans Serif'),
+      title = element_text(size=27),
+      legend.position = "none",
+      axis.text = element_text(size=28),
+      axis.text.x = element_text(margin = margin(b=25)),
+      legend.text = element_text(size = 20),
+      legend.title = element_text(size=20),
+      axis.title = element_text(size=30)
+    )
+
+```
 
 ## Data and workflow | Non-sampling bias in household surveys  {.t}
 
-* Intersurvey analysis can estimate magnitude of bias due to overlap in recall periods
-  * Many countries within SSA have surveys of moderate or poor quality
+* Intersurvey analysis can estimate magnitude of bias due to overlap in recall periods (Masquelier, 2013; Schoumaker, 2014)
+* $Y_{a,t,tips} = \mu + \alpha_a + \gamma_t + \beta_1(TIPS>5) + \omega_{tips}$
   
 ``` {r echo=FALSE, warning = FALSE, fig.width=14, fig.height = 7, out.height="50%", fig.align="center"}
 
-df$tips %>% 
-  bind_rows(.id="iso") %>% 
-  mutate(iso = countrycode(iso, "iso3c", "country.name")) %>%
-  filter(id < 11) %>% 
-  ggplot(aes(x=id, y=trans, group=iso, color=iso)) + 
-    geom_point(size=2) + 
-    geom_line(size=0.75) +
+ data.frame() %>%
+  ggplot() + 
+    geom_point(data=df$tips %>% 
+      bind_rows(.id="iso") %>% 
+      mutate(iso = countrycode(iso, "iso3c", "country.name")) %>% filter(id <11), aes(x=id, y=trans, group=iso, color=iso), size=2.5) + 
+    geom_line(data=df$tips %>% 
+      bind_rows(.id="iso") %>% 
+      mutate(iso = countrycode(iso, "iso3c", "country.name")) %>%
+      filter(id < 6), aes(x=id, y=trans, group=iso, color=iso), size=1) +
+  geom_line(data=df$tips %>% 
+    bind_rows(.id="iso") %>% 
+    mutate(iso = countrycode(iso, "iso3c", "country.name")) %>%
+    filter(id >5, id < 11), aes(x=id, y=trans, group=iso, color=iso), size=1) +
+    geom_text(data=data.frame(label = c("16%", "14%", "11%", "3%"), x=rep(11,4), y=(c(1.15, 1.1, 1.075, 1.03)), iso=c("Malawi", "Zambia", "Zimbabwe", "Tanzania")), aes(x=x, y=y, label=label, color=iso), size=8, show.legend = FALSE) +
     scale_x_continuous(breaks=seq(0,10, 1), labels = as.character(0:10)) +
-    labs(x="Time Preceding Survey (TIPS)", y="", color="Country") +
+    labs(x="Years before survey (TIPS)", y="", color="Country") +
     theme_minimal() +
     theme(
       text = element_text(family='CMU Sans Serif'),
-      axis.text=element_text(size=17),
-      axis.text.x = element_text(margin = margin(t=25)),
-      legend.text = element_text(size = 16),
-      legend.title = element_text(size=16),
-      axis.title.x = element_text(size=18)
+      axis.text = element_text(size=28),
+      axis.text.x = element_text(margin = margin(b=25)),
+      legend.text = element_text(size = 20),
+      legend.title = element_text(size=20),
+      axis.title = element_text(size=30)
     )
 
 ```
@@ -202,50 +221,437 @@ df$tips %>%
 $$b_{ait} \sim Po( \lambda_{ait} . E_{ait} )$$
 $$log(\lambda_{ait}) = \mu + \alpha_a + \gamma_t + \delta_i + \eta_{a,t} + \eta_{a,i} + \eta_{i,t}$$
 
-$\mu \sim N(0, 5)$
+Average log fertility rate: $\mu \sim N(0, 5)$
 
+Age pattern: $\alpha_a \sim RW1(\sigma^2_\alpha)$ $\hfill a \in \{15-19, 20-24 ... 45-49\}$
 
-$\alpha_a \sim RW1(\sigma^2_\alpha)$ $\hfill a \in \{15-19, 20-24 ... 45-49\}$
+Time trend: $\gamma_t \sim RW2(\sigma^2_\gamma)$ $\hfill t \in \{1995:2020\}$
 
-
-$\delta_i \sim BYM2(\sigma^2_\delta)$ $\hfill i \in \{1 ... n_i\}$
-
-
-$\gamma_t \sim RW2(\sigma^2_\gamma)$ $\hfill t \in \{1995:2020\}$
+Spatial correlation: $\delta_i \sim BYM2(\sigma^2_\delta)$ $\hfill i \in \{1 ... n_i\}$
 
 ## Model specification  {.t}
 $$b_{ait} \sim Po( \lambda_{ait} . E_{ait} )$$ 
 $$log(\lambda_{ait}) = \mu + \alpha_a + \gamma_t + \delta_i + \eta_{a,t} + \eta_{a,i} + \eta_{i,t}$$
 
-$\eta_{a,t} \sim N(0, \sigma^2_{\eta_{a,t}})$ $\hfill AR1 \otimes AR1$
+$\eta_{a,t}: AR1 \otimes AR1$
 
-$\eta_{a,i} \sim N(0, \sigma^2_{\eta_{a,i}})$ $\hfill AR1 \otimes ICAR$
+$\eta_{a,i}:  AR1 \otimes ICAR$
 
-$\eta_{i,t} \sim N(0, \sigma^2_{\eta_{i,t}})$ $\hfill ICAR \otimes AR1$
+$\eta_{i,t}: ICAR \otimes AR1$
 
 ## Model specification  {.t}
 $$b_{ait} \sim Po( \lambda_{ait} . E_{ait} )$$
 $$log(\lambda_{ait}) = \mu + \alpha_a + \gamma_t + \delta_i + \eta_{a,t} + \eta_{a,i} + \eta_{i,t}$$
 
 Observation model
-$$log(\hat{b}_{ait}) = log(\lambda_{ait} \times E_{ait}) + \beta_1 TIPS_{d} + \omega_{TIPS}$$
+$$log(\tilde{b}_{ait}) = log(\lambda_{ait} \times E_{ait}) + \beta_1 TIPS_{d} + \omega_{TIPS}$$
 $TIPS_d=\begin{cases} 0, & \text{if TIPS} < 5 \\ 1, & \text{otherwise} \end{cases}$
 
 $\omega_{tips} \sim RW1(\sigma^2_\omega)$ $\hfill tips \in \{0:14\}$
 
+## Model specification
+
+$$b_{ait} \sim Po( \lambda_{ait} . E_{ait} )$$ 
+$$log(\lambda_{ait}) = \mu + \alpha_a + \gamma_t + \delta_i + \eta_{a,t} + \eta_{a,i} + \eta_{i,t}$$
+
+Aggregation model
+
+$$log(\tilde{b}_{at}) = \frac{\Sigma_i log(\lambda_{ait} \times E_{ait})}{E_{at}} + \beta_1 TIPS_{d} + \omega_{TIPS}$$
+
+## Model specification
+
+* Model fit in Template Model Builder (TMB)
+* Countries take < 2 minutes to fit and sample
+
 ## Results
 
-tfr maps at 3 admin levels
+``` {r echo=FALSE, warning = FALSE, message=FALSE, fig.height = 14, fig.width = 18, out.height="90%", fig.align="center"}
 
-tfr trend at admin 1
+grid.arrange(df$mwi_sample %>%
+  group_by(area_id, period) %>%
+  summarise(tfr = 5*sum(median)) %>%
+  left_join(areas_long) %>%
+  filter(area_level == 5, period == 2016) %>%
+  left_join(boundaries) %>%
+  st_as_sf %>%
+  ggplot() +
+    geom_sf(aes(geometry = geometry, fill=tfr)) +
+    scale_fill_viridis(guide = guide_colorbar(frame.colour = "black", frame.linewidth = 1, ticks.colour = "black"), direction=-1)+
+    coord_sf(datum=NA)+
+    labs(title="", fill="TFR") +
+    theme_minimal() +
+    theme(
+          text = element_text(family='CMU Sans Serif'),
+          axis.text=element_text(size=17),
+          axis.text.x = element_text(angle = 45, hjust = 1),
+          legend.position = 'bottom',
+          legend.key.width=unit(3,"cm"),
+          legend.key.height = unit(0.3, 'in'),
+          legend.title = element_text(size=22),
+          title = element_text(size=16),
+          legend.text = element_text(size = 22),
+          strip.text = element_text(size=18))
+  ,
 
-asfr from all districts in overlay plot to see distribution
+df$mwi_sample %>%
+  group_by(area_id, period) %>%
+  summarise(tfr = 5*sum(median)) %>%
+  left_join(areas_long) %>%
+  filter(area_level == 1, period == 2016) %>%
+  left_join(boundaries) %>%
+  st_as_sf %>%
+  ggplot() +
+    geom_sf(aes(geometry = geometry, fill=tfr)) +
+    scale_fill_viridis(guide = guide_colorbar(frame.colour = "black", frame.linewidth = 1, ticks.colour = "black"), direction=-1, limits=c(2.5, 5.5), breaks=seq(3,5,0.5), labels=as.character(c("3.0", "3.5", "4.0", "4.5", "5.0")))+
+    # geom_text(aes(x=center_x, y=center_y, label=round(tfr, digits=2), size=8) +
+    coord_sf(datum=NA)+
+    labs(title="", fill="TFR") +
+    theme_minimal() +
+    theme(
+          text = element_text(family='CMU Sans Serif'),
+          axis.text=element_text(size=17),
+          axis.text.x = element_text(angle = 45, hjust = 1),
+          legend.position = 'bottom',
+          legend.key.width=unit(3,"cm"),
+          legend.key.height = unit(0.3, 'in'),
+          legend.title = element_text(size=22),
+          title = element_text(size=16),
+          legend.text = element_text(size = 22),
+          strip.text = element_text(size=18)),
+ncol=2)
 
+```
+<!-- ## Results -->
+
+<!-- ``` {r echo=FALSE, warning = FALSE, message=FALSE, fig.height = 14, fig.width = 18, out.height="90%", fig.align="center"} -->
+
+<!-- df$mwi_sample %>% -->
+<!--   left_join(areas_long) %>% -->
+<!--   filter(period == 2015, area_level == 5) %>% -->
+<!--   left_join(population %>% filter(source == "Census 2018", sex == "female"), by=c("age_group", "area_id", "period")) %>% -->
+<!--   select(area_id, period, median, age_group, population) %>% -->
+<!--   mutate(births = median*population) %>% -->
+<!--   group_by(area_id) %>% -->
+<!--   summarise(births = sum(births)) %>% -->
+<!--   left_join(boundaries) %>% -->
+<!--   st_as_sf %>% -->
+<!--   ggplot() + -->
+<!--     geom_sf(aes(geometry = geometry)) + -->
+<!--     geom_point(aes(x=center_x, y=center_y, color=births, fill=births, size=births)) + -->
+<!--     scale_fill_viridis(guide = guide_colorbar(frame.colour = "black", frame.linewidth = 1, ticks.colour = "black"), direction=-1)+ -->
+<!--     coord_sf(datum=NA)+ -->
+<!--     labs(title="", fill="TFR") + -->
+<!--     theme_minimal() + -->
+<!--     theme( -->
+<!--           text = element_text(family='CMU Sans Serif'), -->
+<!--           axis.text=element_text(size=17), -->
+<!--           axis.text.x = element_text(angle = 45, hjust = 1), -->
+<!--           legend.position = 'bottom', -->
+<!--           legend.key.width=unit(3,"cm"), -->
+<!--           legend.key.height = unit(0.3, 'in'), -->
+<!--           legend.title = element_text(size=22), -->
+<!--           title = element_text(size=16), -->
+<!--           legend.text = element_text(size = 22), -->
+<!--           strip.text = element_text(size=18)) -->
+<!--   , -->
+
+<!-- df$mwi_sample %>% -->
+<!--   group_by(area_id, period) %>% -->
+<!--   summarise(tfr = 5*sum(median)) %>% -->
+<!--   left_join(areas_long) %>% -->
+<!--   filter(area_level == 1, period == 2016) %>% -->
+<!--   left_join(boundaries) %>% -->
+<!--   st_as_sf %>% -->
+<!--   ggplot() + -->
+<!--     geom_sf(aes(geometry = geometry, fill=tfr)) + -->
+<!--     scale_fill_viridis(guide = guide_colorbar(frame.colour = "black", frame.linewidth = 1, ticks.colour = "black"), direction=-1, limits=c(2.5, 5.5), breaks=seq(3,5,0.5), labels=as.character(c("3.0", "3.5", "4.0", "4.5", "5.0")))+ -->
+<!--     # geom_text(aes(x=center_x, y=center_y, label=round(tfr, digits=2), size=8) + -->
+<!--     coord_sf(datum=NA)+ -->
+<!--     labs(title="", fill="TFR") + -->
+<!--     theme_minimal() + -->
+<!--     theme( -->
+<!--           text = element_text(family='CMU Sans Serif'), -->
+<!--           axis.text=element_text(size=17), -->
+<!--           axis.text.x = element_text(angle = 45, hjust = 1), -->
+<!--           legend.position = 'bottom', -->
+<!--           legend.key.width=unit(3,"cm"), -->
+<!--           legend.key.height = unit(0.3, 'in'), -->
+<!--           legend.title = element_text(size=22), -->
+<!--           title = element_text(size=16), -->
+<!--           legend.text = element_text(size = 22), -->
+<!--           strip.text = element_text(size=18)), -->
+<!-- ncol=2) -->
+
+<!-- ``` -->
+
+
+## Results
+
+``` {r echo=FALSE, warning = FALSE, message=FALSE, fig.height = 18, fig.width = 22, out.height="90%", fig.align="center"}
+
+grid.arrange(df$uga_sample %>%
+  group_by(area_id, period) %>%
+  summarise(tfr = 5*sum(median)) %>%
+  left_join(areas_long) %>%
+  filter(area_level == 3, period == 2016) %>%
+  left_join(boundaries) %>%
+  st_as_sf %>%
+  ggplot() +
+    geom_sf(aes(geometry = geometry, fill=tfr)) +
+    scale_fill_viridis(guide = guide_colorbar(frame.colour = "black", frame.linewidth = 1, ticks.colour = "black"), direction=-1)+
+    coord_sf(datum=NA)+
+    labs(title="", fill="TFR") +
+    theme_minimal() +
+    theme(
+          text = element_text(family='CMU Sans Serif'),
+          axis.text=element_text(size=17),
+          axis.text.x = element_text(angle = 45, hjust = 1),
+          legend.position = 'bottom',
+          legend.key.width=unit(3,"cm"),
+          legend.key.height = unit(0.3, 'in'),
+          legend.title = element_text(size=33),
+          title = element_text(size=16),
+          legend.text = element_text(size = 33),
+          strip.text = element_text(size=18))
+  ,
+
+df$uga_sample %>%
+  group_by(area_id, period) %>%
+  summarise(tfr = 5*sum(median)) %>%
+  left_join(areas_long) %>%
+  filter(area_level == 1, period == 2016) %>%
+  left_join(boundaries) %>%
+  st_as_sf %>%
+  ggplot() +
+    geom_sf(aes(geometry = geometry, fill=tfr)) +
+    scale_fill_viridis(guide = guide_colorbar(frame.colour = "black", frame.linewidth = 1, ticks.colour = "black"), direction=-1, limits=c(3,8), breaks=seq(4,7,1), labels=as.character(seq(4,7,1)))+
+    coord_sf(datum=NA)+
+    labs(title="", fill="TFR") +
+    theme_minimal() +
+    theme(
+          text = element_text(family='CMU Sans Serif'),
+          axis.text=element_text(size=17),
+          axis.text.x = element_text(angle = 45, hjust = 1),
+          legend.position = 'bottom',
+          legend.key.width=unit(3,"cm"),
+          legend.key.height = unit(0.3, 'in'),
+          legend.title = element_text(size=33),
+          title = element_text(size=16),
+          legend.text = element_text(size = 33),
+          strip.text = element_text(size=18)),
+ncol=2)
+
+```
+
+## Results
+
+``` {r echo=FALSE, warning = FALSE, message=FALSE, fig.height = 10, fig.width = 22, out.width="100%", fig.align="center"}
+
+df$mwi_sample %>%
+  left_join(areas_long) %>%
+  filter(area_level ==1) %>%
+  mutate(source = "Model") %>%
+  ggplot(aes(x=period, y=median, group=age_group)) +
+    geom_line(aes(color=age_group), size=1.5, show.legend = FALSE) +
+    geom_ribbon(aes(ymin=lower, ymax=upper, fill=age_group), alpha=0.3) +
+    facet_wrap(~area_name) +
+  labs(y="ASFR", x="", fill="Age group") +
+  theme_minimal() +
+    theme(
+          # text = element_text(family='CMU Sans Serif'),
+          axis.text=element_text(size=26),
+          axis.text.x = element_text(margin = margin(t=20)),
+          #legend.key.width=unit(1.5,"cm"),
+          #legend.key.size = unit(1.5, 'lines'),
+          #legend.key.height = unit(0.1, 'in'),
+          title = element_text(size=26),
+          legend.text = element_text(size = 26),
+          strip.text = element_text(size=26),
+          strip.background = element_blank(),
+          rect = element_rect(fill = "transparent") # all rectangles
+    )
+
+```
+
+## Results
+
+``` {r echo=FALSE, warning = FALSE, message=FALSE, fig.height = 10, fig.width = 22, out.width="100%", fig.align="center"}
+grid.arrange(df$uga_sample %>%
+  group_by(area_id, period) %>%
+  summarise(lower = 5*sum(lower), val = 5*sum(median), upper = 5*sum(upper)) %>%
+  mutate(source = "Model") %>%
+  left_join(areas_long) %>%
+  filter(area_level == 0) %>%
+  ggplot(aes(x=period, y=val, color=source)) +
+    geom_line(size=1.5, show.legend = FALSE) +
+    # geom_point(data=df$admin0_tfr[["UGA"]] %>% left_join(areas_long %>% select(area_id, area_name)),aes(y=tfr, color=NULL), show.legend = FALSE, size=2.5) +
+    geom_line(data=df$wpp_tfr %>% filter(iso3 == "UGA") %>% filter(period>1994, period<2018), size=1.5) +
+    # geom_line(data=df$gbd_tfr %>% filter(iso3 == "UGA") %>% filter(period>1994, period<2018), size=1.5) +
+    geom_ribbon(aes(ymin=lower, ymax=upper, color=NULL, fill=source), alpha=0.3, show.legend = FALSE) +
+    facet_wrap(~area_name) +
+    labs(x="", y="TFR") +
+    ylim(4.5, 8) +
+    theme_minimal() +
+    theme(
+          text = element_text(family='CMU Sans Serif'),
+          axis.text=element_text(size=26),
+          axis.text.x = element_text(margin = margin(t=20)),
+          #legend.key.width=unit(1.5,"cm"),
+          #legend.key.size = unit(1.5, 'lines'),
+          #legend.key.height = unit(0.1, 'in'),
+          title = element_text(size=26),
+          legend.text = element_text(size = 26),
+          strip.text = element_text(size=26),
+          strip.background = element_blank(),
+          legend.position = "none",
+          rect = element_rect(fill = "transparent") # all rectangles
+    ),
+
+df$mwi_sample %>%
+  group_by(area_id, period) %>%
+  summarise(lower = 5*sum(lower), val = 5*sum(median), upper = 5*sum(upper)) %>%
+  mutate(source = "Model") %>%
+  left_join(areas_long) %>%
+  filter(area_level == 0) %>%
+  ggplot(aes(x=period, y=val, color=source)) +
+  geom_line(size=1.5) +
+  # geom_point(data=df$admin0_tfr[["MWI"]] %>% left_join(areas_long %>% select(area_id, area_name)),aes(y=tfr, color=NULL), size=2.5) +
+  geom_line(data=df$wpp_tfr %>% filter(iso3 == "MWI") %>% filter(period>1994, period<2017), size=1.5) +
+  geom_ribbon(aes(ymin=lower, ymax=upper, color=NULL, fill=source), alpha=0.3, show.legend = FALSE) +
+  # geom_line(data=df$gbd_tfr %>% filter(iso3 == "MWI") %>% filter(period>1994, period<2017), size=1.5) +
+
+  facet_wrap(~area_name) +
+  labs(x="", y="", color="Source") +
+  theme_minimal() +
+    theme(
+          text = element_text(family='CMU Sans Serif'),
+          axis.text=element_text(size=26),
+          axis.text.x = element_text(margin = margin(t=20)),
+          #legend.key.width=unit(1.5,"cm"),
+          #legend.key.size = unit(1.5, 'lines'),
+          #legend.key.height = unit(0.1, 'in'),
+          title = element_text(size=26),
+          legend.text = element_text(size = 26),
+          strip.text = element_text(size=26),
+          strip.background = element_blank(),
+          rect = element_rect(fill = "transparent") # all rectangles
+    ),
+
+nrow=1)
+```
+
+
+## Discussion
+
+* There exists district-level heterogeneity that is not captured by admin-1 estimates
+* Non-sampling bias can lead to substantial distortion of fertility estimates in surveys
+  * Role of bias adjustment depends on measure of fertility
+* Can be adjusted for within automated analysis
+* Consideration of further non-sampling bias
+  * Displacement of first birth(s) at older ages
+  
 ## Future work
 
-* Projections --> leontine
-* Survey effects - not necessarily surveyid iid, but survey type iid? probs not identifiable. TZA example where AIS and MIS far from DHS
-* Census data, other surveys, summary birth histories
+* Structured model for fertility transition and projection (Alkema, 2011; Sevkicova, 2012)
+* Survey random effects & multi-country fitting
+* Census data, additional country-specific surveys, summary birth histories
+
+## Many thanks
+
+\textbf{Small area estimation of district-level fertility in sub-Saharan Africa}
+
+Oli Stevens
+
+Imperial College London
+
+6th April 2020
+
+## Extras
+
+![fit](images/mwi tfr admin1.png)
+
+## Extras
+
+![NAM admin-1](images/nam_tfr.png)
+
+
+## Extras
+
+![UGA admin-1](images/uga_tfr)
+
+## Extras
+
+![ZMB admin-1](images/zmb_tfr)
+
+## Extras
+
+``` {r echo=FALSE, warning = FALSE, message=FALSE, fig.height = 10, fig.width = 22, out.width="100%", fig.align="center"}
+grid.arrange(df$uga_sample %>%
+  group_by(area_id, period) %>%
+  summarise(lower = 5*sum(lower), val = 5*sum(median), upper = 5*sum(upper)) %>%
+  mutate(source = "Model") %>%
+  left_join(areas_long) %>%
+  filter(area_level == 0) %>%
+  ggplot(aes(x=period, y=val, color=source)) +
+    geom_line(size=1.5, show.legend = FALSE) +
+    # geom_point(data=df$admin0_tfr[["UGA"]] %>% left_join(areas_long %>% select(area_id, area_name)),aes(y=tfr, color=NULL), show.legend = FALSE, size=2.5) +
+    geom_line(data=df$wpp_tfr %>% filter(iso3 == "UGA") %>% filter(period>1994, period<2018), size=1.5) +
+    geom_line(data=df$gbd_tfr %>% filter(iso3 == "UGA") %>% filter(period>1994, period<2018), size=1.5) +
+    geom_ribbon(aes(ymin=lower, ymax=upper, color=NULL), fill="green", alpha=0.2, show.legend = FALSE) +
+    facet_wrap(~area_name) +
+    labs(x="", y="TFR") +
+    ylim(4.5, 8) +
+    theme_minimal() +
+    theme(
+          text = element_text(family='CMU Sans Serif'),
+          axis.text=element_text(size=26),
+          axis.text.x = element_text(margin = margin(t=20)),
+          #legend.key.width=unit(1.5,"cm"),
+          #legend.key.size = unit(1.5, 'lines'),
+          #legend.key.height = unit(0.1, 'in'),
+          title = element_text(size=26),
+          legend.text = element_text(size = 26),
+          strip.text = element_text(size=26),
+          strip.background = element_blank(),
+          legend.position = "none",
+          rect = element_rect(fill = "transparent") # all rectangles
+    ),
+
+df$mwi_sample %>%
+  group_by(area_id, period) %>%
+  summarise(lower = 5*sum(lower), val = 5*sum(median), upper = 5*sum(upper)) %>%
+  mutate(source = "Model") %>%
+  left_join(areas_long) %>%
+  filter(area_level == 0) %>%
+  ggplot(aes(x=period, y=val, color=source)) +
+  geom_line(size=1.5) +
+  # geom_point(data=df$admin0_tfr[["MWI"]] %>% left_join(areas_long %>% select(area_id, area_name)),aes(y=tfr, color=NULL), size=2.5) +
+  geom_line(data=df$wpp_tfr %>% filter(iso3 == "MWI") %>% filter(period>1994, period<2017), size=1.5) +
+  geom_ribbon(aes(ymin=lower, ymax=upper, color=NULL), fill="green", alpha=0.2, show.legend = FALSE) +
+  geom_line(data=df$gbd_tfr %>% filter(iso3 == "MWI") %>% filter(period>1994, period<2017), size=1.5) +
+
+  facet_wrap(~area_name) +
+  labs(x="", y="", color="Source") +
+  theme_minimal() +
+    theme(
+          text = element_text(family='CMU Sans Serif'),
+          axis.text=element_text(size=26),
+          axis.text.x = element_text(margin = margin(t=20)),
+          #legend.key.width=unit(1.5,"cm"),
+          #legend.key.size = unit(1.5, 'lines'),
+          #legend.key.height = unit(0.1, 'in'),
+          title = element_text(size=26),
+          legend.text = element_text(size = 26),
+          strip.text = element_text(size=26),
+          strip.background = element_blank(),
+          rect = element_rect(fill = "transparent") # all rectangles
+    ),
+
+nrow=1)
+```
+
+
+
 
 ``` {r echo=FALSE}
 

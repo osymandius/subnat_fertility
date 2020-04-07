@@ -72,6 +72,15 @@
             breaklinks=true}
 \urlstyle{same}  % don't use monospace font for urls
 \newif\ifbibliography
+\usepackage{graphicx,grffile}
+\makeatletter
+\def\maxwidth{\ifdim\Gin@nat@width>\linewidth\linewidth\else\Gin@nat@width\fi}
+\def\maxheight{\ifdim\Gin@nat@height>\textheight\textheight\else\Gin@nat@height\fi}
+\makeatother
+% Scale images if necessary, so that they will not overflow the page
+% margins by default, and it is still possible to overwrite the defaults
+% using explicit options in \includegraphics[width, height, ...]{}
+\setkeys{Gin}{width=\maxwidth,height=\maxheight,keepaspectratio}
 \setlength{\emergencystretch}{3em}  % prevent overfull lines
 \providecommand{\tightlist}{%
   \setlength{\itemsep}{0pt}\setlength{\parskip}{0pt}}
@@ -91,75 +100,18 @@ Imperial College London}
 \begin{document}
 \frame{\titlepage}
 
-\begin{frame}[t]{Introduction \textbar{} Background}
-\protect\hypertarget{introduction-background}{}
+\begin{frame}[t]{Introduction}
+\protect\hypertarget{introduction}{}
 
 \begin{itemize}
 \tightlist
-\item
-  UNAIDS Reference Group for Estimates, Modelling and Projections
-  provides technical recommendations to UNAIDS for the creation of
-  annual HIV estimates
-\item
-  Newly created subnational estimation model - Naomi
-
-  \begin{itemize}
-  \tightlist
-  \item
-    District-level estimates of prevalence, incidence, ART coverage by
-    sex and 5 year age groups
-  \end{itemize}
-\end{itemize}
-
-\end{frame}
-
-\begin{frame}[t]{Introduction \textbar{} Background}
-\protect\hypertarget{introduction-background-1}{}
-
-\begin{itemize}
-\tightlist
-\item
-  UNAIDS Reference Group for Estimates, Modelling and Projections
-  provides technical recommendations to UNAIDS for the creation of
-  annual HIV estimates
-\item
-  Newly created subnational estimation model - Naomi
-
-  \begin{itemize}
-  \tightlist
-  \item
-    District-level estimates of prevalence, incidence, ART coverage by
-    sex and 5 year age groups
-  \end{itemize}
-\end{itemize}
-
-\begin{center}\includegraphics[height=0.5\textheight]{2020_04_UNPD_files/figure-beamer/unnamed-chunk-1-1} \end{center}
-
-\end{frame}
-
-\begin{frame}[t]{Introduction \textbar{} Background}
-\protect\hypertarget{introduction-background-2}{}
-
-\begin{itemize}
-\tightlist
-\item
-  UNAIDS Reference Group for Estimates, Modelling and Projections
-  provides technical recommendations to UNAIDS for the creation of
-  annual HIV estimates
-\item
-  Newly created subnational estimation model - Naomi
-
-  \begin{itemize}
-  \tightlist
-  \item
-    District-level estimates of prevalence, incidence, treatment
-    coverage by sex and 5 year age groups
-  \end{itemize}
 \item
   District level estimates of fertility desired for:
 
   \begin{itemize}
   \tightlist
+  \item
+    Improved population projections at subnational levels
   \item
     Estimation of children living with HIV
 
@@ -171,70 +123,72 @@ Imperial College London}
       Resource allocation for prevention of mother-to-child transmission
     \end{itemize}
   \item
-    Improved projections at district level
+    Evaluation of family planning programamtic scaleup
   \end{itemize}
 \end{itemize}
 
+\textbf{Objective} Estimate annual age-specific fertility rates at
+district level for SSA countries from household survey data
+
 \end{frame}
 
-\begin{frame}[t]{Data and workflow \textbar{} Zimbabwe}
-\protect\hypertarget{data-and-workflow-zimbabwe}{}
+\begin{frame}[t]{Data sources \textbar{} Malawi}
+\protect\hypertarget{data-sources-malawi}{}
 
 \begin{itemize}
 \tightlist
 \item
-  Demographic Health Surveys
+  Household surveys with full birth histories
 
   \begin{itemize}
   \tightlist
   \item
-    Geomasked coordinates assigned to district
+    Demographic Health Surveys (2000, 2004, 2010, 2015)
   \item
-    1999, 2005, 2010, 2015
+    Malaria Indicator Survey (2012, 2014, 2017)
+  \item
+    Multiple Indicator Cluster Survey (2006, 2013)
   \end{itemize}
 \item
-  Multiple Indicator Cluster Survey
-
-  \begin{itemize}
-  \tightlist
-  \item
-    Survey region indicator
-  \item
-    2009, 2014, 2019
-  \end{itemize}
-\item
-  Birth history data:
+  Full birth history data:
 
   \begin{itemize}
   \tightlist
   \item
     DHS, MICS: 15 years
   \item
-    (Malaria Indicator Survey/AIDS Indicator Surveys): 5 years
+    MIS: 5 years
   \end{itemize}
+\item
+  Summary birth histories from censuses - to be included
 \end{itemize}
 
 \end{frame}
 
-\begin{frame}[t]{Data and workflow \textbar{} Zimbabwe}
-\protect\hypertarget{data-and-workflow-zimbabwe-1}{}
+\begin{frame}[t]{Challenges}
+\protect\hypertarget{challenges}{}
 
 \begin{itemize}
 \tightlist
 \item
-  R packages \emph{rdhs} and \emph{demogsurv}
-\item
-  Reconstruct survey-weighted births and observed person years, by
-  single year, 5 year age groups, and district
+  Non sampling biases
 
   \begin{itemize}
   \tightlist
   \item
-    CMC respondent's birth
+    Displacing
   \item
-    CMC respondent's births
+    Omitting
+  \end{itemize}
+\item
+  Data available at different spatial resolutions
+
+  \begin{itemize}
+  \tightlist
   \item
-    CMC interview
+    DHS: geomasked coordinates --\textgreater{} district
+  \item
+    MICS: coordinates unavailable --\textgreater{} province
   \end{itemize}
 \end{itemize}
 
@@ -247,18 +201,10 @@ household surveys}
 \begin{itemize}
 \tightlist
 \item
-  DHS collects full birth histories for children in the previous 5
-  years, and an abbreviated question set thereafter
+  DHS collects full birth histories for children in the 5 years
+  preceding the survey, and an abbreviated question set thereafter
 \item
-  Interviewers can reduce workload by:
-
-  \begin{itemize}
-  \tightlist
-  \item
-    Displacing
-  \item
-    Omitting
-  \end{itemize}
+  Births are asked about ``in the order in which they occured''
 \end{itemize}
 
 \end{frame}
@@ -267,24 +213,7 @@ household surveys}
 household surveys}
 \protect\hypertarget{data-and-workflow-non-sampling-bias-in-household-surveys-1}{}
 
-\begin{itemize}
-\tightlist
-\item
-  DHS collects full birth histories for children in the previous 5
-  years, and an abbreviated question set thereafter
-\item
-  Interviewers can reduce workload by:
-
-  \begin{itemize}
-  \tightlist
-  \item
-    Displacing
-  \item
-    Omitting
-  \end{itemize}
-\end{itemize}
-
-\begin{center}\includegraphics[height=0.5\textheight]{2020_04_UNPD_files/figure-beamer/unnamed-chunk-3-1} \end{center}
+\begin{center}\includegraphics[height=0.8\textheight]{2020_04_UNPD_files/figure-beamer/unnamed-chunk-2-1} \end{center}
 
 \end{frame}
 
@@ -296,14 +225,10 @@ household surveys}
 \tightlist
 \item
   Intersurvey analysis can estimate magnitude of bias due to overlap in
-  recall periods
-
-  \begin{itemize}
-  \tightlist
-  \item
-    Many countries within SSA have surveys of moderate or poor quality
-  \end{itemize}
+  recall periods (Masquelier, 2013; Schoumaker, 2014)
 \end{itemize}
+
+\begin{center}\includegraphics[height=0.65\textheight]{2020_04_UNPD_files/figure-beamer/unnamed-chunk-3-1} \end{center}
 
 \end{frame}
 
@@ -315,13 +240,9 @@ household surveys}
 \tightlist
 \item
   Intersurvey analysis can estimate magnitude of bias due to overlap in
-  recall periods
-
-  \begin{itemize}
-  \tightlist
-  \item
-    Many countries within SSA have surveys of moderate or poor quality
-  \end{itemize}
+  recall periods (Masquelier, 2013; Schoumaker, 2014)
+\item
+  \(Y_{a,t,tips} = \mu + \alpha_a + \gamma_t + \beta_1(TIPS>5) + \omega_{tips}\)
 \end{itemize}
 
 \begin{center}\includegraphics[height=0.5\textheight]{2020_04_UNPD_files/figure-beamer/unnamed-chunk-4-1} \end{center}
@@ -334,14 +255,16 @@ household surveys}
 \[b_{ait} \sim Po( \lambda_{ait} . E_{ait} )\]
 \[log(\lambda_{ait}) = \mu + \alpha_a + \gamma_t + \delta_i + \eta_{a,t} + \eta_{a,i} + \eta_{i,t}\]
 
-\(\mu \sim N(0, 5)\)
+Average log fertility rate: \(\mu \sim N(0, 5)\)
 
-\(\alpha_a \sim RW1(\sigma^2_\alpha)\)
+Age pattern: \(\alpha_a \sim RW1(\sigma^2_\alpha)\)
 \(\hfill a \in \{15-19, 20-24 ... 45-49\}\)
 
-\(\delta_i \sim BYM2(\sigma^2_\delta)\) \(\hfill i \in \{1 ... n_i\}\)
+Time trend: \(\gamma_t \sim RW2(\sigma^2_\gamma)\)
+\(\hfill t \in \{1995:2020\}\)
 
-\(\gamma_t \sim RW2(\sigma^2_\gamma)\) \(\hfill t \in \{1995:2020\}\)
+Spatial correlation: \(\delta_i \sim BYM2(\sigma^2_\delta)\)
+\(\hfill i \in \{1 ... n_i\}\)
 
 \end{frame}
 
@@ -351,14 +274,11 @@ household surveys}
 \[b_{ait} \sim Po( \lambda_{ait} . E_{ait} )\]
 \[log(\lambda_{ait}) = \mu + \alpha_a + \gamma_t + \delta_i + \eta_{a,t} + \eta_{a,i} + \eta_{i,t}\]
 
-\(\eta_{a,t} \sim N(0, \sigma^2_{\eta_{a,t}})\)
-\(\hfill AR1 \otimes AR1\)
+\(\eta_{a,t}: AR1 \otimes AR1\)
 
-\(\eta_{a,i} \sim N(0, \sigma^2_{\eta_{a,i}})\)
-\(\hfill AR1 \otimes ICAR\)
+\(\eta_{a,i}: AR1 \otimes ICAR\)
 
-\(\eta_{i,t} \sim N(0, \sigma^2_{\eta_{i,t}})\)
-\(\hfill ICAR \otimes AR1\)
+\(\eta_{i,t}: ICAR \otimes AR1\)
 
 \end{frame}
 
@@ -369,21 +289,94 @@ household surveys}
 \[log(\lambda_{ait}) = \mu + \alpha_a + \gamma_t + \delta_i + \eta_{a,t} + \eta_{a,i} + \eta_{i,t}\]
 
 Observation model
-\[log(\hat{b}_{ait}) = log(\lambda_{ait} \times E_{ait}) + \beta_1 TIPS_{d} + \omega_{TIPS}\]
+\[log(\tilde{b}_{ait}) = log(\lambda_{ait} \times E_{ait}) + \beta_1 TIPS_{d} + \omega_{TIPS}\]
 \(TIPS_d=\begin{cases} 0, & \text{if TIPS} < 5 \\ 1, & \text{otherwise} \end{cases}\)
 
 \(\omega_{tips} \sim RW1(\sigma^2_\omega)\) \(\hfill tips \in \{0:14\}\)
 
 \end{frame}
 
+\begin{frame}{Model specification}
+\protect\hypertarget{model-specification-3}{}
+
+\[b_{ait} \sim Po( \lambda_{ait} . E_{ait} )\]
+\[log(\lambda_{ait}) = \mu + \alpha_a + \gamma_t + \delta_i + \eta_{a,t} + \eta_{a,i} + \eta_{i,t}\]
+
+Aggregation model
+
+\[log(\tilde{b}_{at}) = \frac{\Sigma_i log(\lambda_{ait} \times E_{ait})}{E_{at}} + \beta_1 TIPS_{d} + \omega_{TIPS}\]
+
+\end{frame}
+
+\begin{frame}{Model specification}
+\protect\hypertarget{model-specification-4}{}
+
+\begin{itemize}
+\tightlist
+\item
+  Model fit in Template Model Builder (TMB)
+\item
+  Countries take \textless{} 2 minutes to fit and sample
+\end{itemize}
+
+\end{frame}
+
 \begin{frame}{Results}
 \protect\hypertarget{results}{}
 
-tfr maps at 3 admin levels
+\begin{center}\includegraphics[height=0.9\textheight]{2020_04_UNPD_files/figure-beamer/unnamed-chunk-5-1} \end{center}
 
-tfr trend at admin 1
+\end{frame}
 
-asfr from all districts in overlay plot to see distribution
+\begin{frame}{Results}
+\protect\hypertarget{results-1}{}
+
+\begin{center}\includegraphics[height=0.9\textheight]{2020_04_UNPD_files/figure-beamer/unnamed-chunk-6-1} \end{center}
+
+\end{frame}
+
+\begin{frame}{Results}
+\protect\hypertarget{results-2}{}
+
+\begin{center}\includegraphics[width=1\linewidth]{2020_04_UNPD_files/figure-beamer/unnamed-chunk-7-1} \end{center}
+
+\end{frame}
+
+\begin{frame}{Results}
+\protect\hypertarget{results-3}{}
+
+\begin{center}\includegraphics[width=1\linewidth]{2020_04_UNPD_files/figure-beamer/unnamed-chunk-8-1} \end{center}
+
+\end{frame}
+
+\begin{frame}{Discussion}
+\protect\hypertarget{discussion}{}
+
+\begin{itemize}
+\tightlist
+\item
+  There exists district-level heterogeneity that is not captured by
+  admin-1 estimates
+\item
+  Non-sampling bias can lead to substantial distortion of fertility
+  estimates in surveys
+
+  \begin{itemize}
+  \tightlist
+  \item
+    Role of bias adjustment depends on measure of fertility
+  \end{itemize}
+\item
+  Can be adjusted for within automated analysis
+\item
+  Consideration of further non-sampling bias
+
+  \begin{itemize}
+  \tightlist
+  \item
+    Displacement of first birth(s) at older ages
+  \end{itemize}
+\end{itemize}
 
 \end{frame}
 
@@ -393,13 +386,78 @@ asfr from all districts in overlay plot to see distribution
 \begin{itemize}
 \tightlist
 \item
-  Projections --\textgreater{} leontine
+  Structured model for fertility transition and projection (Alkema,
+  2011; Sevkicova, 2012)
 \item
-  Survey effects - not necessarily surveyid iid, but survey type iid?
-  probs not identifiable. TZA example where AIS and MIS far from DHS
+  Survey random effects \& multi-country fitting
 \item
-  Census data, other surveys, summary birth histories
+  Census data, additional country-specific surveys, summary birth
+  histories
 \end{itemize}
+
+\end{frame}
+
+\begin{frame}{Many thanks}
+\protect\hypertarget{many-thanks}{}
+
+\textbf{Small area estimation of district-level fertility in sub-Saharan Africa}
+
+Oli Stevens
+
+Imperial College London
+
+6th April 2020
+
+\end{frame}
+
+\begin{frame}{Extras}
+\protect\hypertarget{extras}{}
+
+\begin{figure}
+\centering
+\includegraphics{images/mwi tfr admin1.png}
+\caption{fit}
+\end{figure}
+
+\end{frame}
+
+\begin{frame}{Extras}
+\protect\hypertarget{extras-1}{}
+
+\begin{figure}
+\centering
+\includegraphics{images/nam_tfr.png}
+\caption{NAM admin-1}
+\end{figure}
+
+\end{frame}
+
+\begin{frame}{Extras}
+\protect\hypertarget{extras-2}{}
+
+\begin{figure}
+\centering
+\includegraphics{images/uga_tfr}
+\caption{UGA admin-1}
+\end{figure}
+
+\end{frame}
+
+\begin{frame}{Extras}
+\protect\hypertarget{extras-3}{}
+
+\begin{figure}
+\centering
+\includegraphics{images/zmb_tfr}
+\caption{ZMB admin-1}
+\end{figure}
+
+\end{frame}
+
+\begin{frame}{Extras}
+\protect\hypertarget{extras-4}{}
+
+\begin{center}\includegraphics[width=1\linewidth]{2020_04_UNPD_files/figure-beamer/unnamed-chunk-9-1} \end{center}
 
 \end{frame}
 

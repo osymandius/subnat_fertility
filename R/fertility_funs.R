@@ -973,6 +973,7 @@ make_model_frames <- function(iso3_current, population, asfr, mics_asfr = NULL, 
   mf$out$mf_out <- mf_out
   mf$out$A_out <- A_out
   mf$dist$obs <- obs
+  mf$mics_toggle <- 0
   
   if(!is.null(mics_asfr)) {
     
@@ -1009,6 +1010,7 @@ make_model_frames <- function(iso3_current, population, asfr, mics_asfr = NULL, 
     
     mf$mics$obs <- obs_mics
     mf$mics$A_mics <- A_mics
+    mf$mics_toggle <- 1
     
   }
   
