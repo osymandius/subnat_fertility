@@ -66,6 +66,11 @@ Type objective_function<Type>::operator() ()
   PARAMETER(logit_spatial_rho);
   PARAMETER(log_sigma_spatial);
 
+  // PARAMETER(lag_logit_rho_age);
+  // PARAMETER(lag_logit_rho_period);
+  
+
+
   DATA_SPARSE_MATRIX(A_out);
 
   // DATA_SPARSE_MATRIX(A_mics);
@@ -132,6 +137,7 @@ Type objective_function<Type>::operator() ()
   
   Type sigma_eta1 = exp(log_sigma_eta1);
   nll -= dnorm(sigma_eta1, Type(0), Type(2.5), true) + log_sigma_eta1;
+
   nll += SEPARABLE(AR1(Type(ar1_phi_age)), AR1(Type(ar1_phi_period)))(eta1);
   vector<Type> eta1_v(eta1);
 
@@ -190,7 +196,7 @@ Type objective_function<Type>::operator() ()
   Type log_tau2_rw_period(-2 * log_sigma_rw_period);
   // Type log_tau2_spatial(-2 * log_sigma_spatial);
   // Type log_tau2_rw_tips(-2 * log_sigma_rw_tips);
-  // Type log_tau2_eta1(-2 * log_sigma_eta1);
+  Type log_tau2_eta1(-2 * log_sigma_eta1);
     
   REPORT(lambda_out);
   // REPORT(lambda);
@@ -200,7 +206,7 @@ Type objective_function<Type>::operator() ()
   REPORT(log_tau2_rw_period);
   // REPORT(log_tau2_spatial);
   // REPORT(log_tau2_rw_tips);
-  // REPORT(log_tau2_eta1);
+  REPORT(log_tau2_eta1);
 
 
   return nll;
