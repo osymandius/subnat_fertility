@@ -14,12 +14,18 @@ library(naomi)
 library(here)
 
 # naomi_data_path <- "~/naomi-data"
-naomi_data_path <- "~/Documents/GitHub/naomi-data/"
+
+naomi_data_path <- "~/Documents/GitHub/naomi-data"
+
 
 source(here("R/inputs.R"))
 source(here("R/fertility_funs.R"))
 
-iso3 <- c("LSO", "MOZ", "MWI", "NAM", "TZA", "UGA", "ZMB", "ZWE")
+
+iso3_current <- "MWI"
+# iso3 <- c("LSO", "MOZ", "MWI", "NAM", "TZA", "UGA", "ZMB", "ZWE")
+# 
+
 
 list2env(make_areas_population(iso3_current, naomi_data_path), globalenv())
 
@@ -38,6 +44,7 @@ clusters <- readRDS(here("input_data/clusters_2019_11_21.rds")) %>%
   separate(surv, into=c(NA, "SurveyType"), sep=-3) %>%
   filter(iso3 == iso3_current, DHS_CountryCode != "OS") %>%
   filter(!survey_id %in% c("MOZ2009AIS", "TZA2003AIS", "UGA2011AIS"))
+
 
 ## Get surveys for which we have clusters. Split into country list.
 surveys <- dhs_surveys(surveyIds = unique(clusters$DHS_survey_id)) %>%

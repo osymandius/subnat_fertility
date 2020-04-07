@@ -60,14 +60,14 @@ wpp_asfr <- wpp_asfr %>%
          variable = "asfr",
          area_level = 0)
 
-wpp_tfr <- read_excel("WPP2019_FERT_F04_TOTAL_FERTILITY(1).xlsx")
+wpp_tfr <- read_excel("pop_data/WPP2019_FERT_F04_TOTAL_FERTILITY(1).xlsx")
 
 wpp_tfr <- wpp_tfr %>%
   melt(id="area_name", variable.name="period", value.name = "val") %>%
   separate(period, into=c("period", NA), sep="-") %>%
   type.convert() %>%
   mutate(iso3 = countrycode(area_name, "country.name", "iso3c")) %>%
-  filter(iso3 %in% iso3_codes) %>%
+  filter(iso3 %in% c("UGA", "MWI")) %>%
   group_split(period) %>%
   lapply(function(x) {
     n <- nrow(x)

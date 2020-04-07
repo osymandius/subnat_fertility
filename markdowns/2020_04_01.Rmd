@@ -26,8 +26,8 @@ library(demogsurv)
 library(naomi)
 library(here)
 
-## naomi_data_path <- "~/Documents/GitHub/naomi-data"
-naomi_data_path <- "~/naomi-data"
+naomi_data_path <- "~/Documents/GitHub/naomi-data"
+# naomi_data_path <- "~/naomi-data"
 
 source(here("R/inputs.R"))
 source(here("R/fertility_funs.R"))
@@ -35,20 +35,20 @@ source(here("R/fertility_funs.R"))
 iso3_current <- "ZWE"
 
 ##sorry..
-list2env(make_areas_population("ZWE", naomi_data_path, full = FALSE), globalenv())
+list2env(make_areas_population(iso3_current, naomi_data_path, full = FALSE), globalenv())
 ```
 
 ## Get ASFR data and make design matrices & structure matrices for RWs and ICAR
 
 ```{r message=FALSE, warning=FALSE, results="hide"}
 
-asfr <- get_asfr_pred_df("ZWE", 0, project = FALSE)
+asfr <- get_asfr_pred_df(iso3_current, 0, project = FALSE)
 
 mf <- make_model_frames(iso3_current, population, asfr, mics_asfr = NULL) # I've done an ugly hack to make this function work at national level.
 
 X_mf <- model.matrix(~1, mf$mf_model)
 
-Z_spatial <- sparse.model.matrix(~0 + area_id, mf$mf_model)
+# Z_spatial <- sparse.model.matrix(~0 + area_id, mf$mf_model)
 Z_age <- sparse.model.matrix(~0 + age_group, mf$mf_model)
 Z_period <- sparse.model.matrix(~0 + period, mf$mf_model)
 
@@ -56,14 +56,11 @@ M_obs <- sparse.model.matrix(~0 + idx, mf$dist$obs)
 Z_tips <- sparse.model.matrix(~0 + tips_f, mf$dist$obs)
 X_tips_dummy <- model.matrix(~0 + tips_dummy, mf$dist$obs)
 
-R_spatial <- make_adjacency_matrix("ZWE", areas_long, boundaries, 2)
+# R_spatial <- make_adjacency_matrix(iso3_current, areas_long, boundaries, 2)
 R_tips <- make_rw_structure_matrix(ncol(Z_tips), 1, TRUE)
 R_age <- make_rw_structure_matrix(ncol(Z_age), 1, TRUE)
 R_period <- make_rw_structure_matrix(ncol(Z_period), 2, TRUE)
 
-R_spatial0 <- .sparseDiagonal(nrow(R_spatial), shape = "t")
-R_period0 <- .sparseDiagonal(nrow(R_period), shape = "t")
-R_age0 <- .sparseDiagonal(nrow(R_age), shape = "t")
 
 
 ```
@@ -132,6 +129,15 @@ par <- list(
             # log_sigma_spatial = log(2.5),
             # logit_spatial_rho = 0
             )
+
+f <- mcparallel({TMB::MakeADFun(data = data,
+                                parameters = par,
+                                DLL = "fertility_tmb_dev",
+                                silent=0,
+                                checkParameterOrder=FALSE)
+})
+
+mccollect(f)
              
 obj <-  MakeADFun(data = data,
                 parameters = par,
@@ -150,7 +156,7 @@ fit$sdreport <- sdreport(fit$obj, fit$par)
 class(fit) <- "naomi_fit"  # this is hacky...
 fit <- sample_tmb(fit)
 
-qtls <- apply(fit$sample$lambda_out, 1, quantile, c(0.025, 0.5, 0.975))
+qtls <- apply(fit$sample$lambda, 1, quantile, c(0.025, 0.5, 0.975))
 
 ```
 
@@ -185,14 +191,11 @@ mf$mf_model %>%
          upper = qtls[3,],
          source = "tmb") %>%
   type.convert() %>%
-  bind_rows(inla_res %>% mutate(source = "inla")) %>%
-  left_join(areas_long) %>%
-  filter(area_level ==2, age_group == "20-24") %>%
-  ggplot(aes(x=period, y=median, group=source)) +
-    geom_line(aes(color = source)) +
-    geom_ribbon(aes(ymin = lower, ymax = upper, fill=source), alpha=0.3) +
-    facet_wrap(~area_id) +
-    ylim(0,0.5)
+  # bind_rows(inla_res %>% mutate(source = "inla")) %>%
+  ggplot(aes(x=period, y=median, group=age_group)) +
+    geom_line(aes(color = age_group)) +
+    geom_ribbon(aes(ymin = lower, ymax = upper, fill=age_group), alpha=0.3) +
+    facet_wrap(~area_id)
 
 ```
 

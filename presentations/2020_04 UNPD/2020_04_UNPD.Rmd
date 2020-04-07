@@ -1,0 +1,254 @@
+---
+title: |
+  | Small area estimation of district-level fertility in sub-Saharan Africa
+author: |
+  | Oli Stevens
+  | Imperial College London
+date: "6th April 2020"
+output:
+  beamer_presentation:
+    keep_tex: yes
+   # dev: cairo_pdf
+    # includes:
+    #   in_header: mypreamble.tex
+theme: metropolis
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+library(tidyverse)
+library(here)
+library(sf)
+library(devtools)
+library(extrafont)
+library(countrycode)
+devtools::load_all("~/Documents/GitHub/naomi")
+source(here("R/inputs.R"))
+source(here("R/fertility_funs.R"))
+list2env(make_areas_population("ZWE", "~/Documents/GitHub/naomi-data", full = FALSE), globalenv())
+df <- readRDS(here("presentations/2020_04 UNPD/unpd_df.rds"))
+loadfonts()
+```
+
+
+## Introduction | Background {.t}
+
+* UNAIDS Reference Group for Estimates, Modelling and Projections provides technical recommendations to UNAIDS for the creation of annual HIV estimates
+* Newly created subnational estimation model - Naomi
+  * District-level estimates of prevalence, incidence, ART coverage by sex and 5 year age groups
+
+## Introduction | Background {.t}
+
+* UNAIDS Reference Group for Estimates, Modelling and Projections provides technical recommendations to UNAIDS for the creation of annual HIV estimates
+* Newly created subnational estimation model - Naomi
+  * District-level estimates of prevalence, incidence, ART coverage by sex and 5 year age groups
+  
+```{r echo=FALSE, warning = FALSE, out.height="50%", fig.align="center", message=FALSE}
+
+df$difference_tfr_zwe %>% 
+  left_join(areas_long) %>%
+  filter(area_id %in% c("ZWE_2_1", "ZWE_2_57")) %>%
+  group_by(period, area_name, surveyid) %>%
+  summarise(tfr = 5*sum(asfr)) %>%
+  ggplot(aes(x=period, y=tfr, group = area_name, color=area_name)) +
+    geom_point(aes(shape = surveyid), show.legend = F) +
+    geom_smooth(se=FALSE, method="loess", formula = y~x) +
+    labs(x="", y="TFR", color="District", shape = "Survey ID") +
+    ylim(0,7.5) +
+    scale_x_continuous(expand=c(0,0))+
+    theme_minimal() +
+    theme(
+      text = element_text(family='CMU Sans Serif'),
+      axis.text=element_text(size=17),
+      axis.text.x = element_text(size=17, margin = margin(t = 0, r = 10, b = 0, l = 10, unit = "pt")),
+      legend.position = 'bottom',
+      legend.key.width=unit(1.5,"cm"),
+      legend.key.height = unit(0.1, 'in'),
+      title = element_text(size=16),
+      legend.text = element_text(size = 12),
+      strip.text = element_text(size=14),
+      )
+```  
+
+## Introduction | Background {.t}
+
+* UNAIDS Reference Group for Estimates, Modelling and Projections provides technical recommendations to UNAIDS for the creation of annual HIV estimates
+* Newly created subnational estimation model - Naomi
+  * District-level estimates of prevalence, incidence, treatment coverage by sex and 5 year age groups
+* District level estimates of fertility desired for:
+  * Estimation of children living with HIV
+    * Key epidemic indicator
+    * Resource allocation for prevention of mother-to-child transmission
+  * Improved projections at district level
+  
+<!-- ## Introduction | Outputs {.t} -->
+
+<!-- Model will output: -->
+
+<!-- * Age-specific fertility rate (ASFR) by 5 year age bands -->
+<!-- * Total fertility rate (TFR) -->
+<!-- * Births -->
+
+<!-- by single year up to short term projection (c. 2025), at the district level -->
+
+## Data and workflow | Zimbabwe {.t}
+
+* Demographic Health Surveys
+  * Geomasked coordinates assigned to district
+  * 1999, 2005, 2010, 2015
+* Multiple Indicator Cluster Survey
+  * Survey region indicator
+  * 2009, 2014, 2019
+* Birth history data:
+  * DHS, MICS: 15 years
+  * (Malaria Indicator Survey/AIDS Indicator Surveys): 5 years
+  
+``` {r echo=FALSE, warning = FALSE, out.width = "50%", fig.align="right"}
+
+# data.frame(year = c(1999, 2005, 2010, 2015, 2009, 2014, 2019),
+#            type = c(rep("DHS", 4), rep("MICS", 3))) %>%
+#   arrange(year) %>%
+#   mutate(end = year-15,
+#          end = ifelse(end<1995, 1995, end),
+#          y= factor(row_number())
+#   ) %>%
+#   ggplot(aes(x=year, y=y)) +
+#     geom_segment(aes(x=end, xend=year, y=y, yend=y, color=type))
+
+
+```
+
+## Data and workflow | Zimbabwe {.t}
+
+* R packages *rdhs* and *demogsurv* 
+* Reconstruct survey-weighted births and observed person years, by single year, 5 year age groups, and district
+  * CMC respondent's birth
+  * CMC respondent's births
+  * CMC interview
+
+
+## Data and workflow | Non-sampling bias in household surveys  {.t}
+
+* DHS collects full birth histories for children in the previous 5 years, and an abbreviated question set thereafter
+* Interviewers can reduce workload by:
+  * Displacing
+  * Omitting
+
+## Data and workflow | Non-sampling bias in household surveys {.t}
+
+* DHS collects full birth histories for children in the previous 5 years, and an abbreviated question set thereafter
+* Interviewers can reduce workload by:
+  * Displacing
+  * Omitting
+  
+``` {r echo=FALSE, warning = FALSE, out.height = "50%", fig.align="center"}
+
+df$tfr_ZMB2013DHS %>%
+  filter(period > 2003) %>%
+  ggplot(aes(x=period, y=tfr)) +
+  scale_x_continuous(breaks=seq(2004,2013, 1), labels=as.character(seq(2004,2013, 1)))+
+    geom_point(size=2) +
+    geom_line(size=0.75) +
+    annotate(geom = "text", x = 2004:2013, y = 4.75, label = as.character(9:0), size=6) +
+    geom_vline(aes(xintercept = 2007.5), color="red", linetype=2)+
+    coord_cartesian(ylim = c(5, 7), expand = FALSE, clip = "off") +
+    labs(y="TFR", title="TFR | Zambia 2013 DHS") +
+    theme_minimal() +
+    theme(
+      axis.title.x = element_blank(),
+      title = element_text(size=16),
+      plot.margin = unit(c(1, 1, 4, 1), "lines"),
+      text = element_text(family='CMU Sans Serif'),
+      axis.text=element_text(size=17)
+    )
+```
+    
+  
+## Data and workflow | Non-sampling bias in household surveys  {.t}
+
+* Intersurvey analysis can estimate magnitude of bias due to overlap in recall periods
+  * Many countries within SSA have surveys of moderate or poor quality
+
+## Data and workflow | Non-sampling bias in household surveys  {.t}
+
+* Intersurvey analysis can estimate magnitude of bias due to overlap in recall periods
+  * Many countries within SSA have surveys of moderate or poor quality
+  
+``` {r echo=FALSE, warning = FALSE, fig.width=14, fig.height = 7, out.height="50%", fig.align="center"}
+
+df$tips %>% 
+  bind_rows(.id="iso") %>% 
+  mutate(iso = countrycode(iso, "iso3c", "country.name")) %>%
+  filter(id < 11) %>% 
+  ggplot(aes(x=id, y=trans, group=iso, color=iso)) + 
+    geom_point(size=2) + 
+    geom_line(size=0.75) +
+    scale_x_continuous(breaks=seq(0,10, 1), labels = as.character(0:10)) +
+    labs(x="Time Preceding Survey (TIPS)", y="", color="Country") +
+    theme_minimal() +
+    theme(
+      text = element_text(family='CMU Sans Serif'),
+      axis.text=element_text(size=17),
+      axis.text.x = element_text(margin = margin(t=25)),
+      legend.text = element_text(size = 16),
+      legend.title = element_text(size=16),
+      axis.title.x = element_text(size=18)
+    )
+
+```
+
+## Model specification  {.t}
+$$b_{ait} \sim Po( \lambda_{ait} . E_{ait} )$$
+$$log(\lambda_{ait}) = \mu + \alpha_a + \gamma_t + \delta_i + \eta_{a,t} + \eta_{a,i} + \eta_{i,t}$$
+
+$\mu \sim N(0, 5)$
+
+
+$\alpha_a \sim RW1(\sigma^2_\alpha)$ $\hfill a \in \{15-19, 20-24 ... 45-49\}$
+
+
+$\delta_i \sim BYM2(\sigma^2_\delta)$ $\hfill i \in \{1 ... n_i\}$
+
+
+$\gamma_t \sim RW2(\sigma^2_\gamma)$ $\hfill t \in \{1995:2020\}$
+
+## Model specification  {.t}
+$$b_{ait} \sim Po( \lambda_{ait} . E_{ait} )$$ 
+$$log(\lambda_{ait}) = \mu + \alpha_a + \gamma_t + \delta_i + \eta_{a,t} + \eta_{a,i} + \eta_{i,t}$$
+
+$\eta_{a,t} \sim N(0, \sigma^2_{\eta_{a,t}})$ $\hfill AR1 \otimes AR1$
+
+$\eta_{a,i} \sim N(0, \sigma^2_{\eta_{a,i}})$ $\hfill AR1 \otimes ICAR$
+
+$\eta_{i,t} \sim N(0, \sigma^2_{\eta_{i,t}})$ $\hfill ICAR \otimes AR1$
+
+## Model specification  {.t}
+$$b_{ait} \sim Po( \lambda_{ait} . E_{ait} )$$
+$$log(\lambda_{ait}) = \mu + \alpha_a + \gamma_t + \delta_i + \eta_{a,t} + \eta_{a,i} + \eta_{i,t}$$
+
+Observation model
+$$log(\hat{b}_{ait}) = log(\lambda_{ait} \times E_{ait}) + \beta_1 TIPS_{d} + \omega_{TIPS}$$
+$TIPS_d=\begin{cases} 0, & \text{if TIPS} < 5 \\ 1, & \text{otherwise} \end{cases}$
+
+$\omega_{tips} \sim RW1(\sigma^2_\omega)$ $\hfill tips \in \{0:14\}$
+
+## Results
+
+tfr maps at 3 admin levels
+
+tfr trend at admin 1
+
+asfr from all districts in overlay plot to see distribution
+
+## Future work
+
+* Projections --> leontine
+* Survey effects - not necessarily surveyid iid, but survey type iid? probs not identifiable. TZA example where AIS and MIS far from DHS
+* Census data, other surveys, summary birth histories
+
+``` {r echo=FALSE}
+
+extrafont::embed_fonts("2020_04_UNPD.pdf", outfile="2020_04_UNPD_embedded.pdf")
+
+```
