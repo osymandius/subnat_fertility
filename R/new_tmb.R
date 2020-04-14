@@ -20,7 +20,7 @@ naomi_data_path <- "~/Documents/GitHub/naomi-data"
 source(here("R/inputs.R"))
 source(here("R/fertility_funs.R"))
 
-iso3_current <- "ZWE"
+iso3_current <- "MWI"
 # exc <- areas_wide$area_id[areas_wide$area_id1 == "TZA_1_2"]
 # exc <- c("UGA_3_029", "UGA_3_046")
 exc <- c("MOZ_2_0107", "MOZ_2_1009")
@@ -28,7 +28,7 @@ exc <- "MWI_5_07"
 
 list2env(make_areas_population(iso3_current, naomi_data_path, full = FALSE), globalenv())
 
-asfr <- get_asfr_pred_df(iso3_current, 2, project = FALSE)
+asfr <- get_asfr_pred_df(iso3_current, 5, project = FALSE)
 
 mics_data <- read_mics(iso3_current)
 mics_asfr <- Map(calc_asfr_mics, mics_data$wm, y=list(1),
@@ -43,7 +43,7 @@ mics_asfr <- Map(calc_asfr_mics, mics_data$wm, y=list(1),
   filter(period <= survyear) %>%
   rename(age_group = agegr)
 
-mf <- make_model_frames(iso3_current, population, asfr, mics_asfr = mics_asfr, exclude_districts = exc, project=FALSE)
+mf <- make_model_frames(iso3_current, population, asfr, mics_asfr = NULL, exclude_districts = exc, project=FALSE)
 
 X_mf <- model.matrix(~1, mf$mf_model)
 
@@ -59,11 +59,10 @@ M_obs_mics <- sparse.model.matrix(~0 + idx, mf$mics$obs)
 Z_tips_mics <- sparse.model.matrix(~0 + tips_f, mf$mics$obs)
 X_tips_dummy_mics <- model.matrix(~0 + tips_dummy, mf$mics$obs)
 
-R_spatial <- make_adjacency_matrix(iso3_current, areas_long, boundaries, exclude_districts = exc, level=2)
+R_spatial <- make_adjacency_matrix(iso3_current, areas_long, boundaries, exclude_districts = exc, level=5)
 R_tips <- make_rw_structure_matrix(ncol(Z_tips), 1, TRUE)
 R_age <- make_rw_structure_matrix(ncol(Z_age), 1, TRUE)
 R_period <- make_rw_structure_matrix(ncol(Z_period), 2, TRUE)
-
 
 dyn.unload(dynlib(here("tmb/fertility_tmb_dev")))
 compile(here("tmb/fertility_tmb_dev.cpp"))               # Compile the C++ file
@@ -74,12 +73,12 @@ ar1_phi_period <- 0.99
 
 data <- list(X_mf = X_mf,
              M_obs = M_obs,
-             M_obs_mics = M_obs_mics,
-             X_tips_dummy_mics = X_tips_dummy_mics,
-             Z_tips_mics = Z_tips_mics,
-             births_obs_mics = mf$mics$obs$births,
-             log_offset_mics = log(mf$mics$obs$pys),
-             A_mics = mf$mics$A_mics,
+             # M_obs_mics = M_obs_mics,
+             # X_tips_dummy_mics = X_tips_dummy_mics,
+             # Z_tips_mics = Z_tips_mics,
+             # births_obs_mics = mf$mics$obs$births,
+             # log_offset_mics = log(mf$mics$obs$pys),
+             # A_mics = mf$mics$A_mics,
              X_tips_dummy = X_tips_dummy,
              Z_tips = Z_tips,
              Z_age = Z_age,
@@ -94,7 +93,6 @@ data <- list(X_mf = X_mf,
              R_period = R_period,
              R_spatial = R_spatial,
              ar1_phi_age = ar1_phi_age,
-             ar1_phi_period = ar1_phi_period,
              log_offset = log(mf$dist$obs$pys),
              births_obs = mf$dist$obs$births,
              pop = mf$mf_model$population,
@@ -111,13 +109,14 @@ par <- list(
   u_period = rep(0, ncol(Z_period)),
   u_spatial_str = rep(0, ncol(Z_spatial)),
   u_spatial_iid = rep(0, ncol(Z_spatial)),
+  lag_logit_phi_period = rep(0, 2),
   # eta = array(0, c(ncol(Z_spatial), ncol(Z_age), ncol(Z_period))),
-  eta1 = array(0, c(ncol(Z_period), ncol(Z_age))),
-  log_sigma_eta1 = log(2.5),
-  eta2 = array(0, c(ncol(Z_spatial), ncol(Z_period))),
-  log_sigma_eta2 = log(2.5),
-  eta3 = array(0, c(ncol(Z_spatial), ncol(Z_age))),
-  log_sigma_eta3 = log(2.5),
+  # eta1 = array(0, c(ncol(Z_period), ncol(Z_age))),
+  # log_sigma_eta1 = log(2.5),
+  # eta2 = array(0, c(ncol(Z_spatial), ncol(Z_period))),
+  # log_sigma_eta2 = log(2.5),
+  # eta3 = array(0, c(ncol(Z_spatial), ncol(Z_age))),
+  # log_sigma_eta3 = log(2.5),
   log_sigma_rw_period = log(2.5),
   log_sigma_rw_age = log(2.5),
   log_sigma_rw_tips = log(2.5),
@@ -125,7 +124,7 @@ par <- list(
   logit_spatial_rho = 0
 )
 
-random <- c("beta_0", "beta_tips_dummy", "u_tips", "u_age", "u_period", "u_spatial_str", "u_spatial_iid", "eta1", "eta2", "eta3")
+random <- c("beta_0", "beta_tips_dummy", "u_tips", "u_age", "u_period", "u_spatial_str", "u_spatial_iid")
 
 if(mf$mics_toggle) {
   par <- c(par, "beta_tips_dummy_mics" = rep(0, ncol(X_tips_dummy_mics)))
