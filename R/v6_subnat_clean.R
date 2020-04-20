@@ -1,5 +1,6 @@
 library(countrycode)
 library(tidyverse)
+library(magrittr)
 library(rdhs)
 library(demogsurv)
 library(INLA)
@@ -15,14 +16,14 @@ library(here)
 
 # naomi_data_path <- "~/naomi-data"
 
-naomi_data_path <- "~/Documents/GitHub/naomi-data"
+naomi_data_path <- "~/Imperial College London/HIV Inference Group - Documents/Analytical datasets/naomi-data/"
 
 
 source(here("R/inputs.R"))
 source(here("R/fertility_funs.R"))
 
 
-iso3_current <- "MWI"
+iso3_current <- "ETH"
 # iso3 <- c("LSO", "MOZ", "MWI", "NAM", "TZA", "UGA", "ZMB", "ZWE")
 # 
 
@@ -35,7 +36,7 @@ dhs_iso3 <- dhs_countries(returnFields=c("CountryName", "DHS_CountryCode")) %>%
   mutate(iso3 = countrycode(CountryName, "country.name", "iso3c"),
          iso3 = ifelse(CountryName == "Eswatini", "SWZ", iso3))
 
-clusters <- readRDS(here("input_data/clusters_2019_11_21.rds")) %>%
+clusters <- readRDS(here("input_data/clusters_2020_04_17.rds")) %>%
   mutate(iso3 = survey_id) %>%
   separate(col="iso3", into="iso3", sep=3) %>%
   left_join(dhs_iso3 %>% select(-CountryName), by="iso3") %>%
@@ -59,7 +60,7 @@ surveys <- dhs_surveys(surveyIds = unique(clusters$DHS_survey_id)) %>%
 ## Needs check to ensure level is < max_level
 cluster_areas <- assign_cluster_area(clusters, 0)
 
-dat <- clusters_to_surveys(surveys, cluster_areas, single_tips = FALSE)
+dat <- clusters_to_surveys(surveys, cluster_areas, single_tips = TRUE)
 
 asfr <- Map(calc_asfr1, dat$ir,
               y=1:length(dat$ir),

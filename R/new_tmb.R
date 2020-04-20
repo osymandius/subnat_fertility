@@ -14,36 +14,39 @@ devtools::load_all("~/Documents/GitHub/naomi")
 # library(naomi)
 library(here)
 
-naomi_data_path <- "~/Documents/GitHub/naomi-data"
+naomi_data_path <- "~/Imperial College London/HIV Inference Group - Documents/Analytical datasets/naomi-data/"
 # naomi_data_path <- "~/naomi-data"
 
 source(here("R/inputs.R"))
 source(here("R/fertility_funs.R"))
 
-iso3_current <- "ZWE"
+iso3_current <- "ETH"
 # exc <- areas_wide$area_id[areas_wide$area_id1 == "TZA_1_2"]
 # exc <- c("UGA_3_029", "UGA_3_046")
-exc <- c("MOZ_2_0107", "MOZ_2_1009")
-exc <- "MWI_5_07"
+# exc <- c("MOZ_2_0107", "MOZ_2_1009")
+# exc <- "MWI_5_07"
+exc=""
 
 list2env(make_areas_population(iso3_current, naomi_data_path, full = FALSE), globalenv())
 
 asfr <- get_asfr_pred_df(iso3_current, 2, project = FALSE)
+mics_asfr <- readRDS(here("countries", paste0(iso3_current, "/data/", iso3_current, "_mics_admin", 1, ".rds")))
 
-mics_data <- read_mics(iso3_current)
-mics_asfr <- Map(calc_asfr_mics, mics_data$wm, y=list(1),
-                 by = list(~area_id + survyear + surveyid + survtype),
-                 tips = list(c(0:15)),
-                 agegr= list(3:10*5),
-                 period = list(1995:2019),
-                 counts = TRUE,
-                 bhdata = mics_data$bh_df) %>%
-  bind_rows %>%
-  type.convert() %>%
-  filter(period <= survyear) %>%
-  rename(age_group = agegr)
+# mics_data <- read_mics(iso3_current)
+# mics_asfr <- Map(calc_asfr_mics, mics_dat$wm[1], y=list(1),
+#                  by = list(~area_id + survey_id),
+#                  tips = list(c(0:15)),
+#                  agegr= list(3:10*5),
+#                  period = list(1995:2019),
+#                  counts = TRUE,
+#                  bhdata = mics_dat$bh_df[1]) %>%
+#   bind_rows %>%
+#   type.convert() %>%
+#   separate(col=survey_id, into=c(NA, "survyear", NA), sep=c(3,7), remove = FALSE, convert = TRUE) %>%
+#   filter(period <= survyear) %>%
+#   rename(age_group = agegr)
 
-mf <- make_model_frames(iso3_current, population, asfr, mics_asfr = mics_asfr, exclude_districts = exc, project=FALSE)
+mf <- make_model_frames(iso3_current, population, asfr, mics_asfr = NULL, exclude_districts = exc, project=FALSE)
 
 X_mf <- model.matrix(~1, mf$mf_model)
 
@@ -74,12 +77,12 @@ ar1_phi_period <- 0.99
 
 data <- list(X_mf = X_mf,
              M_obs = M_obs,
-             M_obs_mics = M_obs_mics,
-             X_tips_dummy_mics = X_tips_dummy_mics,
-             Z_tips_mics = Z_tips_mics,
-             births_obs_mics = mf$mics$obs$births,
-             log_offset_mics = log(mf$mics$obs$pys),
-             A_mics = mf$mics$A_mics,
+             # M_obs_mics = M_obs_mics,
+             # X_tips_dummy_mics = X_tips_dummy_mics,
+             # Z_tips_mics = Z_tips_mics,
+             # births_obs_mics = mf$mics$obs$births,
+             # log_offset_mics = log(mf$mics$obs$pys),
+             # A_mics = mf$mics$A_mics,
              X_tips_dummy = X_tips_dummy,
              Z_tips = Z_tips,
              Z_age = Z_age,
@@ -168,7 +171,7 @@ mf$out$mf_out %>%
          source = "tmb") %>%
   type.convert() %>%
   left_join(areas_long) %>%
-  filter(area_level == 1) %>%
+  filter(area_level == 2) %>%
   # bind_rows(inla_res %>% mutate(source = "inla")) %>%
   ggplot(aes(x=period, y=median, group=age_group)) +
     geom_line(aes(color=age_group)) +

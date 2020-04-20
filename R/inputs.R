@@ -1,11 +1,11 @@
-make_areas_population <- function(iso3_codes, path_to_naomi_data, full=FALSE) {
+make_areas_population <- function(iso3_codes, path_to_naomi_data, full=FALSE, wide=TRUE, boundaries=TRUE, population=TRUE) {
 
 paths <- file.path(path_to_naomi_data, iso3_codes, "data")
 
 files <- lapply(paths, function(paths) {
   
   files <- list.files(paths, full.names = TRUE)
-  area <- files %>% str_subset(pattern = "areas.geojson")
+  area <- files %>% str_subset(pattern = "areas.geojson") %>% str_subset(pattern = ".zip", negate=TRUE)
   pop <- files %>% str_subset(pattern = "population")
   
   files <- c(area, pop)
@@ -34,39 +34,43 @@ areas_long <- lapply(files, "[[", "areas") %>%
 }) %>% 
   bind_rows
 
-areas_full <- lapply(files, "[[", "areas") %>%
-  lapply(st_read) %>% 
-  bind_rows
+if(full)
+  areas_full <- lapply(files, "[[", "areas") %>%
+    lapply(st_read) %>% 
+    bind_rows
 
-areas_wide <- lapply(files, "[[", "areas") %>%
-  lapply(read_sf) %>%
-  lapply(function(x) {spread_areas(as.data.frame(x))}) %>%
-  lapply(function(x) {x %>% mutate(iso3 = area_id0)}) %>%
-  bind_rows
+if(wide)
+  areas_wide <- lapply(files, "[[", "areas") %>%
+    lapply(read_sf) %>%
+    lapply(function(x) {spread_areas(as.data.frame(x))}) %>%
+    lapply(function(x) {x %>% mutate(iso3 = area_id0)}) %>%
+    bind_rows
 
-boundaries <- lapply(files, "[[", "areas") %>%
-  lapply(read_sf) %>% 
-  lapply(function(x) {
-    
-    iso3_code <- x %>%
-      filter(area_level == 0) %>%
-      select(area_id) %>%
-      unique %>%
-      .$area_id
-    
-    x <- x %>%
-      mutate(iso3 = iso3_code) %>%
-      select(-epp_level)
-    
-    return(x)
-  }) %>% 
-  bind_rows
+if(boundaries)
+  area_boundaries <- lapply(files, "[[", "areas") %>%
+    lapply(read_sf) %>% 
+    lapply(function(x) {
+      
+      iso3_code <- x %>%
+        filter(area_level == 0) %>%
+        select(area_id) %>%
+        unique %>%
+        .$area_id
+      
+      x <- x %>%
+        mutate(iso3 = iso3_code) %>%
+        select(-epp_level)
+      
+      return(x)
+    }) %>% 
+    bind_rows
 
-population <- lapply(files, "[[", "population") %>%
-  lapply(read_csv) %>%
-  bind_rows %>%
-  mutate(period = year_labels(naomi:::calendar_quarter_to_quarter_id(calendar_quarter))) %>%
-  select("area_id" , "area_name", "source", "sex", "age_group", "population", "period")
+if(population)
+  area_population <- lapply(files, "[[", "population") %>%
+    lapply(read_csv) %>%
+    bind_rows %>%
+    mutate(period = year_labels(naomi:::calendar_quarter_to_quarter_id(calendar_quarter))) %>%
+    select("area_id" , "area_name", "source", "sex", "age_group", "population", "period")
 
 
 
@@ -76,9 +80,14 @@ population <- lapply(files, "[[", "population") %>%
   if(full)
     df$areas_full <- areas_full
   
-  df$areas_wide <- areas_wide
-  df$boundaries <- boundaries
-  df$population <- population
+  if(wide)
+    df$areas_wide <- areas_wide
+  
+  if(boundaries)
+    df$boundaries <- area_boundaries
+  
+  if(population)
+    df$population <- area_population
 
   return(df)
 
@@ -155,24 +164,11 @@ clusters_to_surveys <- function(surveys, cluster_areas, single_tips = TRUE) {
 
     if(unique(surveys$iso3) == "ETH") {
     
-    cols <- c("b3_01", "b3_02", "b3_03", "b3_04", "b3_05", "b3_06", "b3_07", "b3_08", "b3_09", "b3_10", "b3_11", "b3_12", "b3_13", "b3_14", "b3_15", "b3_16", "b3_17", "b3_18", "b3_19", "b3_20")
+    cols_edit <- c("v008", "v011", "b3_01", "b3_02", "b3_03", "b3_04", "b3_05", "b3_06", "b3_07", "b3_08", "b3_09", "b3_10", "b3_11", "b3_12", "b3_13", "b3_14", "b3_15", "b3_16", "b3_17", "b3_18", "b3_19", "b3_20")
     
-    ir[[1]]$v008 %<>% add(92)
-    ir[[1]]$v011 %<>% add(92)
-    ir[[1]][, cols] %<>% add(92)
-    
-    ir[[2]]$v008 %<>% add(92)
-    ir[[2]]$v011 %<>% add(92)
-    ir[[2]][, cols] %<>% add(92)
-    
-    ir[[3]]$v008 %<>% add(92)
-    ir[[3]]$v011 %<>% add(92)
-    ir[[3]][, cols] %<>% add(92)
-    
-    ir[[4]]$v008 %<>% add(92)
-    ir[[4]]$v011 %<>% add(92)
-    ir[[4]][, cols] %<>% add(92)
-    
+    ir <- ir %>%
+      lapply(function(x) x %>% mutate_at(.vars = cols_edit, .funs = ~(.+92)))
+
     }
     
     
