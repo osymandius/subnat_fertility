@@ -20,10 +20,10 @@ naomi_data_path <- "~/Imperial College London/HIV Inference Group - Documents/An
 source(here("R/inputs.R"))
 source(here("R/fertility_funs.R"))
 
-iso3_current <- "ETH"
+iso3_current <- "MOZ"
 # exc <- areas_wide$area_id[areas_wide$area_id1 == "TZA_1_2"]
 # exc <- c("UGA_3_029", "UGA_3_046")
-# exc <- c("MOZ_2_0107", "MOZ_2_1009")
+exc <- c("MOZ_2_0107", "MOZ_2_1009")
 # exc <- "MWI_5_07"
 exc=""
 
@@ -32,21 +32,22 @@ list2env(make_areas_population(iso3_current, naomi_data_path, full = FALSE), glo
 asfr <- get_asfr_pred_df(iso3_current, 2, project = FALSE)
 mics_asfr <- readRDS(here("countries", paste0(iso3_current, "/data/", iso3_current, "_mics_admin", 1, ".rds")))
 
-# mics_data <- read_mics(iso3_current)
-# mics_asfr <- Map(calc_asfr_mics, mics_dat$wm[1], y=list(1),
+# mics_dat <- readRDS("input_data/mics_extract.rds")
+# mics_asfr <- Map(calc_asfr_mics, mics_dat$wm[10], y=list(1),
 #                  by = list(~area_id + survey_id),
 #                  tips = list(c(0:15)),
 #                  agegr= list(3:10*5),
 #                  period = list(1995:2019),
 #                  counts = TRUE,
-#                  bhdata = mics_dat$bh_df[1]) %>%
+#                  bhdata = mics_dat$bh_df[10]) %>%
 #   bind_rows %>%
 #   type.convert() %>%
 #   separate(col=survey_id, into=c(NA, "survyear", NA), sep=c(3,7), remove = FALSE, convert = TRUE) %>%
 #   filter(period <= survyear) %>%
 #   rename(age_group = agegr)
 
-mf <- make_model_frames(iso3_current, population, asfr, mics_asfr = NULL, exclude_districts = exc, project=FALSE)
+debugonce(make_model_frames)
+mf <- make_model_frames(iso3_current, population, asfr, mics_asfr, exclude_districts = exc, project=FALSE)
 
 X_mf <- model.matrix(~1, mf$mf_model)
 
@@ -77,12 +78,6 @@ ar1_phi_period <- 0.99
 
 data <- list(X_mf = X_mf,
              M_obs = M_obs,
-             # M_obs_mics = M_obs_mics,
-             # X_tips_dummy_mics = X_tips_dummy_mics,
-             # Z_tips_mics = Z_tips_mics,
-             # births_obs_mics = mf$mics$obs$births,
-             # log_offset_mics = log(mf$mics$obs$pys),
-             # A_mics = mf$mics$A_mics,
              X_tips_dummy = X_tips_dummy,
              Z_tips = Z_tips,
              Z_age = Z_age,
@@ -131,6 +126,12 @@ par <- list(
 random <- c("beta_0", "beta_tips_dummy", "u_tips", "u_age", "u_period", "u_spatial_str", "u_spatial_iid", "eta1", "eta2", "eta3")
 
 if(mf$mics_toggle) {
+  data <- c(data, "M_obs_mics" = M_obs_mics,
+            "X_tips_dummy_mics" = list(X_tips_dummy_mics),
+            "Z_tips_mics" = Z_tips_mics,
+            "births_obs_mics" = list(mf$mics$obs$births),
+            "log_offset_mics" = list(log(mf$mics$obs$pys)),
+            "A_mics" = mf$mics$A_mics)
   par <- c(par, "beta_tips_dummy_mics" = rep(0, ncol(X_tips_dummy_mics)))
   random = c(random, "beta_tips_dummy_mics")
 }
@@ -164,6 +165,9 @@ fit <- sample_tmb(fit)
 
 qtls <- apply(fit$sample$lambda_out, 1, quantile, c(0.025, 0.5, 0.975))
 
+asfr_plot <- readRDS("countries/ZWE/data/ZWE_asfr_plot.rds")
+tfr_plot <- readRDS("countries/ZWE/data/ZWE_tfr_plot.rds")
+
 mf$out$mf_out %>%
   mutate(lower = qtls[1,],
          median = qtls[2,],
@@ -171,13 +175,63 @@ mf$out$mf_out %>%
          source = "tmb") %>%
   type.convert() %>%
   left_join(areas_long) %>%
-  filter(area_level == 2) %>%
+  filter(area_level == 1, age_group == "20-24") %>%
   # bind_rows(inla_res %>% mutate(source = "inla")) %>%
-  ggplot(aes(x=period, y=median, group=age_group)) +
-    geom_line(aes(color=age_group)) +
-    # geom_point(data=mics_plot %>% bind_rows(asfr_admin1_plot) %>% filter(age_group == "20-24"), aes(y=asfr, group=survtype, color=survtype)) +
-    geom_ribbon(aes(ymin = lower, ymax = upper, fill=age_group), alpha=0.3) +
-    facet_wrap(~area_id)
+  ggplot(aes(x=period, y=median)) +
+    geom_line() +
+    # geom_point(data=asfr_plot %>% filter(area_level == 1, age_group == "20-24"), aes(y=asfr, group=survtype, color=survtype)) +
+    geom_ribbon(aes(ymin = lower, ymax = upper), alpha=0.3) +
+    facet_wrap(~area_id) +
+    ylim(0,0.5)
+
+int_df <- mf$mf_model %>%
+  select(period, age_group, area_id) %>%
+  left_join(mf$mf_model %>%
+              select(period, age_group, area_id, id.interaction1) %>%
+              distinct(age_group, period, id.interaction1) %>%
+              arrange(id.interaction1) %>%
+              mutate(eta1 = fit$obj$report()$eta1_v) %>%
+              select(-id.interaction1)
+  ) %>%
+  left_join(mf$mf_model %>%
+              select(period, age_group, area_id, id.interaction2) %>%
+              distinct(area_id, period, id.interaction2) %>%
+              arrange(id.interaction2) %>%
+              mutate(eta2 = fit$obj$report()$eta2_v) %>%
+              select(-id.interaction2)
+            ) %>%
+  left_join(mf$mf_model %>%
+              select(period, age_group, area_id, id.interaction3) %>%
+              distinct(area_id, age_group, id.interaction3) %>%
+              arrange(id.interaction3) %>%
+              mutate(eta3 = fit$obj$report()$eta3_v) %>%
+              select(-id.interaction3)
+  ) %>%
+  mutate(eta_sum = eta1 + eta2 + eta3)
+
+int_df %>% 
+  filter(area_id == "ZWE_2_2") %>%
+  ggplot(aes(x=period, y=eta2)) +
+    geom_point()
+
+
+
+
+mf$out$mf_out %>%
+  mutate(lower = qtls[1,],
+         median = qtls[2,],
+         upper = qtls[3,],
+         source = "tmb") %>%
+  type.convert() %>%
+  group_by(area_id, period) %>%
+  summarise(median = 5*sum(median)) %>%
+  left_join(areas_long) %>%
+  filter(area_level == 1) %>%
+  # bind_rows(inla_res %>% mutate(source = "inla")) %>%
+  ggplot(aes(x=period, y=median)) +
+  geom_line() +
+  geom_point(data=tfr_plot %>% filter(area_level == 1), aes(y=tfr, group=survtype, color=survtype)) +
+  facet_wrap(~area_name)
 
 mf$out$mf_out %>%
   mutate(lower = qtls[1,],

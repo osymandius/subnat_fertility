@@ -124,18 +124,17 @@ Type objective_function<Type>::operator() ()
   // vector<Type> eta_v(eta);
   
   Type sigma_eta1 = exp(log_sigma_eta1);
-  nll -= dnorm(sigma_eta1, Type(0), Type(2.5), true) + log_sigma_eta1;
-
+  nll -= dnorm(sigma_eta1, Type(0), Type(2), true) + log_sigma_eta1;
   nll += SEPARABLE(AR1(Type(ar1_phi_age)), AR1(Type(ar1_phi_period)))(eta1);
   vector<Type> eta1_v(eta1);
 
   Type sigma_eta2 = exp(log_sigma_eta2);
-  nll -= dnorm(sigma_eta2, Type(0), Type(2.5), true) + log_sigma_eta2;
+  nll -= dnorm(sigma_eta2, Type(0), Type(2), true) + log_sigma_eta2;
   nll += SEPARABLE(AR1(Type(ar1_phi_period)), GMRF(R_spatial))(eta2);
   vector<Type> eta2_v(eta2);
   
   Type sigma_eta3 = exp(log_sigma_eta3);
-  nll -= dnorm(sigma_eta3, Type(0), Type(2.5), true) + log_sigma_eta3;
+  nll -= dnorm(sigma_eta3, Type(0), Type(2), true) + log_sigma_eta3;
   nll += SEPARABLE(AR1(Type(ar1_phi_age)), GMRF(R_spatial))(eta3);
   vector<Type> eta3_v(eta3);
 
@@ -212,6 +211,15 @@ Type objective_function<Type>::operator() ()
   // REPORT(log_tau2_spatial);
   // REPORT(log_tau2_rw_tips);
   REPORT(log_tau2_eta1);
+
+  REPORT(sigma_eta1);
+  REPORT(eta1_v);
+
+  REPORT(sigma_eta2);
+  REPORT(eta2_v);
+
+  REPORT(sigma_eta3);
+  REPORT(eta3_v);
 
 
   return nll;
