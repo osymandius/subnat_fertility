@@ -221,6 +221,8 @@ Type objective_function<Type>::operator() ()
   REPORT(sigma_eta3);
   REPORT(eta3_v);
 
+  REPORT(births_out);
+
 
   return nll;
   

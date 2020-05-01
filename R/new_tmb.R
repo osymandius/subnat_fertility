@@ -14,7 +14,7 @@ devtools::load_all("~/Documents/GitHub/naomi")
 # library(naomi)
 library(here)
 
-naomi_data_path <- "~/Imperial College London/HIV Inference Group - Documents/Analytical datasets/naomi-data/"
+naomi_data_path <- "~/Imperial College London/HIV Inference Group - Documents/Analytical datasets/naomi-data"
 # naomi_data_path <- "~/naomi-data"
 
 source(here("R/inputs.R"))
@@ -23,7 +23,7 @@ source(here("R/fertility_funs.R"))
 iso3_current <- "MOZ"
 # exc <- areas_wide$area_id[areas_wide$area_id1 == "TZA_1_2"]
 # exc <- c("UGA_3_029", "UGA_3_046")
-exc <- c("MOZ_2_0107", "MOZ_2_1009")
+# exc <- c("MOZ_2_0107", "MOZ_2_1009")
 # exc <- "MWI_5_07"
 exc=""
 
@@ -46,10 +46,7 @@ mics_asfr <- readRDS(here("countries", paste0(iso3_current, "/data/", iso3_curre
 #   filter(period <= survyear) %>%
 #   rename(age_group = agegr)
 
-debugonce(make_model_frames)
-mf <- make_model_frames(iso3_current, population, asfr, mics_asfr, exclude_districts = exc, project=FALSE)
-
-X_mf <- model.matrix(~1, mf$mf_model)
+mf <- make_model_frames(iso3_current, population, asfr, mics_asfr, exclude_districts = exc, project=2020)
 
 Z_spatial <- sparse.model.matrix(~0 + area_id, mf$mf_model)
 Z_age <- sparse.model.matrix(~0 + age_group, mf$mf_model)
@@ -76,8 +73,7 @@ dyn.load(dynlib(here("tmb/fertility_tmb_dev")))
 ar1_phi_age <- 0.99
 ar1_phi_period <- 0.99
 
-data <- list(X_mf = X_mf,
-             M_obs = M_obs,
+data <- list(M_obs = M_obs,
              X_tips_dummy = X_tips_dummy,
              Z_tips = Z_tips,
              Z_age = Z_age,
@@ -163,10 +159,16 @@ fit$sdreport <- sdreport(fit$obj, fit$par)
 class(fit) <- "naomi_fit"  # this is hacky...
 fit <- sample_tmb(fit)
 
-qtls <- apply(fit$sample$lambda_out, 1, quantile, c(0.025, 0.5, 0.975))
+qtls <- apply(fit$sample$births_out, 1, quantile, c(0.025, 0.5, 0.975))
 
 asfr_plot <- readRDS("countries/ZWE/data/ZWE_asfr_plot.rds")
 tfr_plot <- readRDS("countries/ZWE/data/ZWE_tfr_plot.rds")
+
+moz_anc <- read_csv("~/Downloads/Moz work/11 files/ancnaomi111219clean_update_20.01.20.csv") %>%
+  left_join(areas_long) %>%
+  group_by(parent_area_id, year) %>%
+  summarise(anc_clients = sum(anc_clients)) %>%
+  rename(area_id = parent_area_id)
 
 mf$out$mf_out %>%
   mutate(lower = qtls[1,],
@@ -174,15 +176,17 @@ mf$out$mf_out %>%
          upper = qtls[3,],
          source = "tmb") %>%
   type.convert() %>%
+  # group_by(period, area_id) %>%
+  # summarise(median = sum(median)) %>%
   left_join(areas_long) %>%
-  filter(area_level == 1, age_group == "20-24") %>%
+  filter(area_level == 1) %>%
   # bind_rows(inla_res %>% mutate(source = "inla")) %>%
   ggplot(aes(x=period, y=median)) +
     geom_line() +
-    # geom_point(data=asfr_plot %>% filter(area_level == 1, age_group == "20-24"), aes(y=asfr, group=survtype, color=survtype)) +
+    geom_point(data=asfr_plot %>% filter(area_level == 1, age_group == "20-24"), aes(y=asfr, group=survtype, color=survtype)) +
     geom_ribbon(aes(ymin = lower, ymax = upper), alpha=0.3) +
-    facet_wrap(~area_id) +
-    ylim(0,0.5)
+    # geom_point(data = moz_anc, aes(y=anc_clients, x=year))+
+    facet_wrap(~area_id)
 
 int_df <- mf$mf_model %>%
   select(period, age_group, area_id) %>%
