@@ -20,7 +20,7 @@ naomi_data_path <- "~/Imperial College London/HIV Inference Group - Documents/An
 source(here("R/inputs.R"))
 source(here("R/fertility_funs.R"))
 
-iso3_current <- "MOZ"
+iso3_current <- "ZWE"
 # exc <- areas_wide$area_id[areas_wide$area_id1 == "TZA_1_2"]
 # exc <- c("UGA_3_029", "UGA_3_046")
 # exc <- c("MOZ_2_0107", "MOZ_2_1009")
@@ -159,7 +159,7 @@ fit$sdreport <- sdreport(fit$obj, fit$par)
 class(fit) <- "naomi_fit"  # this is hacky...
 fit <- sample_tmb(fit)
 
-qtls <- apply(fit$sample$births_out, 1, quantile, c(0.025, 0.5, 0.975))
+qtls <- apply(fit$sample$lambda_out, 1, quantile, c(0.025, 0.5, 0.975))
 
 asfr_plot <- readRDS("countries/ZWE/data/ZWE_asfr_plot.rds")
 tfr_plot <- readRDS("countries/ZWE/data/ZWE_tfr_plot.rds")
@@ -179,14 +179,13 @@ mf$out$mf_out %>%
   # group_by(period, area_id) %>%
   # summarise(median = sum(median)) %>%
   left_join(areas_long) %>%
-  filter(area_level == 1) %>%
-  # bind_rows(inla_res %>% mutate(source = "inla")) %>%
+  filter(area_level == 1, age_group == "20-24") %>%
   ggplot(aes(x=period, y=median)) +
     geom_line() +
     geom_point(data=asfr_plot %>% filter(area_level == 1, age_group == "20-24"), aes(y=asfr, group=survtype, color=survtype)) +
     geom_ribbon(aes(ymin = lower, ymax = upper), alpha=0.3) +
     # geom_point(data = moz_anc, aes(y=anc_clients, x=year))+
-    facet_wrap(~area_id)
+    facet_wrap(~area_name)
 
 int_df <- mf$mf_model %>%
   select(period, age_group, area_id) %>%

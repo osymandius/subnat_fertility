@@ -36,7 +36,7 @@ dhs_iso3 <- dhs_countries(returnFields=c("CountryName", "DHS_CountryCode")) %>%
   mutate(iso3 = countrycode(CountryName, "country.name", "iso3c"),
          iso3 = ifelse(CountryName == "Eswatini", "SWZ", iso3))
 
-clusters <- readRDS(here("input_data/clusters_2020_04_17.rds")) %>%
+clusters <- readRDS(here("input_data/clusters_2020_05_01.rds")) %>%
   mutate(iso3 = survey_id) %>%
   separate(col="iso3", into="iso3", sep=3) %>%
   left_join(dhs_iso3 %>% select(-CountryName), by="iso3") %>%

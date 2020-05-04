@@ -6,10 +6,16 @@ files <- lapply(paths, function(paths) {
   
   files <- list.files(paths, full.names = TRUE)
   area <- files %>% str_subset(pattern = "areas.geojson") %>% str_subset(pattern = ".zip", negate=TRUE)
-  pop <- files %>% str_subset(pattern = "population")
   
-  files <- c(area, pop)
-  names(files) <- c("areas", "population")
+  if(population) {
+    pop <- files %>% str_subset(pattern = "population")
+    files <- c(area, pop)
+    names(files) <- c("areas", "population")
+  } else {
+  files <- c(area)
+  names(files) <- c("areas")
+  }
+  
   return(files)
 
 })
