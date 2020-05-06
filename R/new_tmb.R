@@ -29,7 +29,7 @@ exc=""
 
 list2env(make_areas_population(iso3_current, naomi_data_path, full = FALSE), globalenv())
 
-asfr <- get_asfr_pred_df(iso3_current, 2, project = FALSE)
+asfr <- get_asfr_pred_df(iso3_current, 1, project = FALSE)
 mics_asfr <- readRDS(here("countries", paste0(iso3_current, "/data/", iso3_current, "_mics_admin", 1, ".rds")))
 
 # mics_dat <- readRDS("input_data/mics_extract.rds")
@@ -46,7 +46,7 @@ mics_asfr <- readRDS(here("countries", paste0(iso3_current, "/data/", iso3_curre
 #   filter(period <= survyear) %>%
 #   rename(age_group = agegr)
 
-mf <- make_model_frames(iso3_current, population, asfr, mics_asfr, exclude_districts = exc, project=2020)
+mf <- make_model_frames(iso3_current, population, asfr, mics_asfr, exclude_districts = exc, project=FALSE)
 
 Z_spatial <- sparse.model.matrix(~0 + area_id, mf$mf_model)
 Z_age <- sparse.model.matrix(~0 + age_group, mf$mf_model)
@@ -60,7 +60,7 @@ M_obs_mics <- sparse.model.matrix(~0 + idx, mf$mics$obs)
 Z_tips_mics <- sparse.model.matrix(~0 + tips_f, mf$mics$obs)
 X_tips_dummy_mics <- model.matrix(~0 + tips_dummy, mf$mics$obs)
 
-R_spatial <- make_adjacency_matrix(iso3_current, areas_long, boundaries, exclude_districts = exc, level=2)
+R_spatial <- make_adjacency_matrix(iso3_current, areas_long, boundaries, exclude_districts = exc, level=1)
 R_tips <- make_rw_structure_matrix(ncol(Z_tips), 1, TRUE)
 R_age <- make_rw_structure_matrix(ncol(Z_age), 1, TRUE)
 R_period <- make_rw_structure_matrix(ncol(Z_period), 2, TRUE)
@@ -179,13 +179,14 @@ mf$out$mf_out %>%
   # group_by(period, area_id) %>%
   # summarise(median = sum(median)) %>%
   left_join(areas_long) %>%
-  filter(area_level == 1, age_group == "20-24") %>%
+  filter(area_level == 1, area_id %in% c("ZWE_1_10", "ZWE_1_11")) %>%
   ggplot(aes(x=period, y=median)) +
     geom_line() +
-    geom_point(data=asfr_plot %>% filter(area_level == 1, age_group == "20-24"), aes(y=asfr, group=survtype, color=survtype)) +
+    geom_point(data=asfr_plot %>% filter(area_id %in% c("ZWE_1_10", "ZWE_1_11")), aes(y=asfr, group=survtype, color=survtype)) +
     geom_ribbon(aes(ymin = lower, ymax = upper), alpha=0.3) +
     # geom_point(data = moz_anc, aes(y=anc_clients, x=year))+
-    facet_wrap(~area_name)
+    facet_grid(area_name~age_group) +
+    ylim(0,0.5)
 
 int_df <- mf$mf_model %>%
   select(period, age_group, area_id) %>%

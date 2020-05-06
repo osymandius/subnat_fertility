@@ -877,11 +877,39 @@ make_rw_structure_matrix <- function(x, order, adjust_diagonal = TRUE) {
   
 }
 
+area_populations <- function(population, areas_wide) {
+  
+  base_area_pop <- areas_wide %>%
+    left_join(population)
+  
+  level_ids <- str_subset(colnames(areas_wide), "area_id[0-9]")
+  
+  group_area_pops <- function(level_ids, base_area_pop) {
+    
+    base_area_pop %>%
+      group_by(.data[[level_ids]], sex, age_group, period) %>%
+      summarise(population = sum(population)) %>%
+      rename(area_id = .data[[level_ids]])
+    
+  }
+  
+  area_populations <- lapply(level_ids, group_area_pops, base_area_pop) %>%
+    bind_rows
+  
+}
+
 make_model_frames <- function(iso3_current, population, asfr, mics_asfr = NULL, exclude_districts = "", project = FALSE) {
   
-  population <- population %>%
-    filter(period == min(period), sex=="female")
+  population <- area_populations(population, areas_wide) %>%
+    filter(sex == "female")
   
+  population <- crossing(area_id = unique(population$area_id),
+           age_group = unique(population$age_group),
+           period = 1995:(min(population$period)-1)
+  ) %>%
+    left_join(population %>% filter(period == min(period)) %>% select(-period)) %>%
+    bind_rows(population)
+   
   if(!project) {
   
   if(!is.null(mics_asfr)) {
@@ -905,16 +933,17 @@ make_model_frames <- function(iso3_current, population, asfr, mics_asfr = NULL, 
     filter(!model_area_id %in% exclude_districts)
   
   ## Make model frame.
-  mf_model <- crossing(period = factor(1995:max_year),
+  mf_model <- crossing(period = 1995:2018,
                  age_group = c("15-19", "20-24", "25-29", "30-34", "35-39", "40-44", "45-49"),
-                 area_id = unique(area_aggregation$model_area_id)) %>%
-                 # area_id = filter(areas_long, iso3 == iso3_current, area_level == 1)$area_id) %>%
+                 # area_id = unique(area_aggregation$model_area_id)) %>%
+                 area_id = filter(areas_long, iso3 == iso3_current, area_level == 1)$area_id) %>%
     left_join(population %>%
-                select(area_id, age_group, population)
+                select(area_id, period, age_group, population)
     ) %>%
-    mutate(area_id = factor(area_id, levels = unique(area_aggregation$model_area_id)),
-    # mutate(area_id = factor(area_id, levels = filter(areas_long, iso3 == iso3_current, area_level == 1)$area_id),
-           age_group = factor(age_group, levels = c("15-19", "20-24", "25-29", "30-34", "35-39", "40-44", "45-49"))
+    # mutate(area_id = factor(area_id, levels = unique(area_aggregation$model_area_id)),
+    mutate(area_id = factor(area_id, levels = filter(areas_long, iso3 == iso3_current, area_level == 1)$area_id),
+           age_group = factor(age_group, levels = c("15-19", "20-24", "25-29", "30-34", "35-39", "40-44", "45-49")),
+           period = factor(period)
     ) %>%
     arrange(period, area_id, age_group) %>%
     mutate(idx = factor(row_number()),
@@ -938,42 +967,48 @@ make_model_frames <- function(iso3_current, population, asfr, mics_asfr = NULL, 
            period = factor(period, levels(mf_model$period)),
     )
   
-  ## Outputs
-
-  mf_out <- crossing(
-    area_id = area_aggregation$area_id,
-    age_group = unique(mf_model$age_group),
-    period = unique(mf_model$period)
-  ) %>%
-    arrange(area_id, age_group, period) %>%
-    mutate(out_idx = row_number()) %>%
-    droplevels()
-
-  join_out <- crossing(area_aggregation,
-                       age_group = unique(mf_model$age_group),
-                       period = unique(mf_model$period)) %>%
-    full_join(mf_model %>%
-                select(area_id, age_group, period, idx), by = c("model_area_id" = "area_id",
-                                                                "age_group",
-                                                                "period")
-    ) %>%
-    full_join(mf_out) %>%
-    # full_join(mf_out, by=c("area_id",
-    #                        "period",
-    #                        "age_group_out" = "age_group")
-    #           ) %>%
-    mutate(x=1) %>%
-    filter(!is.na(model_area_id))
-  
-  A_out <- spMatrix(nrow(mf_out), nrow(mf_model), join_out$out_idx, as.integer(join_out$idx), join_out$x)
-
   mf <- list()
-  
   mf$mf_model <- mf_model
-  mf$out$mf_out <- mf_out
-  mf$out$A_out <- A_out
   mf$dist$obs <- obs
   mf$mics_toggle <- 0
+  mf$out_toggle <- 0
+  
+  ## Outputs
+
+  if(unique(asfr %>%left_join(areas_long) %>% .$naomi_level)) {  
+    
+    mf_out <- crossing(
+      area_id = area_aggregation$area_id,
+      age_group = unique(mf_model$age_group),
+      period = unique(mf_model$period)
+    ) %>%
+      arrange(area_id, age_group, period) %>%
+      mutate(out_idx = row_number()) %>%
+      droplevels()
+  
+    join_out <- crossing(area_aggregation,
+                         age_group = unique(mf_model$age_group),
+                         period = unique(mf_model$period)) %>%
+      full_join(mf_model %>%
+                  select(area_id, age_group, period, idx), by = c("model_area_id" = "area_id",
+                                                                  "age_group",
+                                                                  "period")
+      ) %>%
+      full_join(mf_out) %>%
+      # full_join(mf_out, by=c("area_id",
+      #                        "period",
+      #                        "age_group_out" = "age_group")
+      #           ) %>%
+      mutate(x=1) %>%
+      filter(!is.na(model_area_id))
+    
+    A_out <- spMatrix(nrow(mf_out), nrow(mf_model), join_out$out_idx, as.integer(join_out$idx), join_out$x)
+    
+    mf$out$mf_out <- mf_out
+    mf$out$A_out <- A_out
+    mf$out_toggle <- 1
+  
+  }
   
   if(!is.null(mics_asfr)) {
     

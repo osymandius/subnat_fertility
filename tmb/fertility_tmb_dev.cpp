@@ -11,6 +11,7 @@ Type objective_function<Type>::operator() ()
 
   PARAMETER(beta_0);
   DATA_INTEGER(mics_toggle);
+  DATA_INTEGER(out_toggle);
 
   DATA_SPARSE_MATRIX(M_obs);
 
@@ -58,10 +59,6 @@ Type objective_function<Type>::operator() ()
 
   // PARAMETER(lag_logit_rho_age);
   // PARAMETER(lag_logit_rho_period);
-  
-
-
-  DATA_SPARSE_MATRIX(A_out);
 
 
 
@@ -124,17 +121,17 @@ Type objective_function<Type>::operator() ()
   // vector<Type> eta_v(eta);
   
   Type sigma_eta1 = exp(log_sigma_eta1);
-  nll -= dnorm(sigma_eta1, Type(0), Type(2), true) + log_sigma_eta1;
+  nll -= dnorm(sigma_eta1, Type(0), Type(2.5), true) + log_sigma_eta1;
   nll += SEPARABLE(AR1(Type(ar1_phi_age)), AR1(Type(ar1_phi_period)))(eta1);
   vector<Type> eta1_v(eta1);
 
   Type sigma_eta2 = exp(log_sigma_eta2);
-  nll -= dnorm(sigma_eta2, Type(0), Type(2), true) + log_sigma_eta2;
+  nll -= dnorm(sigma_eta2, Type(0), Type(2.5), true) + log_sigma_eta2;
   nll += SEPARABLE(AR1(Type(ar1_phi_period)), GMRF(R_spatial))(eta2);
   vector<Type> eta2_v(eta2);
   
   Type sigma_eta3 = exp(log_sigma_eta3);
-  nll -= dnorm(sigma_eta3, Type(0), Type(2), true) + log_sigma_eta3;
+  nll -= dnorm(sigma_eta3, Type(0), Type(2.5), true) + log_sigma_eta3;
   nll += SEPARABLE(AR1(Type(ar1_phi_age)), GMRF(R_spatial))(eta3);
   vector<Type> eta3_v(eta3);
 
@@ -192,9 +189,17 @@ Type objective_function<Type>::operator() ()
 
   }
 
-  vector<Type> births_out(A_out * births);
-  vector<Type> population_out(A_out * pop);
-  vector<Type> lambda_out(births_out / population_out);
+  if(out_toggle) {
+
+    DATA_SPARSE_MATRIX(A_out);
+
+    vector<Type> births_out(A_out * births);
+    vector<Type> population_out(A_out * pop);
+    vector<Type> lambda_out(births_out / population_out);
+
+    REPORT(lambda_out);
+    REPORT(births_out);
+  }
 
   Type log_tau2_rw_age(-2 * log_sigma_rw_age);
   Type log_tau2_rw_period(-2 * log_sigma_rw_period);
@@ -202,8 +207,9 @@ Type objective_function<Type>::operator() ()
   // Type log_tau2_rw_tips(-2 * log_sigma_rw_tips);
   Type log_tau2_eta1(-2 * log_sigma_eta1);
     
-  REPORT(lambda_out);
-  // REPORT(lambda);
+  
+  REPORT(lambda);
+  REPORT(births);
   // REPORT(logit_spatial_rho);
 
   REPORT(log_tau2_rw_age);
@@ -220,8 +226,6 @@ Type objective_function<Type>::operator() ()
 
   REPORT(sigma_eta3);
   REPORT(eta3_v);
-
-  REPORT(births_out);
 
 
   return nll;
