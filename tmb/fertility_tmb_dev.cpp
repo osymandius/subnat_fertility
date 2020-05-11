@@ -212,11 +212,10 @@ Type objective_function<Type>::operator() ()
   REPORT(births);
   // REPORT(logit_spatial_rho);
 
-  REPORT(log_tau2_rw_age);
-  REPORT(log_tau2_rw_period);
-  // REPORT(log_tau2_spatial);
-  // REPORT(log_tau2_rw_tips);
-  REPORT(log_tau2_eta1);
+  REPORT(sigma_rw_age);
+  REPORT(sigma_rw_period);
+  REPORT(sigma_spatial);
+  REPORT(sigma_rw_tips);
 
   REPORT(sigma_eta1);
   REPORT(eta1_v);

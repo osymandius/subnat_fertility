@@ -901,14 +901,26 @@ area_populations <- function(population, areas_wide) {
 make_model_frames <- function(iso3_current, population, asfr, mics_asfr = NULL, exclude_districts = "", project = FALSE) {
   
   population <- area_populations(population, areas_wide) %>%
-    filter(sex == "female")
+    filter(sex == "female") %>%
+    ungroup %>%
+    select(-sex)
   
   population <- crossing(area_id = unique(population$area_id),
            age_group = unique(population$age_group),
-           period = 1995:(min(population$period)-1)
+           period = 1995:2020
   ) %>%
-    left_join(population %>% filter(period == min(period)) %>% select(-period)) %>%
-    bind_rows(population)
+    left_join(population) %>%
+    group_by(area_id, age_group) %>%
+    mutate(population = exp(zoo::na.approx(log(population), period, na.rm = FALSE))) %>%
+    fill(population, .direction="up")
+    
+  
+  # population <- crossing(area_id = unique(population$area_id),
+  #          age_group = unique(population$age_group),
+  #          period = 1995:(min(population$period)-1)
+  # ) %>%
+  #   left_join(population %>% filter(period == min(period)) %>% select(-period)) %>%
+  #   bind_rows(population)
    
   if(!project) {
   
@@ -933,15 +945,15 @@ make_model_frames <- function(iso3_current, population, asfr, mics_asfr = NULL, 
     filter(!model_area_id %in% exclude_districts)
   
   ## Make model frame.
-  mf_model <- crossing(period = 1995:2018,
+  mf_model <- crossing(period = 1995:max_year,
                  age_group = c("15-19", "20-24", "25-29", "30-34", "35-39", "40-44", "45-49"),
-                 # area_id = unique(area_aggregation$model_area_id)) %>%
-                 area_id = filter(areas_long, iso3 == iso3_current, area_level == 1)$area_id) %>%
+                 area_id = unique(area_aggregation$model_area_id)) %>%
+                 # area_id = filter(areas_long, iso3 == iso3_current, area_level == 1)$area_id) %>%
     left_join(population %>%
                 select(area_id, period, age_group, population)
     ) %>%
-    # mutate(area_id = factor(area_id, levels = unique(area_aggregation$model_area_id)),
-    mutate(area_id = factor(area_id, levels = filter(areas_long, iso3 == iso3_current, area_level == 1)$area_id),
+    mutate(area_id = factor(area_id, levels = unique(area_aggregation$model_area_id)),
+    # mutate(area_id = factor(area_id, levels = filter(areas_long, iso3 == iso3_current, area_level == 1)$area_id),
            age_group = factor(age_group, levels = c("15-19", "20-24", "25-29", "30-34", "35-39", "40-44", "45-49")),
            period = factor(period)
     ) %>%
