@@ -1,0 +1,33 @@
+---
+title: "Country comparison | 2020_05_11"
+output: html_document
+---
+
+<style type="text/css">
+.main-container {
+  max-width: 1800px;
+  margin-left: auto;
+  margin-right: auto;
+}
+</style>
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(here)
+library(tidyverse)
+admin1_asfr_plots <- readRDS(here("admin1_asfr.rds"))
+admin2_asfr_plots <- readRDS(here("admin2_asfr.rds"))
+tfr_plots <- readRDS(here("tfr.rds"))
+```
+
+``` {r echo=FALSE, warnings=FALSE, out.width = "80%", fig.width = 12, fig.height = 12, fig.align = "center"}
+
+Map(function(admin1, admin2, tfr) {
+  
+  print(tfr)
+  print(admin1)
+  print(admin2)
+  
+}, admin1_asfr_plots, admin2_asfr_plots, tfr_plots)
+
+```

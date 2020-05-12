@@ -841,6 +841,15 @@ sample_tmb_test <- function(fit, nsample = 1000, rng_seed = NULL,
 
 make_adjacency_matrix <- function(iso3_current, areas_long, boundaries, exclude_districts = exc, level=2) {
   
+  if (level == "naomi") {
+    
+    int <- areas_long %>%
+      filter(iso3 == iso3_current)
+    
+    level <- unique(int$area_level[int$naomi_level == TRUE])
+    
+  }
+  
   sh <- areas_long %>%
     filter(iso3 == iso3_current, area_level == level, !area_id %in% exclude_districts) %>%
     mutate(area_idx = row_number())
@@ -863,6 +872,8 @@ make_adjacency_matrix <- function(iso3_current, areas_long, boundaries, exclude_
 
 
 make_rw_structure_matrix <- function(x, order, adjust_diagonal = TRUE) {
+  
+  
   
   D_mat <- diff(diag(x), differences = order)
   R_mat <- t(D_mat) %*% D_mat
