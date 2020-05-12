@@ -18,3 +18,4 @@ tmb/fertility_tmb_dev.o
 .Rhistory
 mods/
 presentations/
+*.html
