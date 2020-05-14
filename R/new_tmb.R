@@ -21,27 +21,30 @@ mics_key <- read.csv(here("countries/mics_data_key.csv"))
 source(here("R/inputs.R"))
 source(here("R/fertility_funs.R"))
 
-iso3_current <- "ZWE"
-exclude_districts <- areas_wide$area_id[areas_wide$area_id1 == "TZA_1_2"]
-exclude_districts <- c("UGA_3_029", "UGA_3_046")
-exclude_districts <- c("MOZ_2_0107", "MOZ_2_1009")
-exclude_districts <- "MWI_5_07"
-exclude_districts=""
-
+iso3 <- c("LSO", "MOZ", "NAM", "UGA", "ZMB", "ETH", "TZA")
+iso3_current <-  "NAM"
 list2env(make_areas_population(iso3_current, naomi_data_path, full = FALSE), globalenv())
 
-asfr <- get_asfr_pred_df(iso3_current, area_level = "naomi", project = FALSE)
+# exclude_districts <- areas_wide$area_id[areas_wide$area_id1 == "TZA_1_2"]
+# exclude_districts <- c("UGA_3_029", "UGA_3_046")
+# exclude_districts <- c("MOZ_2_0107", "MOZ_2_1009")
+# exclude_districts <- "MWI_5_07"
+exclude_districts=""
+
+asfr <- get_asfr_pred_df(iso3_current, area_level = "naomi", areas_long, project = FALSE) %>%
+  # filter(!survtype %in% c("TZ2007AIS", "TZ2012AIS"))
+  filter(survtype == "DHS")
 
 if(filter(mics_key, iso3 == iso3_current)$mics) {
   mics_asfr <- readRDS(here(grep("mics", list.files(paste0("countries/", iso3_current, "/data"), full.names = TRUE), value=TRUE)))
 } else {
   mics_asfr <- NULL
 }
-
+# 
 # mics_dat <- readRDS("input_data/mics_extract.rds")
 # mics_asfr <- Map(calc_asfr_mics, mics_dat$wm[10], y=list(1),
 #                  by = list(~area_id + survey_id),
-#                  tips = list(c(0:15)),
+#                  tips = list(c(0,15)),
 #                  agegr= list(3:10*5),
 #                  period = list(1995:2019),
 #                  counts = TRUE,
@@ -52,7 +55,7 @@ if(filter(mics_key, iso3 == iso3_current)$mics) {
 #   filter(period <= survyear) %>%
 #   rename(age_group = agegr)
 
-mf <- make_model_frames(iso3_current, population, asfr, mics_asfr, exclude_districts, project=FALSE)
+mf <- make_model_frames(iso3_current, population, asfr, mics_asfr=NULL, exclude_districts, project=FALSE)
 
 # saveRDS(mf, here(paste0("countries/", iso3_current, "/mods/", iso3_current, "_mf.rds")))
 
@@ -64,17 +67,19 @@ M_obs <- sparse.model.matrix(~0 + idx, mf$dist$obs)
 Z_tips <- sparse.model.matrix(~0 + tips_f, mf$dist$obs)
 X_tips_dummy <- model.matrix(~0 + tips_dummy, mf$dist$obs)
 
-M_obs_mics <- sparse.model.matrix(~0 + idx, mf$mics$obs) 
-Z_tips_mics <- sparse.model.matrix(~0 + tips_f, mf$mics$obs)
-X_tips_dummy_mics <- model.matrix(~0 + tips_dummy, mf$mics$obs)
+if(mf$mics_toggle) {
+  M_obs_mics <- sparse.model.matrix(~0 + idx, mf$mics$obs) 
+  Z_tips_mics <- sparse.model.matrix(~0 + tips_f, mf$mics$obs)
+  X_tips_dummy_mics <- model.matrix(~0 + tips_dummy, mf$mics$obs)
+}
 
-R_spatial <- make_adjacency_matrix(iso3_current, areas_long, boundaries, exclude_districts, level=5)
+R_spatial <- make_adjacency_matrix(iso3_current, areas_long, boundaries, exclude_districts, level= "naomi")
 R_tips <- make_rw_structure_matrix(ncol(Z_tips), 1, TRUE)
 R_age <- make_rw_structure_matrix(ncol(Z_age), 1, TRUE)
 R_period <- make_rw_structure_matrix(ncol(Z_period), 2, TRUE)
 
 
-dyn.unload(dynlib(here("tmb/fertility_tmb_dev")))
+# dyn.unload(dynlib(here("tmb/fertility_tmb_dev")))
 compile(here("tmb/fertility_tmb_dev.cpp"))               # Compile the C++ file
 dyn.load(dynlib(here("tmb/fertility_tmb_dev")))
 
@@ -166,12 +171,39 @@ fit <- c(f, obj = list(obj))
 fit$sdreport <- sdreport(fit$obj, fit$par)
 
 class(fit) <- "naomi_fit"  # this is hacky...
-# fit <- sample_tmb(fit)
+fit <- sample_tmb(fit)
 
-saveRDS(fit, paste0("countries/", iso3_current, "/mods/", iso3_current, "_tmb_2020_05_11.rds"))
+# saveRDS(fit, paste0("countries/", iso3_current, "/mods/", iso3_current, "_tmb_2020_05_12_DHS_only.rds"))
   
-qtls <- apply(fit$sample$lambda_out, 1, quantile, c(0.025, 0.5, 0.975))
+qtls1 <- apply(fit$sample$lambda_out, 1, quantile, c(0.025, 0.5, 0.975))
 
+names(mods) <- iso3
+
+tips <- lapply(mods, function(mods) {
+  
+  int <- data.frame(summary(mods$sdreport))
+  
+  int %>% 
+    mutate(id = rownames(.),
+           idx = row_number()) %>%
+    filter(idx %in% c(grep("u_tips", .data$id), 
+                      grep("sigma_rw_tips", .data$id),
+                      grep("beta_tips", .data$id)
+    )
+    ) %>%
+    mutate(log_sigma_rw_tips = Estimate[id=="log_sigma_rw_tips"],
+           beta_tips_dummy = Estimate[id == "beta_tips_dummy"]) %>%
+    filter(idx > 200) %>%
+    mutate(idx = row_number() - 1,
+           dummy = ifelse(idx<6, 0, 1),
+           beta_tips_dummy = beta_tips_dummy * dummy,
+           est = (Estimate*exp(log_sigma_rw_tips)) + beta_tips_dummy)
+})
+
+names(tips) <- iso3
+
+tips <- tips %>%
+  bind_rows(.id="iso3")
 
 
 hyper %>%
@@ -200,20 +232,24 @@ mf$out$mf_out %>%
     ylim(0,0.5)
   
 mf$out$mf_out %>%
-    # mf$mf_model %>%
-    mutate(lower = qtls[1,],
-           median = qtls[2,],
-           upper = qtls[3,],
-           source = "tmb") %>%
-    type.convert() %>%
-    group_by(area_id, period) %>%
-    summarise(median = 5*sum(median)) %>%
-    left_join(areas_long) %>%
-    filter(area_level == 1) %>%
-    # bind_rows(inla_res %>% mutate(source = "inla")) %>%
-    ggplot(aes(x=period, y=median)) +
+  cbind(fit$sample$lambda_out) %>%
+  group_by(area_id, period) %>%
+  summarise_at(.vars = vars(-c(age_group, out_idx)), sum) %>%
+  ungroup %>%
+  mutate_at(.vars = vars(-c(area_id, period)), function(x) 5*x) %>%
+  mutate(
+    lower = select(., -c(area_id, period)) %>% apply(1, quantile, 0.025),
+    median = select(., -c(area_id, period)) %>% apply(1, quantile, 0.5),
+    upper = select(., -c(area_id, period)) %>% apply(1, quantile, 0.975)
+         ) %>%
+  select(area_id, period, lower, median, upper) %>%
+  left_join(areas_long) %>%
+  type.convert() %>%
+  filter(area_level == 1) %>%
+  ggplot(aes(x=period, y=median)) +
+    geom_ribbon(aes(ymin = lower, ymax = upper), alpha = 0.3) +
     geom_line() +
-    geom_point(data=tfr_plot %>% filter(area_level == 1, !(area_id == x & survtype == "MICS")), aes(y=tfr, group=survtype, color=survtype)) +
+    # geom_point(data=tfr_plot %>% filter(area_level == 1, !(area_id == x & survtype == "MICS")), aes(y=tfr, group=survtype, color=survtype)) +
     facet_wrap(~area_name)
 
 moz_anc <- read_csv("~/Downloads/Moz work/11 files/ancnaomi111219clean_update_20.01.20.csv") %>%

@@ -418,7 +418,7 @@ get_neighbourhood_structure <- function(asfr, areas_long, boundaries) {
   
 }
 
-get_asfr_pred_df <- function(iso3_current, area_level, project) {
+get_asfr_pred_df <- function(iso3_current, area_level, areas_long, project) {
 
   if (area_level == "naomi") {
 

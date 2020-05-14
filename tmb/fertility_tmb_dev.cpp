@@ -201,21 +201,28 @@ Type objective_function<Type>::operator() ()
     REPORT(births_out);
   }
 
-  Type log_tau2_rw_age(-2 * log_sigma_rw_age);
-  Type log_tau2_rw_period(-2 * log_sigma_rw_period);
+  // Type log_tau2_rw_age(-2 * log_sigma_rw_age);
+  // Type log_tau2_rw_period(-2 * log_sigma_rw_period);
   // Type log_tau2_spatial(-2 * log_sigma_spatial);
   // Type log_tau2_rw_tips(-2 * log_sigma_rw_tips);
-  Type log_tau2_eta1(-2 * log_sigma_eta1);
+  // Type log_tau2_eta1(-2 * log_sigma_eta1);
     
   
-  REPORT(lambda);
-  REPORT(births);
+  // REPORT(lambda);
+  // REPORT(births);
   // REPORT(logit_spatial_rho);
 
   REPORT(sigma_rw_age);
   REPORT(sigma_rw_period);
   REPORT(sigma_spatial);
   REPORT(sigma_rw_tips);
+
+  REPORT(u_tips);
+  REPORT(beta_tips_dummy);
+  REPORT(u_period);
+  REPORT(u_age);
+  REPORT(u_spatial_str);
+  REPORT(u_spatial_iid);
 
   REPORT(sigma_eta1);
   REPORT(eta1_v);
