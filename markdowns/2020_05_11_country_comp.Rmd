@@ -17,7 +17,14 @@ library(here)
 library(tidyverse)
 admin1_asfr_plots <- readRDS(here("admin1_asfr.rds"))
 admin2_asfr_plots <- readRDS(here("admin2_asfr.rds"))
-tfr_plots <- readRDS(here("tfr.rds"))
+admin1_tfr_plots <- readRDS(here("admin1_tfr.rds"))
+admin0_tfr_plot <- readRDS(here("admin0_tfr.rds"))
+```
+
+``` {r echo=FALSE, warnings=FALSE, out.width = "80%", fig.width = 12, fig.height = 12, fig.align = "center"}
+
+admin0_tfr_plot
+
 ```
 
 ``` {r echo=FALSE, warnings=FALSE, out.width = "80%", fig.width = 12, fig.height = 12, fig.align = "center"}
@@ -28,6 +35,6 @@ Map(function(admin1, admin2, tfr) {
   print(admin1)
   print(admin2)
   
-}, admin1_asfr_plots, admin2_asfr_plots, tfr_plots)
+}, admin1_asfr_plots, admin2_asfr_plots, admin1_tfr_plots)
 
 ```

@@ -1,10 +1,12 @@
 library(tidyverse)
+library(readxl)
 
 setwd("~/Documents/GitHub/subnat_fertility")
 
+library(here)
 ########
 
-quarter_ids <- convert_quarter_id(2, c(2000:2020))
+quarter_ids <- convert_quarter_id(c(2000:2020), 2)
 
 worldpop_U1 <- read_csv("WorldPop_agesex.csv", col_types = cols(X1 = col_skip(), X = col_skip(), sex = col_character())) %>%
   filter(startage==0, iso3 %in% iso3_codes) %>%
@@ -60,14 +62,16 @@ wpp_asfr <- wpp_asfr %>%
          variable = "asfr",
          area_level = 0)
 
-wpp_tfr <- read_excel("pop_data/WPP2019_FERT_F04_TOTAL_FERTILITY(1).xlsx")
+wpp_tfr <- read_excel(here("pop_data/WPP2019_FERT_F04_TOTAL_FERTILITY(1).xlsx"))
+
+c("LSO", "MOZ", "NAM", "UGA", "ZMB", "ETH", "TZA")
 
 wpp_tfr <- wpp_tfr %>%
   melt(id="area_name", variable.name="period", value.name = "val") %>%
   separate(period, into=c("period", NA), sep="-") %>%
   type.convert() %>%
-  mutate(iso3 = countrycode(area_name, "country.name", "iso3c")) %>%
-  filter(iso3 %in% c("UGA", "MWI")) %>%
+  mutate(iso3 = ifelse(area_name == "Eswatini", "SWZ", countrycode(area_name, "country.name", "iso3c"))) %>%
+  filter(iso3 %in% c("LSO", "MOZ", "NAM", "UGA", "ZMB", "ETH", "TZA")) %>%
   group_split(period) %>%
   lapply(function(x) {
     n <- nrow(x)
@@ -86,11 +90,11 @@ wpp_tfr <- wpp_tfr %>%
 
 ######### GBD 2017 national ASFR and TFR
 
-gbd_asfr <- read_csv("IHME_GBD_2017_FERT_ESTIMATES_1950_2017_Y2018M11D08.CSV", col_types = cols(age_group_id = col_skip(), location_id = col_skip(), measure_id = col_skip(), measure_name = col_skip(), metric_name = col_skip(), sex_id = col_skip(), sex_name = col_skip()))
+gbd_asfr <- read_csv(here("pop_data/IHME_GBD_2017_FERT_ESTIMATES_1950_2017_Y2018M11D08.CSV"), col_types = cols(age_group_id = col_skip(), location_id = col_skip(), measure_id = col_skip(), measure_name = col_skip(), metric_name = col_skip(), sex_id = col_skip(), sex_name = col_skip()))
 
 gbd_asfr <- gbd_asfr %>%
   mutate(iso3 = countrycode(location_name, "country.name", "iso3c")) %>%
-  filter(iso3 %in% iso3_codes) %>%
+  filter(iso3 %in% c("LSO", "MOZ", "NAM", "UGA", "ZMB", "ETH", "TZA")) %>%
   separate(age_group_name, into=c("agegr", "up"), sep=" to ") %>%
   mutate(agegr = paste0(agegr, "-", up),
          area_id = iso3,

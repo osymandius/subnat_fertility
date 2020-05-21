@@ -23,7 +23,7 @@ source(here("R/inputs.R"))
 source(here("R/fertility_funs.R"))
 
 
-iso3_current <- "ZWE"
+iso3_current <- "ETH"
 # iso3 <- c("LSO", "MOZ", "MWI", "NAM", "TZA", "UGA", "ZMB", "ZWE")
 # 
 
@@ -58,11 +58,11 @@ surveys <- dhs_surveys(surveyIds = unique(clusters$DHS_survey_id)) %>%
   )
 
 ## Needs check to ensure level is < max_level
-cluster_areas <- assign_cluster_area(clusters, 0)
+cluster_areas <- assign_cluster_area(clusters, 2)
 
-dat <- clusters_to_surveys(surveys, cluster_areas, single_tips = FALSE)
+dat <- clusters_to_surveys(surveys, cluster_areas, single_tips = TRUE)
 
-asfr <- asfr %>% bind_rows( Map(calc_asfr1, dat$ir,
+asfr <- Map(calc_asfr1, dat$ir,
               y=1:length(dat$ir),
               by = list(~country + surveyid + survtype + survyear + area_id),
               tips = dat$tips_surv,
@@ -75,7 +75,9 @@ asfr <- asfr %>% bind_rows( Map(calc_asfr1, dat$ir,
   rename(age_group = agegr) %>%
   mutate(iso3 = countrycode(country, "country.name", "iso3c"),
          iso3 = ifelse(country == "Eswatini", "SWZ", iso3)) %>%
-  select(-country))
+  select(-country)
+
+saveRDS(asfr, "countries/ETH/data/ETH_asfr_admin2_no_reassignment.rds")
 
 tfr <- Map(calc_tfr, dat$ir,
             by = list(~country + surveyid + survtype + survyear + area_id),

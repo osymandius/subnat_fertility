@@ -839,7 +839,7 @@ sample_tmb_test <- function(fit, nsample = 1000, rng_seed = NULL,
   fit
 }
 
-make_adjacency_matrix <- function(iso3_current, areas_long, boundaries, exclude_districts = exc, level=2) {
+make_adjacency_matrix <- function(iso3_current, areas_long, boundaries, exclude_districts = exc, level="naomi") {
   
   if (level == "naomi") {
     
@@ -861,6 +861,21 @@ make_adjacency_matrix <- function(iso3_current, areas_long, boundaries, exclude_
     as("Spatial") %>%
     spdep::poly2nb() %>%
     `names<-`(sh$area_idx)
+  
+  if(iso3_current == "MOZ") {
+    #Make KaTembe adjacent to KaMpfumu and Nhlamankulu
+    nb[[6]] <- c(nb[[6]], 1, 2)
+    nb[[1]] <- c(nb[[1]], 6)
+    nb[[2]] <- c(nb[[2]], 6)
+    
+    #Make KaNyaka adjacent to KaMpfumu	and KaMaxakeni
+    nb[[7]] <- c(1, 3)
+    nb[[1]] <- c(nb[[1]], 7)
+    nb[[3]] <- c(nb[[3]], 7)
+    
+    nb <- lapply(nb, as.integer)
+    class(nb) <- "nb"
+  }
   
   adj <- nb2mat(nb, zero.policy=TRUE, style="B")
   R_spatial <- INLA::inla.scale.model(diag(rowSums(adj)) - 0.99*adj,
@@ -967,6 +982,11 @@ make_model_frames <- function(iso3_current, population, asfr, mics_asfr = NULL, 
     # mutate(area_id = factor(area_id, levels = filter(areas_long, iso3 == iso3_current, area_level == 1)$area_id),
            age_group = factor(age_group, levels = c("15-19", "20-24", "25-29", "30-34", "35-39", "40-44", "45-49")),
            period = factor(period)
+           # restype = ifelse(area_id %in% c(
+           #  filter(areas_long, parent_area_id == "ETH_1_10")$area_id,
+           #  filter(areas_long, str_detect(area_name, "Town"))$area_id,
+           #  filter(areas_long, area_name %in% c("Harari", "Fafen (Jijiga)"))$area_id),
+           #  1, 0)
     ) %>%
     arrange(period, area_id, age_group) %>%
     mutate(idx = factor(row_number()),
@@ -985,6 +1005,13 @@ make_model_frames <- function(iso3_current, population, asfr, mics_asfr = NULL, 
     left_join(mf_model) %>%
     mutate(tips_dummy = as.integer(tips > 5),
            tips_f = factor(tips),
+           #####
+           # urban_dummy = ifelse(area_id %in% c(
+           #   filter(areas_long, parent_area_id == "ETH_1_10")$area_id,
+           #   filter(areas_long, str_detect(area_name, "Town"))$area_id,
+           #   filter(areas_long, area_name %in% c("Harari", "Fafen (Jijiga)"))$area_id),
+           # 1, 0),
+           #####
            age_group = factor(age_group, levels(mf_model$age_group)),
            area_id = factor(area_id, levels(mf_model$area_id)),
            period = factor(period, levels(mf_model$period)),
@@ -1026,6 +1053,34 @@ make_model_frames <- function(iso3_current, population, asfr, mics_asfr = NULL, 
       filter(!is.na(model_area_id))
     
     A_out <- spMatrix(nrow(mf_out), nrow(mf_model), join_out$out_idx, as.integer(join_out$idx), join_out$x)
+    
+    # mf_out_restype <- crossing(
+    #   age_group = unique(mf_model$age_group),
+    #   period = unique(mf_model$period),
+    #   restype = c(1, 0)
+    #   ) %>%
+    # arrange(age_group, period) %>%
+    # mutate(out_idx = row_number()) %>%
+    # droplevels()
+    # 
+    # join_out_restype <- crossing(
+    #   age_group = unique(mf_model$age_group),
+    #   period = unique(mf_model$period),
+    #   restype = c(1, 0)
+    # ) %>%
+    # full_join(mf_model %>%
+    #             select(age_group, period, restype, idx)) %>%
+    # full_join(mf_out_restype) %>%
+    # # full_join(mf_out, by=c("area_id",
+    # #                        "period",
+    # #                        "age_group_out" = "age_group")
+    # #           ) %>%
+    # mutate(x=1)
+    # 
+    # A_out_restype <- spMatrix(nrow(mf_out_restype), nrow(mf_model), join_out_restype$out_idx, as.integer(join_out_restype$idx), join_out_restype$x)
+    # 
+    # mf$out$mf_out_restype <- mf_out_restype
+    # mf$out$A_out_restype <- A_out_restype
     
     mf$out$mf_out <- mf_out
     mf$out$A_out <- A_out

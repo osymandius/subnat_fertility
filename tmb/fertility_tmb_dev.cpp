@@ -17,6 +17,9 @@ Type objective_function<Type>::operator() ()
 
   DATA_MATRIX(X_tips_dummy);
   PARAMETER_VECTOR(beta_tips_dummy);
+
+  // DATA_MATRIX(X_urban_dummy);
+  // PARAMETER_VECTOR(beta_urban_dummy);
   
   DATA_SPARSE_MATRIX(Z_tips);
   DATA_SPARSE_MATRIX(Z_age);
@@ -26,14 +29,18 @@ Type objective_function<Type>::operator() ()
   DATA_SPARSE_MATRIX(Z_interaction1);
   PARAMETER_ARRAY(eta1);
   PARAMETER(log_sigma_eta1);
+  PARAMETER(eta1_phi_age);
+  PARAMETER(eta1_phi_period);
 
-  DATA_SPARSE_MATRIX(Z_interaction2);
-  PARAMETER_ARRAY(eta2);
-  PARAMETER(log_sigma_eta2);
+  // DATA_SPARSE_MATRIX(Z_interaction2);
+  // PARAMETER_ARRAY(eta2);
+  // PARAMETER(log_sigma_eta2);
+  // PARAMETER(eta2_phi_period);
 
-  DATA_SPARSE_MATRIX(Z_interaction3);
-  PARAMETER_ARRAY(eta3);
-  PARAMETER(log_sigma_eta3);
+  // DATA_SPARSE_MATRIX(Z_interaction3);
+  // PARAMETER_ARRAY(eta3);
+  // PARAMETER(log_sigma_eta3);
+  // PARAMETER(eta3_phi_age);
 
   DATA_SPARSE_MATRIX(R_tips);
   DATA_SPARSE_MATRIX(R_age);
@@ -76,6 +83,7 @@ Type objective_function<Type>::operator() ()
 
   // // Fixed effect TIPS dummy
   nll -= dnorm(beta_tips_dummy, Type(0), Type(1), true).sum();
+  // nll -= dnorm(beta_urban_dummy, Type(0), Type(1), true).sum();
   
 
   // RW TIPS
@@ -115,25 +123,21 @@ Type objective_function<Type>::operator() ()
   nll -= dnorm(sigma_spatial, Type(0), Type(2.5), true) + log_sigma_spatial;
   
   vector<Type> spatial = sigma_spatial * (sqrt(1 - spatial_rho) * u_spatial_iid + sqrt(spatial_rho) * u_spatial_str);
-
-
-  // nll += SEPARABLE(GMRF(R_period), SEPARABLE(GMRF(R_age), GMRF(R_spatial)))(eta);
-  // vector<Type> eta_v(eta);
   
   Type sigma_eta1 = exp(log_sigma_eta1);
   nll -= dnorm(sigma_eta1, Type(0), Type(2.5), true) + log_sigma_eta1;
-  nll += SEPARABLE(AR1(Type(ar1_phi_age)), AR1(Type(ar1_phi_period)))(eta1);
+  nll += SEPARABLE(AR1(Type(eta1_phi_age)), AR1(Type(eta1_phi_period)))(eta1);
   vector<Type> eta1_v(eta1);
 
-  Type sigma_eta2 = exp(log_sigma_eta2);
-  nll -= dnorm(sigma_eta2, Type(0), Type(2.5), true) + log_sigma_eta2;
-  nll += SEPARABLE(AR1(Type(ar1_phi_period)), GMRF(R_spatial))(eta2);
-  vector<Type> eta2_v(eta2);
+  // Type sigma_eta2 = exp(log_sigma_eta2);
+  // nll -= dnorm(sigma_eta2, Type(0), Type(2.5), true) + log_sigma_eta2;
+  // nll += SEPARABLE(AR1(Type(eta2_phi_period)), GMRF(R_spatial))(eta2);
+  // vector<Type> eta2_v(eta2);
   
-  Type sigma_eta3 = exp(log_sigma_eta3);
-  nll -= dnorm(sigma_eta3, Type(0), Type(2.5), true) + log_sigma_eta3;
-  nll += SEPARABLE(AR1(Type(ar1_phi_age)), GMRF(R_spatial))(eta3);
-  vector<Type> eta3_v(eta3);
+  // Type sigma_eta3 = exp(log_sigma_eta3);
+  // nll -= dnorm(sigma_eta3, Type(0), Type(2.5), true) + log_sigma_eta3;
+  // nll += SEPARABLE(AR1(Type(eta3_phi_age)), GMRF(R_spatial))(eta3);
+  // vector<Type> eta3_v(eta3);
 
   vector<Type> log_lambda(
                      // X_mf * beta_mf
@@ -142,14 +146,15 @@ Type objective_function<Type>::operator() ()
                      + Z_period * u_period * sigma_rw_period
                      + Z_spatial * spatial
 		                 + Z_interaction1 * eta1_v * sigma_eta1
-                     + Z_interaction2 * eta2_v * sigma_eta2
-                     + Z_interaction3 * eta3_v * sigma_eta3
+                   //   + Z_interaction2 * eta2_v * sigma_eta2
+                   //   + Z_interaction3 * eta3_v * sigma_eta3
                      );
 
   
   vector<Type> mu_obs_pred(M_obs * log_lambda
                           + Z_tips * u_tips * sigma_rw_tips  // TIPS RW
                           + X_tips_dummy * beta_tips_dummy          // TIPS fixed effect
+                          // + X_urban_dummy * beta_urban_dummy          // TIPS fixed effect
                           + log_offset    
                           );
 
@@ -192,46 +197,69 @@ Type objective_function<Type>::operator() ()
   if(out_toggle) {
 
     DATA_SPARSE_MATRIX(A_out);
+    // DATA_SPARSE_MATRIX(A_out_restype);
 
     vector<Type> births_out(A_out * births);
     vector<Type> population_out(A_out * pop);
     vector<Type> lambda_out(births_out / population_out);
 
+    // vector<Type> births_out_restype(A_out_restype * births);
+    // vector<Type> population_out_restype(A_out_restype * pop);
+    // vector<Type> lambda_out_restype(births_out_restype / population_out_restype);
+
     REPORT(lambda_out);
     REPORT(births_out);
+
+    // REPORT(lambda_out_restype);
+    // REPORT(births_out_restype);
   }
 
-  // Type log_tau2_rw_age(-2 * log_sigma_rw_age);
-  // Type log_tau2_rw_period(-2 * log_sigma_rw_period);
-  // Type log_tau2_spatial(-2 * log_sigma_spatial);
-  // Type log_tau2_rw_tips(-2 * log_sigma_rw_tips);
-  // Type log_tau2_eta1(-2 * log_sigma_eta1);
+  Type log_tau2_rw_age(-2 * log_sigma_rw_age);
+  Type log_tau2_rw_period(-2 * log_sigma_rw_period);
+  Type log_tau2_spatial(-2 * log_sigma_spatial);
+  Type log_tau2_rw_tips(-2 * log_sigma_rw_tips);
+  Type log_tau2_eta1(-2 * log_sigma_eta1);
+  // Type log_tau2_eta2(-2 * log_sigma_eta2);
+  // Type log_tau2_eta3(-2 * log_sigma_eta3);
     
   
   // REPORT(lambda);
   // REPORT(births);
-  // REPORT(logit_spatial_rho);
+  
+  
+  // REPORT(sigma_rw_age);
+  // REPORT(sigma_rw_period);
+  // REPORT(sigma_spatial);
+  
+  REPORT(log_tau2_rw_age);
+  REPORT(log_tau2_rw_period);
+  REPORT(log_tau2_rw_tips);
+  REPORT(log_tau2_spatial);
+  REPORT(logit_spatial_rho);
 
-  REPORT(sigma_rw_age);
-  REPORT(sigma_rw_period);
-  REPORT(sigma_spatial);
-  REPORT(sigma_rw_tips);
+  REPORT(log_tau2_eta1);
+  REPORT(eta1_phi_age);
+  REPORT(eta1_phi_period);
+  // REPORT(log_tau2_eta2);
+  // REPORT(log_tau2_eta3);
+  // REPORT(sigma_rw_tips);
 
-  REPORT(u_tips);
-  REPORT(beta_tips_dummy);
-  REPORT(u_period);
-  REPORT(u_age);
-  REPORT(u_spatial_str);
-  REPORT(u_spatial_iid);
+  // REPORT(u_tips);
+  // REPORT(beta_tips_dummy);
+  // REPORT(beta_urban_dummy);
+  // REPORT(u_period);
+  // REPORT(u_age);
+  // REPORT(u_spatial_str);
+  // REPORT(u_spatial_iid);
 
-  REPORT(sigma_eta1);
-  REPORT(eta1_v);
+  // REPORT(sigma_eta1);
+  // REPORT(eta1_v);
 
-  REPORT(sigma_eta2);
-  REPORT(eta2_v);
+  // REPORT(sigma_eta2);
+  // REPORT(eta2_v);
 
-  REPORT(sigma_eta3);
-  REPORT(eta3_v);
+  // REPORT(sigma_eta3);
+  // REPORT(eta3_v);
 
 
   return nll;
