@@ -22,7 +22,7 @@ source(here("R/inputs.R"))
 source(here("R/fertility_funs.R"))
 
 iso3 <- c("LSO", "MOZ", "NAM", "UGA", "ZMB", "ETH", "TZA")
-iso3_current <-  "NAM"
+iso3_current <-  "ZWE"
 list2env(make_areas_population(iso3_current, naomi_data_path, full = FALSE), globalenv())
 
 # exclude_districts <- areas_wide$area_id[areas_wide$area_id1 == "TZA_1_2"]
@@ -31,7 +31,7 @@ list2env(make_areas_population(iso3_current, naomi_data_path, full = FALSE), glo
 # exclude_districts <- "MWI_5_07"
 exclude_districts=""
 
-asfr <- get_asfr_pred_df(iso3_current, area_level = "naomi", areas_long, project = FALSE)
+asfr <- get_asfr_pred_df(iso3_current, area_level = 0, areas_long, project = FALSE)
   # filter(survtype != "AIS")
   # filter(survtype == "DHS")
 
@@ -93,20 +93,20 @@ data <- list(M_obs = M_obs,
              Z_tips = Z_tips,
              Z_age = Z_age,
              Z_period = Z_period,
-             Z_spatial = Z_spatial,
+             # Z_spatial = Z_spatial,
              Z_interaction1 = sparse.model.matrix(~0 + id.interaction1, mf$mf_model),
              Z_interaction2 = sparse.model.matrix(~0 + id.interaction2, mf$mf_model),
              Z_interaction3 = sparse.model.matrix(~0 + id.interaction3, mf$mf_model),
              R_tips = R_tips,
              R_age = R_age,
              R_period = R_period,
-             R_spatial = R_spatial,
+             # R_spatial = R_spatial,
              ar1_phi_age = ar1_phi_age,
              ar1_phi_period = ar1_phi_period,
              log_offset = log(mf$dist$obs$pys),
              births_obs = mf$dist$obs$births,
-             pop = mf$mf_model$population,
-             A_out = mf$out$A_out,
+             # pop = mf$mf_model$population,
+             # A_out = mf$out$A_out,
              # A_out_restype = mf$out$A_out_restype,
              mics_toggle = mf$mics_toggle,
              out_toggle = mf$out_toggle
@@ -119,24 +119,25 @@ par <- list(
   u_tips = rep(0, ncol(Z_tips)),
   u_age = rep(0, ncol(Z_age)),
   u_period = rep(0, ncol(Z_period)),
-  u_spatial_str = rep(0, ncol(Z_spatial)),
-  u_spatial_iid = rep(0, ncol(Z_spatial)),
+  # u_spatial_str = rep(0, ncol(Z_spatial)),
+  # u_spatial_iid = rep(0, ncol(Z_spatial)),
   eta1 = array(0, c(ncol(Z_period), ncol(Z_age))),
   log_sigma_eta1 = log(2.5),
-  eta1_phi_age = 0,
-  eta1_phi_period = 0,
+  # log_prec_eta1 = log(2.5),
+  lag_logit_eta1_phi_age = 0,
+  lag_logit_eta1_phi_period = 0,
   # eta2 = array(0, c(ncol(Z_spatial), ncol(Z_period))),
   # log_sigma_eta2 = log(2.5),
   # eta3 = array(0, c(ncol(Z_spatial), ncol(Z_age))),
   # log_sigma_eta3 = log(2.5),
   log_sigma_rw_period = log(2.5),
   log_sigma_rw_age = log(2.5),
-  log_sigma_rw_tips = log(2.5),
-  log_sigma_spatial = log(2.5),
-  logit_spatial_rho = 0
+  log_sigma_rw_tips = log(2.5)
+  # log_sigma_spatial = log(2.5),
+  # logit_spatial_rho = 0
 )
-
-random <- c("beta_0", "beta_tips_dummy","u_tips", "u_age", "u_period", "u_spatial_str", "u_spatial_iid", "eta1")
+# "u_spatial_str", "u_spatial_iid", "eta1"
+random <- c("beta_0", "beta_tips_dummy","u_tips", "u_age", "u_period", "eta1")
 
 if(mf$mics_toggle) {
   data <- c(data, "M_obs_mics" = M_obs_mics,
@@ -174,7 +175,7 @@ fit <- c(f, obj = list(obj))
 fit$sdreport <- sdreport(fit$obj, fit$par)
 
 class(fit) <- "naomi_fit"  # this is hacky...
-fit <- sample_tmb(fit, random_only=FALSE)
+fit <- sample_tmb(fit, random_only=TRUE)
 
 qtls1 <- apply(fit$sample$lambda_out, 1, quantile, c(0.025, 0.5, 0.975))
 
@@ -233,7 +234,7 @@ hyper %>%
     geom_point(aes(color=mics_data)) +
     facet_wrap(~name)
 
-tfr_plot <- readRDS(here("countries/MOZ/data/MOZ_tfr_plot.rds"))
+tfr_plot <- readRDS(here("countries/ETH/data/ETH_tfr_plot.rds"))
   
 mf$out$mf_out %>%
     mutate(lower = qtls1[1,],
@@ -272,8 +273,7 @@ mf$out$mf_out %>%
     geom_ribbon(aes(ymin = lower, ymax = upper), alpha = 0.3) +
     geom_line() +
     geom_point(data=tfr_plot %>% left_join(areas_long) %>% filter(area_level == 1), aes(y=tfr, group=survtype, color=survtype)) +
-    facet_wrap(~area_name) +
-    ylim(0, 8)
+    facet_wrap(~area_name)
 
 moz_anc <- read_csv("~/Downloads/Moz work/11 files/ancnaomi111219clean_update_20.01.20.csv") %>%
   left_join(areas_long) %>%
