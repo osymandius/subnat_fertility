@@ -97,15 +97,15 @@ Type objective_function<Type>::operator() ()
   //RW AGE
   Type sigma_rw_age = exp(log_sigma_rw_age);
   nll -= dnorm(sigma_rw_age, Type(0), Type(2.5), true) + log_sigma_rw_age;
-  // nll += AR1(Type(0.99))(u_age);
-  nll += GMRF(R_age)(u_age);
+  nll += AR1(Type(0.99))(u_age);
+  // nll += GMRF(R_age)(u_age);
   nll -= dnorm(u_age.sum(), Type(0), Type(0.01) * u_age.size(), true);
 
   // RW PERIOD
   Type sigma_rw_period = exp(log_sigma_rw_period);
   nll -= dnorm(sigma_rw_period, Type(0), Type(2.5), true) + log_sigma_rw_period;
-  // nll += AR1(Type(0.99))(u_period);
-  nll -= Type(-0.5) * (u_period * (R_period * u_period)).sum();
+  nll += AR1(Type(0.99))(u_period);
+  // nll -= Type(-0.5) * (u_period * (R_period * u_period)).sum();
   nll -= dnorm(u_period.sum(), Type(0), Type(0.01) * u_period.size(), true);
 
   // // SPATIAL

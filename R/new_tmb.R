@@ -84,10 +84,9 @@ R_period <- make_rw_structure_matrix(ncol(Z_period), 2, TRUE)
 compile(here("tmb/fertility_tmb_dev.cpp"))               # Compile the C++ file
 dyn.load(dynlib(here("tmb/fertility_tmb_dev")))
 
-ar1_phi_age <- 0.99
-ar1_phi_period <- 0.99
+tmb_int <- list()
 
-data <- list(M_obs = M_obs,
+tmb_int$data <- list(M_obs = M_obs,
              X_tips_dummy = X_tips_dummy,
              # X_urban_dummy = X_urban_dummy,
              Z_tips = Z_tips,
@@ -97,12 +96,10 @@ data <- list(M_obs = M_obs,
              Z_interaction1 = sparse.model.matrix(~0 + id.interaction1, mf$mf_model),
              Z_interaction2 = sparse.model.matrix(~0 + id.interaction2, mf$mf_model),
              Z_interaction3 = sparse.model.matrix(~0 + id.interaction3, mf$mf_model),
-             R_tips = R_tips,
+             # R_tips = R_tips,
              R_age = R_age,
              R_period = R_period,
              # R_spatial = R_spatial,
-             ar1_phi_age = ar1_phi_age,
-             ar1_phi_period = ar1_phi_period,
              log_offset = log(mf$dist$obs$pys),
              births_obs = mf$dist$obs$births,
              # pop = mf$mf_model$population,
@@ -112,47 +109,55 @@ data <- list(M_obs = M_obs,
              out_toggle = mf$out_toggle
 )
 
-par <- list(
+tmb_int$par <- list(
   beta_0 = 0,
-  beta_tips_dummy = rep(0, ncol(X_tips_dummy)),
+  
+  # beta_tips_dummy = rep(0, ncol(X_tips_dummy)),
+  # u_tips = rep(0, ncol(Z_tips)),
+  # log_sigma_rw_tips = log(2.5),
+  
   # beta_urban_dummy = rep(0, ncol(X_urban_dummy)),
-  u_tips = rep(0, ncol(Z_tips)),
+  
   u_age = rep(0, ncol(Z_age)),
+  log_sigma_rw_age = log(2.5),
+  
   u_period = rep(0, ncol(Z_period)),
+  log_sigma_rw_period = log(2.5),
+  
   # u_spatial_str = rep(0, ncol(Z_spatial)),
   # u_spatial_iid = rep(0, ncol(Z_spatial)),
+  # log_sigma_spatial = log(2.5),
+  # logit_spatial_rho = 0,
+  
   eta1 = array(0, c(ncol(Z_period), ncol(Z_age))),
   log_sigma_eta1 = log(2.5),
-  # log_prec_eta1 = log(2.5),
   lag_logit_eta1_phi_age = 0,
-  lag_logit_eta1_phi_period = 0,
+  lag_logit_eta1_phi_period = 0
+  
   # eta2 = array(0, c(ncol(Z_spatial), ncol(Z_period))),
   # log_sigma_eta2 = log(2.5),
+  
   # eta3 = array(0, c(ncol(Z_spatial), ncol(Z_age))),
   # log_sigma_eta3 = log(2.5),
-  log_sigma_rw_period = log(2.5),
-  log_sigma_rw_age = log(2.5),
-  log_sigma_rw_tips = log(2.5)
-  # log_sigma_spatial = log(2.5),
-  # logit_spatial_rho = 0
 )
-# "u_spatial_str", "u_spatial_iid", "eta1"
-random <- c("beta_0", "beta_tips_dummy","u_tips", "u_age", "u_period", "eta1")
+
+# "u_spatial_str", "u_spatial_iid", "eta1" "beta_tips_dummy","u_tips", 
+tmb_int$random <- c("beta_0", "u_age", "u_period", "eta1")
 
 if(mf$mics_toggle) {
-  data <- c(data, "M_obs_mics" = M_obs_mics,
+  tmb_int$data <- c(tmb_int$data, "M_obs_mics" = M_obs_mics,
             "X_tips_dummy_mics" = list(X_tips_dummy_mics),
             "Z_tips_mics" = Z_tips_mics,
             "births_obs_mics" = list(mf$mics$obs$births),
             "log_offset_mics" = list(log(mf$mics$obs$pys)),
             "A_mics" = mf$mics$A_mics)
-  par <- c(par, "beta_tips_dummy_mics" = rep(0, ncol(X_tips_dummy_mics)))
-  random = c(random, "beta_tips_dummy_mics")
+  tmb_int$par <- c(tmb_int$par, "beta_tips_dummy_mics" = rep(0, ncol(X_tips_dummy_mics)))
+  tmb_int$random <- c(tmb_int$random, "beta_tips_dummy_mics")
 }
 
 
-f <- mcparallel({TMB::MakeADFun(data = data,
-                                parameters = par,
+f <- mcparallel({TMB::MakeADFun(data = tmb_int$data,
+                                parameters = tmb_int$par,
                                 DLL = "fertility_tmb_dev",
                                 silent=0,
                                 checkParameterOrder=FALSE)
@@ -160,11 +165,11 @@ f <- mcparallel({TMB::MakeADFun(data = data,
 
 mccollect(f)
 
-obj <-  MakeADFun(data = data,
-                  parameters = par,
+obj <-  MakeADFun(data = tmb_int$data,
+                  parameters = tmb_int$par,
                   DLL = "fertility_tmb_dev",
                   #  random = c("beta_mf", "beta_tips_dummy", "u_tips", "u_age", "u_period", "u_spatial_str", "u_spatial_iid", "eta1", "eta2", "eta3"),
-                  random = random,
+                  random = tmb_int$random,
                   hessian = FALSE)
 
 f <- nlminb(obj$par, obj$fn, obj$gr)

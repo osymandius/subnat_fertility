@@ -15,16 +15,16 @@ Type objective_function<Type>::operator() ()
 
   DATA_SPARSE_MATRIX(M_obs);
 
-  // DATA_MATRIX(X_tips_dummy);
-  // PARAMETER_VECTOR(beta_tips_dummy);
+  DATA_MATRIX(X_tips_dummy);
+  PARAMETER_VECTOR(beta_tips_dummy);
 
   // DATA_MATRIX(X_urban_dummy);
   // PARAMETER_VECTOR(beta_urban_dummy);
   
-  // DATA_SPARSE_MATRIX(Z_tips);
+  DATA_SPARSE_MATRIX(Z_tips);
   DATA_SPARSE_MATRIX(Z_age);
   DATA_SPARSE_MATRIX(Z_period);
-  // DATA_SPARSE_MATRIX(Z_spatial);
+  DATA_SPARSE_MATRIX(Z_spatial);
 
   DATA_SPARSE_MATRIX(Z_interaction1);
   PARAMETER_ARRAY(eta1);
@@ -43,27 +43,27 @@ Type objective_function<Type>::operator() ()
   // PARAMETER(log_sigma_eta3);
   // PARAMETER(eta3_phi_age);
 
-  // DATA_SPARSE_MATRIX(R_tips);
+  DATA_SPARSE_MATRIX(R_tips);
   DATA_SPARSE_MATRIX(R_age);
   DATA_SPARSE_MATRIX(R_period);
-  // DATA_SPARSE_MATRIX(R_spatial);
+  DATA_SPARSE_MATRIX(R_spatial);
 
   // DATA_SCALAR(ar1_phi_age);
   // DATA_SCALAR(ar1_phi_period);
 
-  // PARAMETER(log_sigma_rw_tips);
+  PARAMETER(log_sigma_rw_tips);
   PARAMETER(log_sigma_rw_age);
   PARAMETER(log_sigma_rw_period);
 
 
-  // PARAMETER_VECTOR(u_tips);
+  PARAMETER_VECTOR(u_tips);
   PARAMETER_VECTOR(u_age);
   PARAMETER_VECTOR(u_period);
 
-  // PARAMETER_VECTOR(u_spatial_str);
-  // PARAMETER_VECTOR(u_spatial_iid); 
-  // PARAMETER(logit_spatial_rho);
-  // PARAMETER(log_sigma_spatial);
+  PARAMETER_VECTOR(u_spatial_str);
+  PARAMETER_VECTOR(u_spatial_iid); 
+  PARAMETER(logit_spatial_rho);
+  PARAMETER(log_sigma_spatial);
 
   // PARAMETER(lag_logit_rho_age);
   // PARAMETER(lag_logit_rho_period);
@@ -83,16 +83,16 @@ Type objective_function<Type>::operator() ()
   nll -= dnorm(beta_0, Type(0), Type(5), true);
 
   // Fixed effect TIPS dummy
-  // nll -= dnorm(beta_tips_dummy, Type(0), Type(1), true).sum();
+  nll -= dnorm(beta_tips_dummy, Type(0), Type(1), true).sum();
   // nll -= dnorm(beta_urban_dummy, Type(0), Type(1), true).sum();
   
 
   // RW TIPS
 
-  // Type sigma_rw_tips = exp(log_sigma_rw_tips);
-  // nll -= dnorm(sigma_rw_tips, Type(0), Type(2.5), true) + log_sigma_rw_tips;
-  // nll -= Type(-0.5) * (u_tips * (R_tips * u_tips)).sum();
-  // nll -= dnorm(u_tips.sum(), Type(0), Type(0.01) * u_tips.size(), true);
+  Type sigma_rw_tips = exp(log_sigma_rw_tips);
+  nll -= dnorm(sigma_rw_tips, Type(0), Type(2.5), true) + log_sigma_rw_tips;
+  nll -= Type(-0.5) * (u_tips * (R_tips * u_tips)).sum();
+  nll -= dnorm(u_tips.sum(), Type(0), Type(0.01) * u_tips.size(), true);
 
   //RW AGE
   Type sigma_rw_age = exp(log_sigma_rw_age);
@@ -108,22 +108,22 @@ Type objective_function<Type>::operator() ()
   nll -= Type(-0.5) * (u_period * (R_period * u_period)).sum();
   nll -= dnorm(u_period.sum(), Type(0), Type(0.01) * u_period.size(), true);
 
-  // // SPATIAL
+  // SPATIAL
   // // ICAR
-  // nll -= Type(-0.5) * (u_spatial_str * (R_spatial * u_spatial_str)).sum();
-  // nll -= dnorm(u_spatial_str.sum(), Type(0), Type(0.01) * u_spatial_str.size(), 1);
+  nll -= Type(-0.5) * (u_spatial_str * (R_spatial * u_spatial_str)).sum();
+  nll -= dnorm(u_spatial_str.sum(), Type(0), Type(0.01) * u_spatial_str.size(), 1);
   // // IID
-  // nll -= dnorm(u_spatial_iid, Type(0), Type(1), true).sum();
+  nll -= dnorm(u_spatial_iid, Type(0), Type(1), true).sum();
   // // Rho
-  // Type spatial_rho(exp(logit_spatial_rho)/(1+exp(logit_spatial_rho)));
-  // nll -= log(spatial_rho) +  log(1 - spatial_rho); // Jacobian adjustment for inverse logit'ing the parameter... 
-  // nll -= dbeta(spatial_rho, Type(0.5), Type(0.5), true);
+  Type spatial_rho(exp(logit_spatial_rho)/(1+exp(logit_spatial_rho)));
+  nll -= log(spatial_rho) +  log(1 - spatial_rho); // Jacobian adjustment for inverse logit'ing the parameter... 
+  nll -= dbeta(spatial_rho, Type(0.5), Type(0.5), true);
   
   // // Sigma
-  // Type sigma_spatial = exp(log_sigma_spatial);
-  // nll -= dnorm(sigma_spatial, Type(0), Type(2.5), true) + log_sigma_spatial;
+  Type sigma_spatial = exp(log_sigma_spatial);
+  nll -= dnorm(sigma_spatial, Type(0), Type(2.5), true) + log_sigma_spatial;
   
-  // vector<Type> spatial = sigma_spatial * (sqrt(1 - spatial_rho) * u_spatial_iid + sqrt(spatial_rho) * u_spatial_str);
+  vector<Type> spatial = sigma_spatial * (sqrt(1 - spatial_rho) * u_spatial_iid + sqrt(spatial_rho) * u_spatial_str);
   
   // ETA1 - Age x time interaction
 
@@ -162,7 +162,7 @@ Type objective_function<Type>::operator() ()
                      beta_0
                      + Z_age * u_age * sigma_rw_age
                      + Z_period * u_period * sigma_rw_period
-                     // + Z_spatial * spatial
+                     + Z_spatial * spatial
 		                 + Z_interaction1 * eta1_v * sigma_eta1
                    //   + Z_interaction2 * eta2_v * sigma_eta2
                    //   + Z_interaction3 * eta3_v * sigma_eta3
@@ -170,8 +170,8 @@ Type objective_function<Type>::operator() ()
 
   
   vector<Type> mu_obs_pred(M_obs * log_lambda
-                          // + Z_tips * u_tips * sigma_rw_tips  // TIPS RW
-                          // + X_tips_dummy * beta_tips_dummy          // TIPS fixed effect
+                          + Z_tips * u_tips * sigma_rw_tips  // TIPS RW
+                          + X_tips_dummy * beta_tips_dummy          // TIPS fixed effect
                           // + X_urban_dummy * beta_urban_dummy          // Urban fixed effect
                           + log_offset    
                           );
@@ -234,8 +234,8 @@ Type objective_function<Type>::operator() ()
 
   Type log_tau2_rw_age(-2 * log_sigma_rw_age);
   Type log_tau2_rw_period(-2 * log_sigma_rw_period);
-  // Type log_tau2_spatial(-2 * log_sigma_spatial);
-  // Type log_tau2_rw_tips(-2 * log_sigma_rw_tips);
+  Type log_tau2_spatial(-2 * log_sigma_spatial);
+  Type log_tau2_rw_tips(-2 * log_sigma_rw_tips);
   Type log_tau2_eta1(-2 * log_sigma_eta1);
   // Type log_tau2_eta2(-2 * log_sigma_eta2);
   // Type log_tau2_eta3(-2 * log_sigma_eta3);
@@ -247,13 +247,13 @@ Type objective_function<Type>::operator() ()
   
   // REPORT(sigma_rw_age);
   // REPORT(sigma_rw_period);
-  // REPORT(sigma_spatial);
+  REPORT(sigma_spatial);
   
   REPORT(log_tau2_rw_age);
   REPORT(log_tau2_rw_period);
-  // REPORT(log_tau2_rw_tips);
-  // REPORT(log_tau2_spatial);
-  // REPORT(logit_spatial_rho);
+  REPORT(log_tau2_rw_tips);
+  REPORT(log_tau2_spatial);
+  REPORT(logit_spatial_rho);
 
   REPORT(log_tau2_eta1);
   REPORT(eta1_phi_age);
