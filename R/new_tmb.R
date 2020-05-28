@@ -31,7 +31,7 @@ list2env(make_areas_population(iso3_current, naomi_data_path, full = FALSE), glo
 # exclude_districts <- "MWI_5_07"
 exclude_districts=""
 
-asfr <- get_asfr_pred_df(iso3_current, area_level = 0, areas_long, project = FALSE)
+asfr <- get_asfr_pred_df(iso3_current, area_level = 1, areas_long, project = FALSE)
   # filter(survtype != "AIS")
   # filter(survtype == "DHS")
 
@@ -74,15 +74,15 @@ if(mf$mics_toggle) {
   X_tips_dummy_mics <- model.matrix(~0 + tips_dummy, mf$mics$obs)
 }
 
-R_spatial <- make_adjacency_matrix(iso3_current, areas_long, boundaries, exclude_districts, level= "naomi")
+R_spatial <- make_adjacency_matrix(iso3_current, areas_long, boundaries, exclude_districts, level= 1)
 R_tips <- make_rw_structure_matrix(ncol(Z_tips), 1, TRUE)
 R_age <- make_rw_structure_matrix(ncol(Z_age), 1, TRUE)
 R_period <- make_rw_structure_matrix(ncol(Z_period), 2, TRUE)
 
 
 # dyn.unload(dynlib(here("tmb/fertility_tmb_dev")))
-compile(here("tmb/fertility_tmb_dev.cpp"))               # Compile the C++ file
-dyn.load(dynlib(here("tmb/fertility_tmb_dev")))
+compile(here("tmb/log_prec.cpp"))               # Compile the C++ file
+dyn.load(dynlib(here("tmb/log_prec")))
 
 tmb_int <- list()
 
@@ -92,14 +92,14 @@ tmb_int$data <- list(M_obs = M_obs,
              Z_tips = Z_tips,
              Z_age = Z_age,
              Z_period = Z_period,
-             # Z_spatial = Z_spatial,
+             Z_spatial = Z_spatial,
              Z_interaction1 = sparse.model.matrix(~0 + id.interaction1, mf$mf_model),
              Z_interaction2 = sparse.model.matrix(~0 + id.interaction2, mf$mf_model),
              Z_interaction3 = sparse.model.matrix(~0 + id.interaction3, mf$mf_model),
-             # R_tips = R_tips,
+             R_tips = R_tips,
              R_age = R_age,
              R_period = R_period,
-             # R_spatial = R_spatial,
+             R_spatial = R_spatial,
              log_offset = log(mf$dist$obs$pys),
              births_obs = mf$dist$obs$births,
              # pop = mf$mf_model$population,
@@ -112,25 +112,28 @@ tmb_int$data <- list(M_obs = M_obs,
 tmb_int$par <- list(
   beta_0 = 0,
   
-  # beta_tips_dummy = rep(0, ncol(X_tips_dummy)),
-  # u_tips = rep(0, ncol(Z_tips)),
-  # log_sigma_rw_tips = log(2.5),
+  beta_tips_dummy = rep(0, ncol(X_tips_dummy)),
+  u_tips = rep(0, ncol(Z_tips)),
+  log_prec_rw_tips = 4,
   
   # beta_urban_dummy = rep(0, ncol(X_urban_dummy)),
   
   u_age = rep(0, ncol(Z_age)),
-  log_sigma_rw_age = log(2.5),
+  # log_sigma_rw_age = log(2.5),
+  log_prec_rw_age = 4,
   
   u_period = rep(0, ncol(Z_period)),
-  log_sigma_rw_period = log(2.5),
+  # log_sigma_rw_period = log(2.5),
+  log_prec_rw_period = 4,
   
-  # u_spatial_str = rep(0, ncol(Z_spatial)),
-  # u_spatial_iid = rep(0, ncol(Z_spatial)),
-  # log_sigma_spatial = log(2.5),
-  # logit_spatial_rho = 0,
+  u_spatial_str = rep(0, ncol(Z_spatial)),
+  u_spatial_iid = rep(0, ncol(Z_spatial)),
+  log_sigma_spatial = log(2.5),
+  logit_spatial_rho = 0,
   
   eta1 = array(0, c(ncol(Z_period), ncol(Z_age))),
-  log_sigma_eta1 = log(2.5),
+  # log_sigma_eta1 = log(2.5),
+  log_prec_eta1 = log(2.5),
   lag_logit_eta1_phi_age = 0,
   lag_logit_eta1_phi_period = 0
   
@@ -141,8 +144,8 @@ tmb_int$par <- list(
   # log_sigma_eta3 = log(2.5),
 )
 
-# "u_spatial_str", "u_spatial_iid", "eta1" "beta_tips_dummy","u_tips", 
-tmb_int$random <- c("beta_0", "u_age", "u_period", "eta1")
+# "u_spatial_str", "u_spatial_iid", "eta1" , "eta1" "beta_tips_dummy",, "eta1"
+tmb_int$random <- c("beta_0", "u_age", "u_period", "eta1", "u_tips", "beta_tips_dummy", "u_spatial_str", "u_spatial_iid")
 
 if(mf$mics_toggle) {
   tmb_int$data <- c(tmb_int$data, "M_obs_mics" = M_obs_mics,
@@ -158,7 +161,7 @@ if(mf$mics_toggle) {
 
 f <- mcparallel({TMB::MakeADFun(data = tmb_int$data,
                                 parameters = tmb_int$par,
-                                DLL = "fertility_tmb_dev",
+                                DLL = "log_prec",
                                 silent=0,
                                 checkParameterOrder=FALSE)
 })
@@ -167,8 +170,7 @@ mccollect(f)
 
 obj <-  MakeADFun(data = tmb_int$data,
                   parameters = tmb_int$par,
-                  DLL = "fertility_tmb_dev",
-                  #  random = c("beta_mf", "beta_tips_dummy", "u_tips", "u_age", "u_period", "u_spatial_str", "u_spatial_iid", "eta1", "eta2", "eta3"),
+                  DLL = "log_prec",
                   random = tmb_int$random,
                   hessian = FALSE)
 
@@ -180,7 +182,7 @@ fit <- c(f, obj = list(obj))
 fit$sdreport <- sdreport(fit$obj, fit$par)
 
 class(fit) <- "naomi_fit"  # this is hacky...
-fit <- sample_tmb(fit, random_only=TRUE)
+fit <- sample_tmb(fit, random_only=FALSE)
 
 qtls1 <- apply(fit$sample$lambda_out, 1, quantile, c(0.025, 0.5, 0.975))
 
