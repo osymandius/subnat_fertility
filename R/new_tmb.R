@@ -81,8 +81,8 @@ R_period <- make_rw_structure_matrix(ncol(Z_period), 2, TRUE)
 
 
 # dyn.unload(dynlib(here("tmb/fertility_tmb_dev")))
-compile(here("tmb/log_prec.cpp"))               # Compile the C++ file
-dyn.load(dynlib(here("tmb/log_prec")))
+compile(here("tmb/log_prec_tmb.cpp"))               # Compile the C++ file
+dyn.load(dynlib(here("tmb/log_prec_tmb")))
 
 tmb_int <- list()
 
@@ -119,33 +119,33 @@ tmb_int$par <- list(
   # beta_urban_dummy = rep(0, ncol(X_urban_dummy)),
   
   u_age = rep(0, ncol(Z_age)),
-  # log_sigma_rw_age = log(2.5),
   log_prec_rw_age = 4,
-  
+
   u_period = rep(0, ncol(Z_period)),
-  # log_sigma_rw_period = log(2.5),
   log_prec_rw_period = 4,
   
   u_spatial_str = rep(0, ncol(Z_spatial)),
+  # log_prec_spatial = 0
   u_spatial_iid = rep(0, ncol(Z_spatial)),
-  log_sigma_spatial = log(2.5),
+  log_sigma_spatial = 4,
   logit_spatial_rho = 0,
   
   eta1 = array(0, c(ncol(Z_period), ncol(Z_age))),
-  # log_sigma_eta1 = log(2.5),
-  log_prec_eta1 = log(2.5),
+  log_prec_eta1 = 4,
   lag_logit_eta1_phi_age = 0,
-  lag_logit_eta1_phi_period = 0
+  lag_logit_eta1_phi_period = 0,
   
   # eta2 = array(0, c(ncol(Z_spatial), ncol(Z_period))),
-  # log_sigma_eta2 = log(2.5),
+  # log_prec_eta2 = 4,
+  # lag_logit_eta2_phi_period = 0
   
-  # eta3 = array(0, c(ncol(Z_spatial), ncol(Z_age))),
-  # log_sigma_eta3 = log(2.5),
+  eta3 = array(0, c(ncol(Z_spatial), ncol(Z_age))),
+  log_prec_eta3 = 4,
+  lag_logit_eta3_phi_age = 0
 )
 
-# "u_spatial_str", "u_spatial_iid", "eta1" , "eta1" "beta_tips_dummy",, "eta1"
-tmb_int$random <- c("beta_0", "u_age", "u_period", "eta1", "u_tips", "beta_tips_dummy", "u_spatial_str", "u_spatial_iid")
+# "u_spatial_str", "u_spatial_iid", "eta1" , "eta1" "beta_tips_dummy",, "eta1""eta1", "u_tips", "beta_tips_dummy", , "u_spatial_iid", "eta3""u_age", "u_period",
+tmb_int$random <- c("beta_0",  "u_age", "u_period", "u_spatial_str", "u_spatial_iid", "eta1", "u_tips", "beta_tips_dummy", "eta3")
 
 if(mf$mics_toggle) {
   tmb_int$data <- c(tmb_int$data, "M_obs_mics" = M_obs_mics,
@@ -161,7 +161,7 @@ if(mf$mics_toggle) {
 
 f <- mcparallel({TMB::MakeADFun(data = tmb_int$data,
                                 parameters = tmb_int$par,
-                                DLL = "log_prec",
+                                DLL = "log_prec_tmb",
                                 silent=0,
                                 checkParameterOrder=FALSE)
 })
@@ -170,7 +170,7 @@ mccollect(f)
 
 obj <-  MakeADFun(data = tmb_int$data,
                   parameters = tmb_int$par,
-                  DLL = "log_prec",
+                  DLL = "log_prec_tmb",
                   random = tmb_int$random,
                   hessian = FALSE)
 
