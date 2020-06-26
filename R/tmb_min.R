@@ -21,11 +21,11 @@ mics_key <- read.csv(here("countries/mics_data_key.csv"))
 source(here("R/inputs.R"))
 source(here("R/fertility_funs.R"))
 
-iso3_current <-  "ETH"
+iso3_current <- "ZWE"
 list2env(make_areas_population(iso3_current, naomi_data_path, full = FALSE), globalenv())
 exclude_districts=""
 
-asfr <- get_asfr_pred_df(iso3_current, area_level = 2, areas_long, project = FALSE)
+asfr <- get_asfr_pred_df(iso3_current, area_level = 1, areas_long, project = FALSE)
 
 mf <- make_model_frames(iso3_current, population, asfr, mics_asfr = NULL, exclude_districts, project=FALSE)
 
@@ -37,7 +37,7 @@ M_obs <- sparse.model.matrix(~0 + idx, mf$dist$obs)
 Z_tips <- sparse.model.matrix(~0 + tips_f, mf$dist$obs)
 X_tips_dummy <- model.matrix(~0 + tips_dummy, mf$dist$obs)
 
-R_spatial <- make_adjacency_matrix(iso3_current, areas_long, boundaries, exclude_districts, level= 2)
+R_spatial <- make_adjacency_matrix(iso3_current, areas_long, boundaries, exclude_districts, level= unique(left_join(asfr, areas_long)$area_level))
 R_tips <- make_rw_structure_matrix(ncol(Z_tips), 1, adjust_diagonal = TRUE)
 R_age <- make_rw_structure_matrix(ncol(Z_age), 1, adjust_diagonal = TRUE)
 R_period <- make_rw_structure_matrix(ncol(Z_period), 2, adjust_diagonal = TRUE)
@@ -99,8 +99,8 @@ tmb_int$par <- list(
   # lag_logit_eta1_phi_period = 0,
   
   eta2 = array(0, c(ncol(Z_spatial), ncol(Z_period))),
-  log_prec_eta2 = 4,
-  lag_logit_eta2_phi_period = 0
+  log_prec_eta2 = 4
+  # lag_logit_eta2_phi_period = 0
   
   # eta3 = array(0, c(ncol(Z_spatial), ncol(Z_age))),
   # log_prec_eta3 = 4,
@@ -160,3 +160,62 @@ mf$mf_model %>%
   geom_line() +
   geom_ribbon(aes(ymin = lower, ymax = upper), alpha=0.3) +
   facet_wrap(~area_name)
+
+asfr <- make_asfr_pred_df(asfr, t2=2015)
+
+zwe.m <- inla(
+  births ~ f(id.district, model = "besag", graph = here("countries/ZWE/adj/ZWE_admin1.adj"), scale.model = TRUE) +
+    f(id.period, model="rw2") + 
+    f(id.district2, model = "besag", graph = here("countries/ZWE/adj/ZWE_admin1.adj"), scale.model = TRUE, group = id.period, control.group = list(model = "ar1")) ,
+  
+  family="xpoisson", data=asfr, E=pys, 
+  control.family=list(link='log'),
+  control.predictor=list(compute=TRUE, link=1),
+  control.inla = list(strategy = "gaussian", int.strategy = "eb"),
+  control.compute=list(config = TRUE, dic= FALSE, cpo=FALSE),
+  verbose=TRUE)
+
+
+inla_log_prec_rw_period <- data.frame(zwe.m$internal.marginals.hyperpar$`Log precision for id.period`)
+inla_log_prec_spatial <- data.frame(zwe.m$internal.marginals.hyperpar$`Log precision for id.district`)
+
+inla_log_prec_eta2 <- data.frame(zwe.m$internal.marginals.hyperpar$`Log precision for id.district2`)
+inla_eta2_phi_period <- data.frame(2*exp(zwe.m$internal.marginals.hyperpar$`Group rho_intern for id.district2`)/(1+exp(zwe.m$internal.marginals.hyperpar$`Group rho_intern for id.district2`))-1)
+
+p2 <- 
+  # data.frame("x" = -2*stan_samples$log_sigma_rw_period, "source" = "tmbstan") %>%
+  # data.frame("x" = stan_samples$log_prec_rw_period, "source" = "tmbstan") %>%
+  # bind_rows(data.frame("x" = fit$sample$log_tau2_rw_period, "source" = "tmb")) %>%
+  bind_rows(data.frame("x" = fit$sample$log_prec_rw_period, "source" = "tmb")) %>%
+  ggplot(aes(x=x)) +
+  geom_density(aes(group=source, fill=source), alpha=0.7) +
+  geom_point(data=inla_log_prec_rw_period, aes(y=y))+
+  labs(title = "log_prec_rw_period")
+
+p7 <- 
+  # bind_rows(data.frame("x" = -2*fit$sample$log_sigma_spatial, "source" = "tmb")) %>%
+  bind_rows(data.frame("x" = fit$sample$log_prec_spatial, "source" = "tmb")) %>%
+  ggplot(aes(x=x)) +
+  geom_density(aes(group=source, fill=source), alpha=0.7) +
+  geom_point(data=inla_log_prec_spatial, aes(y=y))+
+  labs(title = "log_prec_spatial")
+
+
+p9 <- 
+  # data.frame("x" = -2*stan_samples$log_sigma_rw_tips, "source" = "tmbstan") %>%
+  bind_rows(data.frame("x" = fit$sample$log_prec_eta2, "source" = "tmb")) %>%
+  ggplot(aes(x=x)) +
+  geom_density(aes(group=source, fill=source), alpha=0.7) +
+  geom_point(data=inla_log_prec_eta2, aes(y=y))+
+  labs(title = "log_prec_eta2")
+
+p10 <- 
+  # data.frame("x" = 1/(1+exp(-stan_samples$lag_logit_eta1_phi_period)), "source" = "tmbstan") %>%
+  bind_rows(data.frame("x" = fit$sample$eta2_phi_period, "source" = "tmb")) %>%
+  ggplot(aes(x=x)) +
+  geom_density(aes(group=source, fill=source), alpha=0.7) +
+  geom_point(data=inla_eta2_phi_period, aes(y=y))+
+  labs(title = "eta2_phi_period")
+
+
+gridExtra::grid.arrange(p2, p7, p9, p10, ncol=3)
