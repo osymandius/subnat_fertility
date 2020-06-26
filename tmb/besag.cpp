@@ -21,9 +21,9 @@ Type objective_function<Type>::operator() ()
   
 
   DATA_SPARSE_MATRIX(Z_interaction2);
-  // PARAMETER_ARRAY(eta2);
-  // PARAMETER(log_prec_eta2);
-  // PARAMETER(lag_logit_eta2_phi_period);
+  PARAMETER_ARRAY(eta2);
+  PARAMETER(log_prec_eta2);
+  PARAMETER(lag_logit_eta2_phi_period);
 
   DATA_SPARSE_MATRIX(Z_interaction3);
   // PARAMETER_ARRAY(eta3);
@@ -110,17 +110,17 @@ Type objective_function<Type>::operator() ()
 
   ///////////////////
 
-  // DATA_SPARSE_MATRIX(Z_period);
-  // DATA_SPARSE_MATRIX(R_period);
-  // PARAMETER(log_prec_rw_period);
-  // PARAMETER_VECTOR(u_period); 
+  DATA_SPARSE_MATRIX(Z_period);
+  DATA_SPARSE_MATRIX(R_period);
+  PARAMETER(log_prec_rw_period);
+  PARAMETER_VECTOR(u_period); 
  
  
-  // nll -= dlgamma(log_prec_rw_period, Type(1), Type(20000), true);
-  // Type prec_rw_period = exp(log_prec_rw_period);
+  nll -= dlgamma(log_prec_rw_period, Type(1), Type(20000), true);
+  Type prec_rw_period = exp(log_prec_rw_period);
 
-  // nll -= Type(-0.5) * (u_period * (R_period * u_period)).sum();
-  // nll -= dnorm(u_period.sum(), Type(0), Type(0.01) * u_period.size(), true);
+  nll -= Type(-0.5) * (u_period * (R_period * u_period)).sum();
+  nll -= dnorm(u_period.sum(), Type(0), Type(0.01) * u_period.size(), true);
 
   // PARAMETER_VECTOR(lag_logit_ar2_phi_period);
   // PARAMETER(lag_logit_phi_period);
@@ -139,17 +139,17 @@ Type objective_function<Type>::operator() ()
   ///////////////////
    // ETA-2 - Space x time interaction
 
-  // nll -= dlgamma(log_prec_eta2, Type(1), Type(20000), true);
-  // Type prec_eta2 = exp(log_prec_eta2);
+  nll -= dlgamma(log_prec_eta2, Type(1), Type(20000), true);
+  Type prec_eta2 = exp(log_prec_eta2);
 
-  // nll -= dnorm(lag_logit_eta2_phi_period, Type(0), Type(sqrt(1/0.15)), true);
-  // Type eta2_phi_period = 2*exp(lag_logit_eta2_phi_period)/(1+exp(lag_logit_eta2_phi_period))-1;
+  nll -= dnorm(lag_logit_eta2_phi_period, Type(0), Type(sqrt(1/0.15)), true);
+  Type eta2_phi_period = 2*exp(lag_logit_eta2_phi_period)/(1+exp(lag_logit_eta2_phi_period))-1;
   
-  // nll += SEPARABLE(AR1(Type(eta2_phi_period)), GMRF(R_spatial))(eta2);
+  nll += SEPARABLE(AR1(Type(eta2_phi_period)), GMRF(R_spatial))(eta2);
 
   // sum-to-zero on space x time interaction. Ensure each space effects (row) in each year (col) sum to zeo.
-  // for (int i = 0; i < eta2.cols(); i++) {
-    // nll -= dnorm(eta2.col(i).sum(), Type(0), Type(0.01) * eta2.col(i).size(), true);}
+  for (int i = 0; i < eta2.cols(); i++) {
+    nll -= dnorm(eta2.col(i).sum(), Type(0), Type(0.01) * eta2.col(i).size(), true);}
 
   // array<Type> c; // eta2
   // c = eta2.transpose();
@@ -157,7 +157,7 @@ Type objective_function<Type>::operator() ()
   // for (int i = 0; i < c.cols(); i++) { //eta2
   //   nll -= dnorm(c.col(i).sum(), Type(0), Type(0.01) * c.col(i).size(), true);} // eta2
 
-  // vector<Type> eta2_v(eta2);
+  vector<Type> eta2_v(eta2);
 
   ////////////////////
 
@@ -187,10 +187,10 @@ Type objective_function<Type>::operator() ()
   vector<Type> log_lambda(
                      beta_0
                      // + Z_age * u_age * sqrt(1/prec_rw_age)
-                     // + Z_period * u_period * sqrt(1/prec_rw_period)
+                     + Z_period * u_period * sqrt(1/prec_rw_period)
                      // + Z_spatial * spatial                     
                      + Z_spatial * u_spatial_str * sqrt(1/prec_spatial)
-                     // + Z_interaction2 * eta2_v * sqrt(1/prec_eta2)
+                     + Z_interaction2 * eta2_v * sqrt(1/prec_eta2)
                      // + Z_interaction3 * eta3_v * sqrt(1/prec_eta3)
                      );
 
@@ -211,20 +211,20 @@ Type objective_function<Type>::operator() ()
   REPORT(log_prec_spatial);
   // REPORT(logit_spatial_rho);
 
-  // REPORT(log_prec_eta2);
-  // REPORT(eta2_phi_period);
+  REPORT(log_prec_eta2);
+  REPORT(eta2_phi_period);
 
   // REPORT(log_prec_eta3);
   // REPORT(eta3_phi_age);
 
   // REPORT(log_prec_rw_age);
-  // REPORT(log_prec_rw_period);
+  REPORT(log_prec_rw_period);
   // REPORT(phi_period);
   // REPORT(phi_age);
   // REPORT(ar2_phi_period);
   // REPORT(log_prec_rw_tips);
 
-  // REPORT(eta2);
+  REPORT(eta2);
   // REPORT(eta3);
 
 
