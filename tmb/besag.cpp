@@ -17,16 +17,18 @@ Type objective_function<Type>::operator() ()
   DATA_SPARSE_MATRIX(R_spatial);
 
   PARAMETER_VECTOR(u_spatial_str);
-  // PARAMETER(log_prec_spatial);
+  PARAMETER(log_prec_spatial);
   
-  PARAMETER_VECTOR(u_spatial_iid); 
-  PARAMETER(logit_spatial_rho);
-  PARAMETER(log_sigma_spatial);
 
   DATA_SPARSE_MATRIX(Z_interaction2);
   // PARAMETER_ARRAY(eta2);
   // PARAMETER(log_prec_eta2);
   // PARAMETER(lag_logit_eta2_phi_period);
+
+  DATA_SPARSE_MATRIX(Z_interaction3);
+  // PARAMETER_ARRAY(eta3);
+  // PARAMETER(log_prec_eta3);
+  // PARAMETER(lag_logit_eta3_phi_age);
  
   // observations
 
@@ -53,44 +55,49 @@ Type objective_function<Type>::operator() ()
 
   ///////////////////
 
-  // nll -= dlgamma(log_prec_spatial, Type(1), Type(20000), true);
-  // Type prec_spatial = exp(log_prec_spatial);
+  nll -= dlgamma(log_prec_spatial, Type(1), Type(20000), true);
+  Type prec_spatial = exp(log_prec_spatial);
+
+  nll -= Type(-0.5) * (u_spatial_str * (R_spatial * u_spatial_str)).sum();
+  
+  nll -= dnorm(u_spatial_str.sum(), Type(0), Type(0.01) * u_spatial_str.size(), 1);
+
+  ///////////////////
+
+  // PARAMETER_VECTOR(u_spatial_iid); 
+  // PARAMETER(logit_spatial_rho);
 
   // nll -= Type(-0.5) * (u_spatial_str * (R_spatial * u_spatial_str)).sum();
-  
   // nll -= dnorm(u_spatial_str.sum(), Type(0), Type(0.01) * u_spatial_str.size(), 1);
 
-  ///////////////////
+  // nll -= dnorm(u_spatial_iid, Type(0), Type(1), true).sum();
 
-  // SPATIAL
-  // // ICAR
-  nll -= Type(-0.5) * (u_spatial_str * (R_spatial * u_spatial_str)).sum();
-  nll -= dnorm(u_spatial_str.sum(), Type(0), Type(0.01) * u_spatial_str.size(), 1);
-  // // IID
-  nll -= dnorm(u_spatial_iid, Type(0), Type(1), true).sum();
-  // // Rho
-  Type spatial_rho(exp(logit_spatial_rho)/(1+exp(logit_spatial_rho)));
-  nll -= log(spatial_rho) +  log(1 - spatial_rho); // Jacobian adjustment for inverse logit'ing the parameter... 
-  nll -= dbeta(spatial_rho, Type(0.5), Type(0.5), true);
+  // Type spatial_rho(exp(logit_spatial_rho)/(1+exp(logit_spatial_rho)));
+  // nll -= log(spatial_rho) +  log(1 - spatial_rho); // Jacobian adjustment for inverse logit'ing the parameter... 
+  // nll -= dbeta(spatial_rho, Type(0.5), Type(0.5), true);
   
-  // // Sigma
-  Type sigma_spatial = exp(log_sigma_spatial);
-  nll -= dnorm(sigma_spatial, Type(0), Type(2.5), true) + log_sigma_spatial;
+  // nll -= dlgamma(log_prec_spatial, Type(1), Type(20000), true);
+  // Type prec_spatial = exp(log_prec_spatial);
   
-  vector<Type> spatial = sigma_spatial * (sqrt(1 - spatial_rho) * u_spatial_iid + sqrt(spatial_rho) * u_spatial_str);
+  // vector<Type> spatial = sqrt(1/prec_spatial) * (sqrt(1 - spatial_rho) * u_spatial_iid + sqrt(spatial_rho) * u_spatial_str);
 
   ///////////////////
 
-  DATA_SPARSE_MATRIX(Z_age);
-  DATA_SPARSE_MATRIX(R_age);
-  PARAMETER(log_prec_rw_age);
-  PARAMETER_VECTOR(u_age); 
- 
- 
-  nll -= dlgamma(log_prec_rw_age, Type(1), Type(20000), true);
-  Type prec_rw_age = exp(log_prec_rw_age);
-  nll += GMRF(R_age)(u_age);
-  nll -= dnorm(u_age.sum(), Type(0), Type(0.01) * u_age.size(), true);
+  // DATA_SPARSE_MATRIX(Z_age);
+  // DATA_SPARSE_MATRIX(R_age);
+  // PARAMETER(log_prec_rw_age);
+  // PARAMETER_VECTOR(u_age); 
+
+  // nll -= dlgamma(log_prec_rw_age, Type(1), Type(20000), true);
+  // Type prec_rw_age = exp(log_prec_rw_age);
+
+  // nll += GMRF(R_age)(u_age);
+  // nll -= dnorm(u_age.sum(), Type(0), Type(0.01) * u_age.size(), true);
+
+  // PARAMETER(lag_logit_phi_age);
+  // nll -= dnorm(lag_logit_phi_age, Type(0), Type(sqrt(1/0.15)), true);
+  // Type phi_age = 2*exp(lag_logit_phi_age)/(1+exp(lag_logit_phi_age))-1;
+  // nll += AR1(Type(phi_age))(u_age);
 
   ///////////////////
 
@@ -103,11 +110,31 @@ Type objective_function<Type>::operator() ()
 
   ///////////////////
 
+  // DATA_SPARSE_MATRIX(Z_period);
+  // DATA_SPARSE_MATRIX(R_period);
+  // PARAMETER(log_prec_rw_period);
+  // PARAMETER_VECTOR(u_period); 
+ 
+ 
   // nll -= dlgamma(log_prec_rw_period, Type(1), Type(20000), true);
   // Type prec_rw_period = exp(log_prec_rw_period);
 
   // nll -= Type(-0.5) * (u_period * (R_period * u_period)).sum();
   // nll -= dnorm(u_period.sum(), Type(0), Type(0.01) * u_period.size(), true);
+
+  // PARAMETER_VECTOR(lag_logit_ar2_phi_period);
+  // PARAMETER(lag_logit_phi_period);
+  // nll += AR1(Type(phi_period))(u_period);
+
+  // nll -= dnorm(lag_logit_phi_period, Type(0), Type(sqrt(1/0.15)), true);
+  // Type phi_period = 2*exp(lag_logit_phi_period)/(1+exp(lag_logit_phi_period))-1;
+
+  // nll -= dnorm(lag_logit_ar2_phi_period, Type(0), Type(sqrt(1/0.15)), true).sum();
+  // vector<Type> ar2_phi_period = 2*exp(lag_logit_ar2_phi_period)/(1+exp(lag_logit_ar2_phi_period)) -1;
+
+  // ARk_t<Type> ar2_period(ar2_phi_period);
+
+  // nll += ar2_period(u_period);
 
   ///////////////////
    // ETA-2 - Space x time interaction
@@ -124,15 +151,47 @@ Type objective_function<Type>::operator() ()
   // for (int i = 0; i < eta2.cols(); i++) {
     // nll -= dnorm(eta2.col(i).sum(), Type(0), Type(0.01) * eta2.col(i).size(), true);}
 
+  // array<Type> c; // eta2
+  // c = eta2.transpose();
+
+  // for (int i = 0; i < c.cols(); i++) { //eta2
+  //   nll -= dnorm(c.col(i).sum(), Type(0), Type(0.01) * c.col(i).size(), true);} // eta2
+
   // vector<Type> eta2_v(eta2);
+
+  ////////////////////
+
+  // nll -= dlgamma(log_prec_eta3, Type(1), Type(20000), true);
+  // Type prec_eta3 = exp(log_prec_eta3);
+
+  // nll -= dnorm(lag_logit_eta3_phi_age, Type(0), Type(sqrt(1/0.15)), true);
+  // Type eta3_phi_age = 2*exp(lag_logit_eta3_phi_age)/(1+exp(lag_logit_eta3_phi_age))-1;
+
+  
+  // nll += SEPARABLE(AR1(Type(eta3_phi_age)), GMRF(R_spatial))(eta3);
+
+  // // sum-to-zero on space x age interaction. Ensure each space effects (row) in each year (col) sum to zeo.
+  // for (int i = 0; i < eta3.cols(); i++) {
+    // nll -= dnorm(eta3.col(i).sum(), Type(0), Type(0.01) * eta3.col(i).size(), true);}
+
+  // array<Type> b; //eta3
+  // b = eta3.transpose();
+
+  // for (int i = 0; i < b.cols(); i++) { //eta3
+    // nll -= dnorm(b.col(i).sum(), Type(0), Type(0.01) * b.col(i).size(), true);} //eta3
+
+  // vector<Type> eta3_v(eta3);
+
+  ///////////////////////
 
   vector<Type> log_lambda(
                      beta_0
-                     + Z_age * u_age * sqrt(1/prec_rw_age)
+                     // + Z_age * u_age * sqrt(1/prec_rw_age)
                      // + Z_period * u_period * sqrt(1/prec_rw_period)
-                     + Z_spatial * spatial                     
-                     // + Z_spatial * u_spatial_str * sqrt(1/prec_spatial)
+                     // + Z_spatial * spatial                     
+                     + Z_spatial * u_spatial_str * sqrt(1/prec_spatial)
                      // + Z_interaction2 * eta2_v * sqrt(1/prec_eta2)
+                     // + Z_interaction3 * eta3_v * sqrt(1/prec_eta3)
                      );
 
   
@@ -148,14 +207,25 @@ Type objective_function<Type>::operator() ()
   vector<Type> lambda(exp(log_lambda));
   
   REPORT(lambda);
-  // REPORT(log_prec_spatial);
-  REPORT(log_sigma_spatial);
-  REPORT(logit_spatial_rho);
+
+  REPORT(log_prec_spatial);
+  // REPORT(logit_spatial_rho);
+
   // REPORT(log_prec_eta2);
   // REPORT(eta2_phi_period);
-  REPORT(log_prec_rw_age);
+
+  // REPORT(log_prec_eta3);
+  // REPORT(eta3_phi_age);
+
+  // REPORT(log_prec_rw_age);
   // REPORT(log_prec_rw_period);
+  // REPORT(phi_period);
+  // REPORT(phi_age);
+  // REPORT(ar2_phi_period);
   // REPORT(log_prec_rw_tips);
+
+  // REPORT(eta2);
+  // REPORT(eta3);
 
 
 
