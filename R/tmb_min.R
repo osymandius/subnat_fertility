@@ -44,8 +44,8 @@ R_period <- make_rw_structure_matrix(ncol(Z_period), 2, adjust_diagonal = TRUE)
 
 
 # dyn.unload(dynlib(here("tmb/fertility_tmb_dev")))
-compile(here("tmb/besag_min.cpp"))               # Compile the C++ file
-dyn.load(dynlib(here("tmb/besag_min")))
+compile(here("tmb/besag.cpp"))               # Compile the C++ file
+dyn.load(dynlib(here("tmb/besag")))
 
 tmb_int <- list()
 
@@ -83,12 +83,12 @@ tmb_int$par <- list(
   # u_age = rep(0, ncol(Z_age)),
   # log_prec_rw_age = 4,
 
-  # u_period = rep(0, ncol(Z_period)),
-  # log_prec_rw_period = 4
+  u_period = rep(0, ncol(Z_period)),
+  log_prec_rw_period = 4,
 
   
   u_spatial_str = rep(0, ncol(Z_spatial)),
-  log_prec_spatial = 0
+  log_prec_spatial = 0,
   
   # u_spatial_iid = rep(0, ncol(Z_spatial)),
   # logit_spatial_rho = 0,
@@ -98,9 +98,9 @@ tmb_int$par <- list(
   # lag_logit_eta1_phi_age = 0,
   # lag_logit_eta1_phi_period = 0,
   
-  # eta2 = array(0, c(ncol(Z_spatial), ncol(Z_period))),
-  # log_prec_eta2 = 4,
-  # lag_logit_eta2_phi_period = 0
+  eta2 = array(0, c(ncol(Z_spatial), ncol(Z_period))),
+  log_prec_eta2 = 4,
+  lag_logit_eta2_phi_period = 0
   
   # eta3 = array(0, c(ncol(Z_spatial), ncol(Z_age))),
   # log_prec_eta3 = 4,
@@ -108,7 +108,7 @@ tmb_int$par <- list(
 )
 
 # "u_spatial_str", "u_spatial_iid", "eta1" , "eta1" "beta_tips_dummy",, "eta1""eta1", "u_tips", "beta_tips_dummy", , "u_spatial_iid", "eta3""u_age", "u_period",
-tmb_int$random <- c("beta_0", "u_spatial_str")
+tmb_int$random <- c("beta_0", "u_spatial_str", "u_period", "eta2")
 
 if(mf$mics_toggle) {
   tmb_int$data <- c(tmb_int$data, "M_obs_mics" = M_obs_mics,
@@ -124,7 +124,7 @@ if(mf$mics_toggle) {
 
 f <- mcparallel({TMB::MakeADFun(data = tmb_int$data,
                                 parameters = tmb_int$par,
-                                DLL = "besag_min",
+                                DLL = "besag",
                                 silent=0,
                                 checkParameterOrder=FALSE)
 })
@@ -133,7 +133,7 @@ mccollect(f)
 
 obj <-  MakeADFun(data = tmb_int$data,
                   parameters = tmb_int$par,
-                  DLL = "besag_min",
+                  DLL = "besag",
                   random = tmb_int$random,
                   hessian = FALSE)
 
