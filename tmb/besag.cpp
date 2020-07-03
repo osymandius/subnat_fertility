@@ -15,7 +15,8 @@ Type objective_function<Type>::operator() ()
 
   DATA_SPARSE_MATRIX(Z_spatial);
   DATA_SPARSE_MATRIX(R_spatial);
-
+  DATA_SCALAR(rankdef_R_spatial); // rank deficiency of the R_spatial structure matrix
+  
   PARAMETER_VECTOR(u_spatial_str);
   PARAMETER(log_prec_spatial);
   
@@ -147,6 +148,14 @@ Type objective_function<Type>::operator() ()
   
   nll += SEPARABLE(AR1(Type(eta2_phi_period)), GMRF(R_spatial))(eta2);
 
+  // Adjust normalising constant for rank deficience of R_spatial. SEPARABLE calculates the
+  // normalizing constant assuming full rank precision matrix. Add the component of the
+  // constant back.
+  
+  Type log_det_Qar1((eta2.cols() - 1) * log(1 - eta2_phi_period * eta2_phi_period));
+  nll -= rankdef_R_spatial * 0.5 * (log_det_Qar1 - log(2 * PI));
+
+  
   // sum-to-zero on space x time interaction. Ensure each space effects (row) in each year (col) sum to zeo.
   for (int i = 0; i < eta2.cols(); i++) {
     nll -= dnorm(eta2.col(i).sum(), Type(0), Type(0.01) * eta2.col(i).size(), true);}

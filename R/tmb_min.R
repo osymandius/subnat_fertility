@@ -10,13 +10,13 @@ library(haven)
 library(survival)
 library(parallel)
 library(demogsurv)
-devtools::load_all("~/Documents/GitHub/naomi")
-# library(naomi)
+## devtools::load_all("~/Documents/GitHub/naomi")
+library(naomi)
 library(here)
 
-naomi_data_path <- "~/Imperial College London/HIV Inference Group - Documents/Analytical datasets/naomi-data"
+## naomi_data_path <- "~/Imperial College London/HIV Inference Group - Documents/Analytical datasets/naomi-data"
 mics_key <- read.csv(here("countries/mics_data_key.csv"))
-# naomi_data_path <- "~/naomi-data"
+naomi_data_path <- "~/naomi-data"
 
 source(here("R/inputs.R"))
 source(here("R/fertility_funs.R"))
@@ -63,6 +63,7 @@ tmb_int$data <- list(M_obs = M_obs,
              R_age = R_age,
              R_period = R_period,
              R_spatial = R_spatial,
+             rankdef_R_spatial = 1,  # rank deficiency of the R_spatial structure matrix
              log_offset = log(mf$dist$obs$pys),
              births_obs = mf$dist$obs$births,
              # pop = mf$mf_model$population,
@@ -99,8 +100,8 @@ tmb_int$par <- list(
   # lag_logit_eta1_phi_period = 0,
   
   eta2 = array(0, c(ncol(Z_spatial), ncol(Z_period))),
-  log_prec_eta2 = 4
-  # lag_logit_eta2_phi_period = 0
+  log_prec_eta2 = 4,
+  lag_logit_eta2_phi_period = 0
   
   # eta3 = array(0, c(ncol(Z_spatial), ncol(Z_age))),
   # log_prec_eta3 = 4,
@@ -156,9 +157,10 @@ mf$mf_model %>%
          source = "tmb") %>%
   type.convert() %>%
   left_join(areas_long) %>%
-  ggplot(aes(x=period, y=median, group=age_group, color=age_group)) +
+  ggplot(aes(x=period, y=median, group=age_group, color=age_group,
+             fill = age_group)) +
   geom_line() +
-  geom_ribbon(aes(ymin = lower, ymax = upper), alpha=0.3) +
+  geom_ribbon(aes(ymin = lower, ymax = upper), alpha=0.3, color = NA) +
   facet_wrap(~area_name)
 
 asfr <- make_asfr_pred_df(asfr, t2=2015)
@@ -167,7 +169,6 @@ zwe.m <- inla(
   births ~ f(id.district, model = "besag", graph = here("countries/ZWE/adj/ZWE_admin1.adj"), scale.model = TRUE) +
     f(id.period, model="rw2") + 
     f(id.district2, model = "besag", graph = here("countries/ZWE/adj/ZWE_admin1.adj"), scale.model = TRUE, group = id.period, control.group = list(model = "ar1")) ,
-  
   family="xpoisson", data=asfr, E=pys, 
   control.family=list(link='log'),
   control.predictor=list(compute=TRUE, link=1),
