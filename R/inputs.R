@@ -1,6 +1,6 @@
-make_areas_population <- function(iso3_codes, path_to_naomi_data, full=FALSE, wide=TRUE, boundaries=TRUE, population=TRUE) {
+make_areas_population <- function(iso3_current, naomi_data_path, full=FALSE, wide=TRUE, boundaries=TRUE, population=TRUE) {
 
-paths <- file.path(path_to_naomi_data, iso3_codes, "data")
+paths <- file.path(naomi_data_path, iso3_current, "data")
 
 files <- lapply(paths, function(paths) {
   
@@ -20,19 +20,14 @@ files <- lapply(paths, function(paths) {
 
 })
 
-names(files) <- iso3_codes
+names(files) <- iso3_current
 
 areas_long <- lapply(files, "[[", "areas") %>%
   lapply(read_sf) %>% 
   lapply(function(x) {
-  iso3_code <- x %>%
-    filter(area_level == 0) %>%
-    select(area_id) %>%
-    unique %>%
-    .$area_id
-  
+    
   x <- x %>%
-    mutate(iso3 = iso3_code) %>%
+    mutate(iso3 = iso3_current) %>%
     st_drop_geometry() %>%
     select(c("iso3", "area_id", "area_name", "area_level", "parent_area_id", "naomi_level"))
   

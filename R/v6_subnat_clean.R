@@ -23,7 +23,7 @@ source(here("R/inputs.R"))
 source(here("R/fertility_funs.R"))
 
 
-iso3_current <- "ETH"
+iso3_current <- "MOZ"
 # iso3 <- c("LSO", "MOZ", "MWI", "NAM", "TZA", "UGA", "ZMB", "ZWE")
 # 
 
@@ -58,9 +58,9 @@ surveys <- dhs_surveys(surveyIds = unique(clusters$DHS_survey_id)) %>%
   )
 
 ## Needs check to ensure level is < max_level
-cluster_areas <- assign_cluster_area(clusters, 2)
+cluster_areas <- assign_cluster_area(clusters, 0)
 
-dat <- clusters_to_surveys(surveys, cluster_areas, single_tips = TRUE)
+dat <- clusters_to_surveys(surveys, cluster_areas, single_tips = FALSE)
 
 asfr <- Map(calc_asfr1, dat$ir,
               y=1:length(dat$ir),

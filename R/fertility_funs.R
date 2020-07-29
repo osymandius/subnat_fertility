@@ -851,8 +851,8 @@ make_adjacency_matrix <- function(iso3_current, areas_long, boundaries, exclude_
   }
   
   sh <- areas_long %>%
-    filter(iso3 == iso3_current, area_level == 2, !area_id %in% exclude_districts) %>%
-    filter(area_id %in% asfr$area_id) %>%
+    filter(iso3 == iso3_current, area_level == level, !area_id %in% exclude_districts) %>%
+    # filter(area_id %in% asfr$area_id) %>%
     mutate(area_idx = row_number())
   
   #' Neighbor list
@@ -999,8 +999,8 @@ make_model_frames <- function(iso3_current, population, asfr, mics_asfr = NULL, 
            id.interaction1 = factor(group_indices(., age_group, period)),
            id.interaction2 = factor(group_indices(., period, area_id)),
            id.interaction3 = factor(group_indices(., age_group, area_id))
-    ) %>%
-   droplevels()
+    ) 
+   # droplevels()
   } else if(unique(left_join(asfr, areas_long)$area_level) == 1) {
     ## Make model frame
     mf_model <- crossing(period = 1995:max_year,
@@ -1027,8 +1027,8 @@ make_model_frames <- function(iso3_current, population, asfr, mics_asfr = NULL, 
              id.interaction1 = factor(group_indices(., age_group, period)),
              id.interaction2 = factor(group_indices(., period, area_id)),
              id.interaction3 = factor(group_indices(., age_group, area_id))
-      ) %>%
-      droplevels()
+      ) 
+      # droplevels()
   } else {
     
     stop("What level did you want this to run at?")
@@ -1038,7 +1038,7 @@ make_model_frames <- function(iso3_current, population, asfr, mics_asfr = NULL, 
   obs <- asfr %>%
     mutate(period = factor(period, levels(mf_model$period))) %>%
     filter(!is.na(surveyid), !area_id %in% exclude_districts) %>%
-    select(area_id, period, age_group, tips, births, pys) %>%
+    select(survtype, area_id, period, age_group, tips, births, pys) %>%
     left_join(mf_model) %>%
     mutate(tips_dummy = as.integer(tips > 5),
            tips_f = factor(tips),

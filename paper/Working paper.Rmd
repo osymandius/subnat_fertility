@@ -1,7 +1,7 @@
 ---
 title: "Small area estimation of district-level fertility in sub-Saharan Africa"
 output: pdf_document
-bibliography: "biblio.bib"
+bibliography: "My Collection.bib"
 ---
 
 ```{r setup, include=FALSE}
@@ -10,18 +10,24 @@ knitr::opts_chunk$set(echo = TRUE)
 
 # Background
 
-Fertility estimation is core to understanding evolving demographic trends and population structures in sub-Saharan Africa. In high-income settings, long-standing vital registration systems provide direct measures of fertility, but these are often underdeveloped or absent in low and middle income countries. Instead, the reconstruction of fertility trends from survey- and census-based surveillance sources in these settings is well established, by which quinqunnial national-level fertility estimates for sub-Saharan Africa are published by UN Population Division for the period 1970-2050 as part of the World Population Prospects (WPP). National population estimates, underpinned by these reconstructed trends in concert with estimates of mortality and migration, are utilised throughout domestic policymaking. 
+Fertility estimation is core to understanding evolving demographic trends and population structures in sub-Saharan Africa. In high-income settings, long-standing vital registration systems provide direct measures of fertility, but these are often underdeveloped or absent in low and middle income countries. Instead, the reconstruction of fertility trends from survey- and census-based surveillance sources in these settings is well established, by which national-level estimates are published by UN Population Division as part of the World Population Prospects [@UNPopulationDivision] and the Institute of Health Metrics and Evaulation [@Murray2018]. National population estimates, underpinned by these reconstructed trends in concert with estimates of mortality and migration, are utilised throughout domestic policymaking. 
 
-While quinquennial national-level estimates of total fertility are highly desirable for policymaking with long projection horizons - e.g. future demand for schooling or designing large scale infrastructure projects - they are less well suited for use in public health target setting and monitoring which often require higher resolution estimates, both temporally and spatially. 
+While quinquennial national-level estimates of total fertility from the World Population Prospects, widely used as gold standard estimates, are desirable for policymaking with long projection horizons they are less well suited for use in public health target setting and monitoring which  require higher resolution estimates, both temporally and spatially. Accordingly, public health policy makers and funders are increasingly interested in subnational population and demographic estimates furnished at the level of local decision making – often the second administrative level - which enable targeted and efficient resource allocation. Estimates of total fertility rate at the first administrative level are produced in X countries with the support of the US Census Bureau as part of demographic inputs into the Spectrum modelling tools, using fixed national-level age-specific fertility rates [@UNAIDSReferenceGrouponEstimatesModellingandProjections2019]. The WorldPop project produce 1km x 1km pixel-level estimates of births, using survey-derived age-specific fertility rates at the first administrative level applied to pixel-level age-specific populations [@Tatem2014]. There exist no estimates of district-level fertility for sub-Saharan African countries which are estimated using granular, district-level birth data.
 
-Accordingly, public health policy makers and funders are increasingly interested in subnational population and demographic estimates furnished at the level of local decision making – often the second administrative level - which enable targeted and efficient resource allocation. Whilst mortality estimates, particularly those of under 5 mortality, have received more attention at finer geospatial disaggregation, there are fewer sources of subnational fertility estimates.
+The application of fertility estimates from higher administrative levels to all nested districts is undesirable as it masks variation in district-level fertility which, due to socioeconomic and cultural differences, can be substantial. However, obtaining direct district-level measures of fertility by single calendar year from surveys is challenging: age-disaggregated strata have few events and estimates suffer from stochastic noise with large uncertainty. Instead, small-area model-based approaches, leveraging spatiotemporal correlation and smoothing to share information between data sparse areal units, have been used to estimate demographic indicators at the subnational level, particularly those of under-5 mortality [@Wakefield2019; @Dwyer-Lindgren2018; @Li2019], and to produce estimates pertaining to sexual and reproductive health, including family planning need and contraceptive prevalence [@Mercer2019; @Li2019a]. 
+
+Whilst mortality estimates, particularly those of under 5 mortality, have received more attention at finer geospatial disaggregation, there are fewer sources of subnational fertility estimates.
 
 - FP, PMTCT
 - MDG/SDG on SRH
 
-Estimates of total fertility rate at the first administrative level are produced in X countries with the support of the US Census Bureau as part of demographic inputs into the Spectrum modelling tools, though these are derived from fixed national-level age-specific fertility rates. The WorldPop project produce 1km x 1km pixel-level estimates of births, using suvery-derived age-specific fertility rates at the first administrative level applied to pixel-level age-specific populations [@Tatem2014]. At present there exist no age-specific fertility estimates for district-level decision-making estimated from granular data at that level [do check this is true...]. 
+Direct survey estimates of age-specific fertility at the district level suffer from small sample sizes and stochastic noise, whilst the present application of higher precision national level estimates to all districts masks the considerable variation in district-level fertility arising from socioeconomic or cultural differences, producing implausibly homogeneous estimates of PMTCT need. 
 
-Obtaining direct measures of fertility at the district level by single calendar year from surveys is challenging - sample sizes are small, births are few, and uncertainty is large. This is compounded when estimating age-specific fertility rates. Existing literature on under 5 mortality has employed small area methods, leveraging spatiotemporal correlation and smoothing, to produce model-based estimates from survey data. 
+
+
+
+
+Existing literature on under 5 mortality has employed small area methods, leveraging spatiotemporal correlation and smoothing, to produce model-based estimates from survey data. 
 
 * Find more subntl fertility
 * Expand on SAE

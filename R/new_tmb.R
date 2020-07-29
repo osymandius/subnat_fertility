@@ -21,10 +21,10 @@ mics_key <- read.csv(here("countries/mics_data_key.csv"))
 source(here("R/inputs.R"))
 source(here("R/fertility_funs.R"))
 
-iso3 <- c("LSO", "MOZ", "NAM", "UGA", "ZMB", "ETH", "TZA")
+iso3 <- c("LSO", "MOZ", "NAM", "UGA", "ZMB", "ETH", "TZA", "MWI")
 iso3 <- c("NAM", "UGA", "ZMB", "TZA")
 
-iso3_current <-  "UGA"
+iso3_current <-  "ETH"
 
 list2env(make_areas_population(iso3_current, naomi_data_path, full = FALSE), globalenv())
 
@@ -32,7 +32,7 @@ list2env(make_areas_population(iso3_current, naomi_data_path, full = FALSE), glo
 # exclude_districts <- c("UGA_3_029", "UGA_3_046")
 # exclude_districts <- c("MOZ_2_0107", "MOZ_2_1009")
 # exclude_districts <- "MWI_5_07"
-exclude_districts=""
+exclude_districts= ""
 
 asfr <- get_asfr_pred_df(iso3_current, area_level = "naomi", areas_long, project = FALSE)
 
@@ -43,7 +43,7 @@ if(filter(mics_key, iso3 == iso3_current)$mics) {
 }
 
 # mics_dat <- readRDS("input_data/mics_extract.rds")
-# 
+# # 
 # mics_asfr <- Map(calc_asfr_mics, mics_dat$wm[c(10)], y=list(1),
 #                  by = list(~area_id + survey_id),
 #                  tips = list(c(0,15)),
@@ -60,7 +60,7 @@ if(filter(mics_key, iso3 == iso3_current)$mics) {
 
 mf <- make_model_frames(iso3_current, population, asfr, mics_asfr, exclude_districts, project=FALSE)
 
-saveRDS(mf, here(paste0("countries/", iso3_current, "/mods/", iso3_current, "_mf.rds")))
+# saveRDS(mf, here(paste0("countries/", iso3_current, "/mods/", iso3_current, "_mf.rds")))
 
 Z_spatial <- sparse.model.matrix(~0 + area_id, mf$mf_model)
 Z_age <- sparse.model.matrix(~0 + age_group, mf$mf_model)
@@ -68,6 +68,7 @@ Z_period <- sparse.model.matrix(~0 + period, mf$mf_model)
 
 M_obs <- sparse.model.matrix(~0 + idx, mf$dist$obs) 
 Z_tips <- sparse.model.matrix(~0 + tips_f, mf$dist$obs)
+Z_tips[which(mf$dist$obs$survtype != "DHS"), ] <- 0
 X_tips_dummy <- model.matrix(~0 + tips_dummy, mf$dist$obs)
 # X_urban_dummy <- model.matrix(~0 + urban_dummy, mf$dist$obs)
 
@@ -113,6 +114,9 @@ tmb_int$data <- list(M_obs = M_obs,
              A_out = mf$out$A_out,
              mics_toggle = mf$mics_toggle,
              out_toggle = mf$out_toggle
+             
+             # beta_tips_dummy = 0.05
+             # log_prec_rw_tips = 7
              
              # log_prec_eta1 = 0.7717237,
              # lag_logit_eta1_phi_age = 1.8265262,
@@ -182,8 +186,8 @@ if(mf$mics_toggle) {
             "births_obs_mics" = list(mf$mics$obs$births),
             "log_offset_mics" = list(log(mf$mics$obs$pys)),
             "A_mics" = mf$mics$A_mics)
-  tmb_int$par <- c(tmb_int$par, "beta_tips_dummy_mics" = rep(0, ncol(X_tips_dummy_mics)))
-  tmb_int$random <- c(tmb_int$random, "beta_tips_dummy_mics")
+  # tmb_int$par <- c(tmb_int$par, "beta_tips_dummy_mics" = rep(0, ncol(X_tips_dummy_mics)))
+  # tmb_int$random <- c(tmb_int$random, "beta_tips_dummy_mics")
 }
 
 
@@ -207,19 +211,21 @@ f$par.fixed <- f$par
 f$par.full <- obj$env$last.par
 
 fit <- c(f, obj = list(obj))
-# fit$sdreport <- sdreport(fit$obj, fit$par)
+fit$sdreport <- sdreport(fit$obj, fit$par)
 
 class(fit) <- "naomi_fit"  # this is hacky...
-fit <- sample_tmb(fit, random_only=TRUE)
+fit <- sample_tmb(fit, random_only=FALSE)
 
-saveRDS(fit, paste0("countries/", iso3_current, "/mods/", iso3_current, "_latest_tmb_mod.rds"))
+# saveRDS(fit, paste0("countries/", iso3_current, "/mods/", iso3_current, "_latest_tmb_mod.rds"))
+
+})
 
 
 
 qtls1 <- apply(fit$sample$lambda_out, 1, quantile, c(0.025, 0.5, 0.975))
 
-asfr_plot <- readRDS(here("countries/ZWE/data/ZWE_asfr_plot.rds"))
-tfr_plot <- readRDS(here("countries/ZWE/data/ZWE_tfr_plot.rds"))
+asfr_plot <- readRDS(here("countries/MOZ/data/MOZ_asfr_plot.rds"))
+tfr_plot <- readRDS(here("countries/MOZ/data/MOZ_tfr_plot.rds"))
 
 
 mf$out$mf_out %>%
@@ -232,12 +238,28 @@ mf$out$mf_out %>%
   filter(area_level == 1) %>%
   ggplot(aes(x=period, y=median)) +
   geom_line() +
-  geom_point(data=asfr_plot %>% left_join(areas_long) %>% filter(area_id %in% unique(mics_asfr$area_id)), aes(y=asfr, group=survtype, color=survtype)) +
-  facet_grid(age_group~area_id) +
+  geom_point(data=asfr_plot %>% left_join(areas_long), aes(y=asfr, group=survtype, color=survtype)) +
+  geom_ribbon(aes(ymin = lower, ymax = upper), alpha = 0.3) +
+  facet_grid(age_group~area_name) +
+  ylim(0, 0.5)
+
+mf$out$mf_out %>%
+  mutate(lower = qtls1[1,],
+         median = qtls1[2,],
+         upper = qtls1[3,],
+         source = "tmb") %>%
+  type.convert() %>%
+  left_join(areas_long) %>%
+  filter(area_level == 2) %>%
+  ggplot(aes(x=period, y=median, group=age_group)) +
+  geom_line(aes(color=age_group)) +
+  # geom_point(data=asfr_plot %>% left_join(areas_long) %>% filter(survtype == "DHS"), aes(y=asfr, group=survtype, color=survtype)) +
+  geom_ribbon(aes(ymin = lower, ymax = upper, fill=age_group), alpha = 0.3) +
+  facet_wrap(~area_name) +
   ylim(0, 0.5)
 
   
-mf$out$mf_out %>%
+p <- mf$out$mf_out %>%
   cbind(fit$sample$lambda_out) %>%
   type.convert() %>%
   group_by(area_id, period) %>%
@@ -248,7 +270,9 @@ mf$out$mf_out %>%
     lower = select(., -c(area_id, period)) %>% apply(1, quantile, 0.025),
     median = select(., -c(area_id, period)) %>% apply(1, quantile, 0.5),
     upper = select(., -c(area_id, period)) %>% apply(1, quantile, 0.975)
-  ) %>%
+  )
+
+p %>%
   select(area_id, period, lower, median, upper) %>%
   left_join(areas_long) %>%
   type.convert() %>%
@@ -256,8 +280,11 @@ mf$out$mf_out %>%
   ggplot(aes(x=period, y=median)) +
   geom_ribbon(aes(ymin = lower, ymax = upper), alpha = 0.3) +
   geom_line() +
-  geom_point(data=tfr_plot %>% left_join(areas_long) %>% filter(area_level == 1), aes(y=tfr, group=survtype, color=survtype)) +
-  facet_wrap(~area_name)
+  geom_point(data=tfr_plot %>% left_join(areas_long) %>% filter(area_level == 1, survtype != "MIS"), aes(y=tfr, group=survtype, color=survtype)) +
+  facet_wrap(~area_name) +
+  ylim(2,10)
+
+# saveRDS(mod[[2]], "countries/MOZ/mods/MOZ_no18MIS.rds")
 
 tips <- lapply(mods, function(mods) {
   
