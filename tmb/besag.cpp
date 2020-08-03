@@ -40,8 +40,6 @@ Type objective_function<Type>::operator() ()
   PARAMETER_ARRAY(eta2);
   PARAMETER(log_prec_eta2);
   PARAMETER(lag_logit_eta2_phi_period);
-  // DATA_SPARSE_MATRIX(R_period_iid);
-  DATA_SPARSE_MATRIX(R_spatial_iid);
 
   DATA_SPARSE_MATRIX(Z_interaction3);
   PARAMETER_ARRAY(eta3);
@@ -68,6 +66,7 @@ Type objective_function<Type>::operator() ()
   // nll -= dnorm(beta_tips_dummy, Type(0), Type(sqrt(1/0.001)), true).sum();
   // nll -= dnorm(beta_tips_dummy, Type(0.05), Type(0.1), true).sum();
   nll -= dlgamma(beta_tips_dummy, Type(1.73), Type(1/17.326), true).sum();
+  
   
   // nll -= dlgamma(log_prec_rw_tips, Type(1), Type(20000), true);
   nll -= dlgamma(log_prec_rw_tips, Type(31), Type(1/3.922), true);
@@ -179,7 +178,6 @@ Type objective_function<Type>::operator() ()
   Type eta2_phi_period = 2*exp(lag_logit_eta2_phi_period)/(1+exp(lag_logit_eta2_phi_period))-1;
   
   nll += SEPARABLE(AR1(Type(eta2_phi_period)), GMRF(R_spatial))(eta2);
-  // nll += SEPARABLE(AR1(Type(eta2_phi_period)), GMRF(R_spatial_iid))(eta2);
 
   // Adjust normalising constant for rank deficience of R_spatial. SEPARABLE calculates the
   // normalizing constant assuming full rank precision matrix. Add the component of the
@@ -191,12 +189,7 @@ Type objective_function<Type>::operator() ()
   // sum-to-zero on space x time interaction. Ensure each space effects (row) in each year (col) sum to zeo.
   for (int i = 0; i < eta2.cols(); i++) {
     nll -= dnorm(eta2.col(i).sum(), Type(0), Type(0.01) * eta2.col(i).size(), true);}
-  
-  // array<Type> c; // eta2
-  // c = eta2.transpose();
 
-  // for (int i = 0; i < c.cols(); i++) { //eta2
-  //   nll -= dnorm(c.col(i).sum(), Type(0), Type(0.01) * c.col(i).size(), true);} // eta2
 
   vector<Type> eta2_v(eta2);
 
@@ -222,11 +215,6 @@ Type objective_function<Type>::operator() ()
   for (int i = 0; i < eta3.cols(); i++) {
     nll -= dnorm(eta3.col(i).sum(), Type(0), Type(0.01) * eta3.col(i).size(), true);}
 
-  // array<Type> b; //eta3
-  // b = eta3.transpose();
-
-  // for (int i = 0; i < b.cols(); i++) { //eta3
-  //   nll -= dnorm(b.col(i).sum(), Type(0), Type(0.01) * b.col(i).size(), true);} //eta3
 
   vector<Type> eta3_v(eta3);
 
@@ -244,8 +232,10 @@ Type objective_function<Type>::operator() ()
                      );
 
   
+  vector<Type> u_tips_constr = u_tips - u_tips[3];
+
   vector<Type> mu_obs_pred(M_obs * log_lambda
-                          + Z_tips * u_tips * sqrt(1/prec_rw_tips)  // TIPS RW
+                          + Z_tips * u_tips_constr * sqrt(1/prec_rw_tips)  // TIPS RW
                           + X_tips_dummy * beta_tips_dummy          // TIPS fixed effect
                           + log_offset    
                           );
@@ -332,13 +322,13 @@ Type objective_function<Type>::operator() ()
   REPORT(log_prec_rw_tips);
 
   REPORT(beta_tips_dummy);
-  // REPORT(beta_urban_dummy);
 
   REPORT(eta1);
   REPORT(eta2);
   REPORT(eta3);
 
   REPORT(u_tips);
+  REPORT(u_tips_constr);
   REPORT(u_period);
   REPORT(u_age);
 

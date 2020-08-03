@@ -863,7 +863,7 @@ make_adjacency_matrix <- function(iso3_current, areas_long, boundaries, exclude_
     spdep::poly2nb() %>%
     `names<-`(sh$area_idx)
   
-  if(iso3_current == "MOZ") {
+  if(iso3_current == "MOZ" & level == 2) {
     #Make KaTembe adjacent to KaMpfumu and Nhlamankulu
     nb[[6]] <- c(nb[[6]], 1, 2)
     nb[[1]] <- c(nb[[1]], 6)
@@ -1042,6 +1042,7 @@ make_model_frames <- function(iso3_current, population, asfr, mics_asfr = NULL, 
     left_join(mf_model) %>%
     mutate(tips_dummy = as.integer(tips > 5),
            tips_f = factor(tips),
+           ais_dummy = ifelse(survtype %in% c("MIS", "AIS"), 1, 0),
            #####
            # urban_dummy = ifelse(area_id %in% c(
            #   filter(areas_long, parent_area_id == "ETH_1_10")$area_id,

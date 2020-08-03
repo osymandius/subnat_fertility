@@ -23,7 +23,7 @@ source(here("R/inputs.R"))
 source(here("R/fertility_funs.R"))
 
 
-iso3_current <- "MOZ"
+iso3_current <- "ETH"
 # iso3 <- c("LSO", "MOZ", "MWI", "NAM", "TZA", "UGA", "ZMB", "ZWE")
 # 
 
