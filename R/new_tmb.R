@@ -68,9 +68,28 @@ Z$Z_age <- sparse.model.matrix(~0 + age_group, mf$mf_model)
 Z$Z_period <- sparse.model.matrix(~0 + period, mf$mf_model)
 
 M_obs <- sparse.model.matrix(~0 + idx, mf$dist$obs) 
-Z$Z_tips <- sparse.model.matrix(~0 + tips_f, mf$dist$obs)
+Z$Z_tips_dhs <- sparse.model.matrix(~0 + tips_f, mf$dist$obs %>% filter(ais_dummy ==0))
+Z$Z_tips_ais <- sparse.model.matrix(~0 + tips_f, mf$dist$obs %>% filter(ais_dummy ==1))
 # Z_tips[which(mf$dist$obs$survtype != "DHS"), ] <- 0
-X_tips_dummy <- model.matrix(~0 + tips_dummy, mf$dist$obs)
+X_tips_dummy <- model.matrix(~0 + tips_dummy, mf$dist$obs %>% filter(ais_dummy == 0))
+
+ais_join <- mf$dist$obs %>% 
+  mutate(col_idx = row_number()) %>%
+  select(col_idx, ais_dummy) %>%
+  filter(ais_dummy == 1) %>%
+  mutate(row_idx = row_number(),
+         x=1)
+
+X_extract_ais <- spMatrix(nrow(ais_join), nrow(mf$dist$obs), i=ais_join$row_idx, j=ais_join$col_idx, x=ais_join$x)
+
+dhs_join <- mf$dist$obs %>% 
+  mutate(col_idx = row_number()) %>%
+  select(col_idx, ais_dummy) %>%
+  filter(ais_dummy == 0) %>%
+  mutate(row_idx = row_number(),
+         x=1)
+
+X_extract_dhs <- spMatrix(nrow(dhs_join), nrow(mf$dist$obs), i=dhs_join$row_idx, j=dhs_join$col_idx, x=dhs_join$x)
 
 if(mf$mics_toggle) {
   M_obs_mics <- sparse.model.matrix(~0 + idx, mf$mics$obs) 
@@ -92,7 +111,10 @@ tmb_int <- list()
 
 tmb_int$data <- list(M_obs = M_obs,
              X_tips_dummy = X_tips_dummy,
-             Z_tips = Z$Z_tips,
+             X_extract_dhs = X_extract_dhs,
+             X_extract_ais = X_extract_ais,
+             Z_tips_dhs = Z$Z_tips_dhs,
+             Z_tips_ais = Z$Z_tips_ais,
              Z_age = Z$Z_age,
              Z_period = Z$Z_period,
              Z_spatial = Z$Z_spatial,
@@ -104,8 +126,10 @@ tmb_int$data <- list(M_obs = M_obs,
              R_period = R$R_period,
              R_spatial = R$R_spatial,
              rankdef_R_spatial = 1,
-             log_offset = log(mf$dist$obs$pys),
-             births_obs = mf$dist$obs$births,
+             log_offset_dhs = log(filter(mf$dist$obs, ais_dummy ==0)$pys),
+             births_obs_dhs = filter(mf$dist$obs, ais_dummy ==0)$births,
+             log_offset_ais = log(filter(mf$dist$obs, ais_dummy ==1)$pys),
+             births_obs_ais = filter(mf$dist$obs, ais_dummy ==1)$births,
              pop = mf$mf_model$population,
              A_out = mf$out$A_out,
              mics_toggle = mf$mics_toggle,
