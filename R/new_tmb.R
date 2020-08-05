@@ -175,7 +175,7 @@ tmb_int$par <- list(
   eta2 = array(0, c(ncol(Z$Z_spatial), ncol(Z$Z_period))),
   log_prec_eta2 = 4,
   lag_logit_eta2_phi_period = 0,
-  # 
+  #
   eta3 = array(0, c(ncol(Z$Z_spatial), ncol(Z$Z_age))),
   log_prec_eta3 = 4,
   lag_logit_eta3_phi_age = 0
@@ -192,7 +192,10 @@ if(mf$mics_toggle) {
             "births_obs_mics" = list(mf$mics$obs$births),
             "log_offset_mics" = list(log(mf$mics$obs$pys)),
             "A_mics" = mf$mics$A_mics)
-  # tmb_int$par <- c(tmb_int$par, "beta_tips_dummy_mics" = rep(0, ncol(X_tips_dummy_mics)))
+  tmb_int$par <- c(tmb_int$par, 
+                   # "beta_tips_dummy_mics" = rep(0, ncol(X_tips_dummy_mics)),
+                   "u_tips_mics" = rep(0, ncol(Z_tips_mics)),
+                   "log_prec_rw_tips_mics" = 0)
   # tmb_int$random <- c(tmb_int$random, "beta_tips_dummy_mics")
 }
 
