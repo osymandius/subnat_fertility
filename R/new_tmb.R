@@ -194,7 +194,7 @@ if(mf$mics_toggle) {
             "A_mics" = mf$mics$A_mics)
   tmb_int$par <- c(tmb_int$par, 
                    # "beta_tips_dummy_mics" = rep(0, ncol(X_tips_dummy_mics)),
-                   "u_tips_mics" = rep(0, ncol(Z_tips_mics)),
+                   "u_tips_mics" = list(rep(0, ncol(Z$Z_tips_mics))),
                    "log_prec_rw_tips_mics" = 0)
   # tmb_int$random <- c(tmb_int$random, "beta_tips_dummy_mics")
 }
