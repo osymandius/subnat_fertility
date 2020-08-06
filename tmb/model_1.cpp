@@ -17,10 +17,7 @@ Type objective_function<Type>::operator() ()
   // DATA_VECTOR(beta_tips_dummy);
   PARAMETER_VECTOR(beta_tips_dummy);
 
-  DATA_SPARSE_MATRIX(Z_tips_dhs);
-  DATA_SPARSE_MATRIX(Z_tips_ais);
-  DATA_SPARSE_MATRIX(X_extract_dhs);
-  DATA_SPARSE_MATRIX(X_extract_ais);
+  DATA_SPARSE_MATRIX(Z_tips);
   DATA_SPARSE_MATRIX(R_tips);
   // DATA_SCALAR(log_prec_rw_tips);
   PARAMETER(log_prec_rw_tips);
@@ -51,10 +48,9 @@ Type objective_function<Type>::operator() ()
  
   // observations
 
-  DATA_VECTOR(log_offset_dhs);
-  DATA_VECTOR(births_obs_dhs);
-  DATA_VECTOR(log_offset_ais);
-  DATA_VECTOR(births_obs_ais);
+  DATA_VECTOR(log_offset);
+  DATA_VECTOR(births_obs);
+
   DATA_VECTOR(pop);
   DATA_INTEGER(mics_toggle);
   DATA_INTEGER(out_toggle);
@@ -239,28 +235,13 @@ Type objective_function<Type>::operator() ()
   
   vector<Type> u_tips_constr = u_tips - u_tips[3];
 
-  // vector<Type> mu_obs_pred(M_obs * log_lambda
-  //                         + Z_tips * u_tips_constr * sqrt(1/prec_rw_tips)  // TIPS RW
-  //                         + X_tips_dummy * beta_tips_dummy          // TIPS fixed effect
-  //                         + log_offset
-  //                         );
-
-  vector<Type> mu_obs_pred_dhs(X_extract_dhs * (M_obs * log_lambda)
-                          + Z_tips_dhs * u_tips_constr * sqrt(1/prec_rw_tips)  // TIPS RW
+  vector<Type> mu_obs_pred(M_obs * log_lambda
+                          + Z_tips * u_tips_constr * sqrt(1/prec_rw_tips)  // TIPS RW
                           + X_tips_dummy * beta_tips_dummy          // TIPS fixed effect
-                          + log_offset_dhs    
+                          + log_offset
                           );
 
-    
-  nll -= dpois(births_obs_dhs, exp(mu_obs_pred_dhs), true).sum();  
-
-  vector<Type> mu_obs_pred_ais(X_extract_ais * (M_obs * log_lambda)
-                          // + Z_tips_ais * u_tips_constr * sqrt(1/prec_rw_tips)  // TIPS RW
-                          + log_offset_ais    
-                          );
-
-    
-  nll -= dpois(births_obs_ais, exp(mu_obs_pred_ais), true).sum();  
+  nll -= dpois(births_obs, exp(mu_obs_pred), true).sum();  
 
   vector<Type> lambda(exp(log_lambda));
 

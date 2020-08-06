@@ -271,7 +271,7 @@ Type objective_function<Type>::operator() ()
   if(mics_toggle) {
 
     DATA_SPARSE_MATRIX(M_obs_mics);
-    // PARAMETER_VECTOR(beta_tips_dummy_mics);
+    PARAMETER_VECTOR(beta_tips_dummy_mics);
 
     DATA_MATRIX(X_tips_dummy_mics);
     DATA_SPARSE_MATRIX(Z_tips_mics);
@@ -280,34 +280,31 @@ Type objective_function<Type>::operator() ()
     DATA_VECTOR(log_offset_mics);
     DATA_VECTOR(births_obs_mics);
     
-    // PARAMETER_VECTOR(u_tips_mics);
-    // PARAMETER(log_prec_rw_tips_mics);
+    PARAMETER_VECTOR(u_tips_mics);
 
-    // nll -= dlgamma(log_prec_rw_tips_mics, Type(1), Type(20000), true);
-    // Type prec_rw_tips_mics = exp(log_prec_rw_tips_mics); 
+    nll -= Type(-0.5) * (u_tips_mics * (R_tips * u_tips_mics)).sum();
+    nll -= dnorm(u_tips_mics.sum(), Type(0), Type(0.01) * u_tips_mics.size(), true);
 
-    // nll -= Type(-0.5) * (u_tips_mics * (R_tips * u_tips_mics)).sum();
-    // nll -= dnorm(u_tips_mics.sum(), Type(0), Type(0.01) * u_tips_mics.size(), true);
+    vector<Type> u_tips_mics_constr = u_tips_mics - u_tips_mics[1];
 
-    // vector<Type> u_tips_mics_constr = u_tips_mics - u_tips_mics[1];
-
-    // nll -= dnorm(beta_tips_dummy_mics, Type(0), Type(1), true).sum();
+    nll -= dnorm(beta_tips_dummy_mics, Type(0), Type(sqrt(1/0.001)), true).sum();
 
     vector<Type> births_pred_mics(A_mics * births);
     vector<Type> pop_mics(A_mics * pop);
     vector<Type> lambda_mics(births_pred_mics/pop_mics);
 
     vector<Type> mu_obs_pred_mics(M_obs_mics * log(lambda_mics) +
-                                Z_tips_mics * u_tips_constr * sqrt(1/prec_rw_tips)   +     // TIPS RW
-                                X_tips_dummy_mics * beta_tips_dummy +          // TIPS fixed effect
+                                Z_tips_mics * u_tips_mics_constr * sqrt(1/prec_rw_tips)   +     // TIPS RW
+                                X_tips_dummy_mics * beta_tips_dummy_mics +          // TIPS fixed effect
                                 log_offset_mics
 
                 );
 
     nll -= dpois(births_obs_mics, exp(mu_obs_pred_mics), true).sum();  
 
-    // REPORT(beta_tips_dummy_mics);
+    REPORT(beta_tips_dummy_mics);
     // REPORT(u_tips_mics_constr);
+    REPORT(u_tips_mics_constr);
     // REPORT(log_prec_rw_tips_mics);
 
   }

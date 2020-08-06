@@ -24,7 +24,7 @@ source(here("R/fertility_funs.R"))
 iso3 <- c("LSO", "MOZ", "NAM", "UGA", "ZMB", "ETH", "TZA", "MWI")
 iso3 <- c("NAM", "UGA", "ZMB", "TZA")
 
-iso3_current <-  "MOZ"
+iso3_current <-  "UGA"
 
 list2env(make_areas_population(iso3_current, naomi_data_path, full = FALSE), globalenv())
 
@@ -34,7 +34,7 @@ list2env(make_areas_population(iso3_current, naomi_data_path, full = FALSE), glo
 # exclude_districts <- "MWI_5_07"
 exclude_districts= ""
 
-asfr <- get_asfr_pred_df(iso3_current, area_level = 2, areas_long, project = FALSE)
+asfr <- get_asfr_pred_df(iso3_current, area_level = "naomi", areas_long, project = FALSE)
 
 if(filter(mics_key, iso3 == iso3_current)$mics) {
   mics_asfr <- readRDS(here(grep("mics", list.files(paste0("countries/", iso3_current, "/data"), full.names = TRUE), value=TRUE)))
@@ -43,14 +43,14 @@ if(filter(mics_key, iso3 == iso3_current)$mics) {
 }
 
 # mics_dat <- readRDS("input_data/mics_extract.rds")
-# # 
-# mics_asfr <- Map(calc_asfr_mics, mics_dat$wm[c(10)], y=list(1),
+# # # 
+# mics_asfr <- Map(calc_asfr_mics, mics_dat$wm, y=list(1),
 #                  by = list(~area_id + survey_id),
 #                  tips = list(c(0,15)),
 #                  agegr= list(3:10*5),
 #                  period = list(1995:2019),
 #                  counts = TRUE,
-#                  bhdata = mics_dat$bh_df[c(10)]) %>%
+#                  bhdata = mics_dat$bh_df) %>%
 #   bind_rows %>%
 #   type.convert() %>%
 #   separate(col=survey_id, into=c(NA, "survyear", NA), sep=c(3,7), remove = FALSE, convert = TRUE) %>%
@@ -68,6 +68,7 @@ Z$Z_age <- sparse.model.matrix(~0 + age_group, mf$mf_model)
 Z$Z_period <- sparse.model.matrix(~0 + period, mf$mf_model)
 
 M_obs <- sparse.model.matrix(~0 + idx, mf$dist$obs) 
+Z$Z_tips <- sparse.model.matrix(~0 + tips_f, mf$dist$obs)
 Z$Z_tips_dhs <- sparse.model.matrix(~0 + tips_f, mf$dist$obs %>% filter(ais_dummy ==0))
 Z$Z_tips_ais <- sparse.model.matrix(~0 + tips_f, mf$dist$obs %>% filter(ais_dummy ==1))
 # Z_tips[which(mf$dist$obs$survtype != "DHS"), ] <- 0
