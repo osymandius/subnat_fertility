@@ -839,6 +839,8 @@ sample_tmb_test <- function(fit, nsample = 1000, rng_seed = NULL,
   fit
 }
 
+
+###
 make_adjacency_matrix <- function(iso3_current, areas_long, boundaries, exclude_districts = exc, level="naomi") {
   
   if (level == "naomi") {
@@ -886,7 +888,7 @@ make_adjacency_matrix <- function(iso3_current, areas_long, boundaries, exclude_
   
 }
 
-
+####
 make_rw_structure_matrix <- function(x, order, adjust_diagonal = TRUE) {
   
   
@@ -904,6 +906,7 @@ make_rw_structure_matrix <- function(x, order, adjust_diagonal = TRUE) {
   
 }
 
+####
 area_populations <- function(population, areas_wide) {
   
   base_area_pop <- areas_wide %>%
@@ -925,6 +928,7 @@ area_populations <- function(population, areas_wide) {
   
 }
 
+###
 make_model_frames <- function(iso3_current, population, asfr, mics_asfr = NULL, exclude_districts = "", project = FALSE) {
   
   population <- area_populations(population, areas_wide) %>%
@@ -1044,11 +1048,11 @@ make_model_frames <- function(iso3_current, population, asfr, mics_asfr = NULL, 
            tips_f = factor(tips),
            ais_dummy = ifelse(survtype %in% c("MIS", "AIS"), 1, 0),
            #####
-           # urban_dummy = ifelse(area_id %in% c(
-           #   filter(areas_long, parent_area_id == "ETH_1_10")$area_id,
-           #   filter(areas_long, str_detect(area_name, "Town"))$area_id,
-           #   filter(areas_long, area_name %in% c("Harari", "Fafen (Jijiga)"))$area_id),
-           # 1, 0),
+           urban_dummy = ifelse(area_id %in% c(
+             filter(areas_long, parent_area_id == "ETH_1_10")$area_id,
+             filter(areas_long, str_detect(area_name, "Town"))$area_id,
+             filter(areas_long, area_name %in% c("Harari", "Fafen (Jijiga)"))$area_id),
+           1, 0),
            #####
            age_group = factor(age_group, levels(mf_model$age_group)),
            area_id = factor(area_id, levels(mf_model$area_id)),
@@ -1153,7 +1157,7 @@ make_model_frames <- function(iso3_current, population, asfr, mics_asfr = NULL, 
       left_join(mf_mics) %>%
       select(area_id, period, age_group, tips, births, pys, idx) %>%
       mutate(tips_dummy = as.integer(tips > 2),
-             tips_f = factor(tips, levels(obs$tips_f)),
+             tips_f = factor(tips),
              age_group = factor(age_group, levels(mf_model$age_group)),
              idx =factor(idx, levels(mf_mics$idx))
       )

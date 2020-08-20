@@ -26,13 +26,19 @@ areas_long <- lapply(files, "[[", "areas") %>%
   lapply(read_sf) %>% 
   lapply(function(x) {
     
-  x <- x %>%
-    mutate(iso3 = iso3_current) %>%
-    st_drop_geometry() %>%
-    select(c("iso3", "area_id", "area_name", "area_level", "parent_area_id", "naomi_level"))
-  
-  return(x)
-}) %>% 
+    iso3_code <- x %>%
+      filter(area_level == 0) %>%
+      select(area_id) %>%
+      unique %>%
+      .$area_id
+    
+    x <- x %>%
+      mutate(iso3 = iso3_code) %>%
+      st_drop_geometry() %>%
+      select(c("iso3", "area_id", "area_name", "area_level", "parent_area_id", "naomi_level"))
+    
+    return(x)
+  }) %>% 
   bind_rows
 
 if(full)

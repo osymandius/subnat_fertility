@@ -58,7 +58,7 @@ surveys <- dhs_surveys(surveyIds = unique(clusters$DHS_survey_id)) %>%
   )
 
 ## Needs check to ensure level is < max_level
-cluster_areas <- assign_cluster_area(clusters, 0)
+cluster_areas <- assign_cluster_area(clusters, 1)
 
 dat <- clusters_to_surveys(surveys, cluster_areas, single_tips = FALSE)
 
@@ -77,7 +77,7 @@ asfr <- Map(calc_asfr1, dat$ir,
          iso3 = ifelse(country == "Eswatini", "SWZ", iso3)) %>%
   select(-country)
 
-saveRDS(asfr, "countries/ETH/data/ETH_asfr_admin2_no_reassignment.rds")
+saveRDS(tfr, "countries/SWZ/data/SWZ_tfr_admin1.rds")
 
 tfr <- Map(calc_tfr, dat$ir,
             by = list(~country + surveyid + survtype + survyear + area_id),

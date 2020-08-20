@@ -1,8 +1,8 @@
 ####### MODEL 0
 
-model0 <- lapply(c("LSO", "MOZ", "NAM", "UGA", "ZMB", "ETH", "TZA", "MWI", "SWZ", "ZWE"), function(iso3_current) {
+model0 <- lapply(c("LSO", "MOZ", "NAM", "UGA", "ZMB", "ETH", "TZA", "MWI", "ZWE"), function(iso3_current) {
   
-  iso3_current <- "MWI"
+  iso3_current <- "ZWE"
   list2env(make_areas_population(iso3_current, naomi_data_path, full = FALSE), globalenv())
   exclude_districts= ""
   
@@ -25,7 +25,7 @@ model0 <- lapply(c("LSO", "MOZ", "NAM", "UGA", "ZMB", "ETH", "TZA", "MWI", "SWZ"
   Z$Z_tips <- sparse.model.matrix(~0 + tips_f, mf$dist$obs)
   Z$Z_tips_dhs <- sparse.model.matrix(~0 + tips_f, mf$dist$obs %>% filter(ais_dummy ==0))
   Z$Z_tips_ais <- sparse.model.matrix(~0 + tips_f, mf$dist$obs %>% filter(ais_dummy ==1))
-  X_tips_dummy <- model.matrix(~0 + tips_dummy, mf$dist$obs %>% filter(ais_dummy == 0))
+  X_tips_dummy <- model.matrix(~0 + tips_dummy, mf$dist$obs)
   
   ais_join <- mf$dist$obs %>% 
     mutate(col_idx = row_number()) %>%
@@ -164,13 +164,15 @@ model0 <- lapply(c("LSO", "MOZ", "NAM", "UGA", "ZMB", "ETH", "TZA", "MWI", "SWZ"
   class(fit) <- "naomi_fit"  # this is hacky...
   fit <- sample_tmb(fit, random_only=FALSE)
   
+  saveRDS(fit, paste0("~/Downloads/model0/", iso3_current, ".rds"))
+  
+  return(fit)
+  
 })
-
-saveRDS(model0, "~/Downloads/model0.rds")
 
 ####### MODEL 1 #####
 
-model1 <- lapply(c("LSO", "MOZ", "NAM", "UGA", "ZMB", "ETH", "TZA", "MWI", "SWZ", "ZWE"), function(iso3_current) {
+model1 <- lapply(c("LSO", "MOZ", "NAM", "UGA", "ZMB", "ETH", "TZA", "MWI", "ZWE"), function(iso3_current) {
   
   list2env(make_areas_population(iso3_current, naomi_data_path, full = FALSE), globalenv())
   exclude_districts= ""
@@ -194,7 +196,7 @@ model1 <- lapply(c("LSO", "MOZ", "NAM", "UGA", "ZMB", "ETH", "TZA", "MWI", "SWZ"
   Z$Z_tips <- sparse.model.matrix(~0 + tips_f, mf$dist$obs)
   Z$Z_tips_dhs <- sparse.model.matrix(~0 + tips_f, mf$dist$obs %>% filter(ais_dummy ==0))
   Z$Z_tips_ais <- sparse.model.matrix(~0 + tips_f, mf$dist$obs %>% filter(ais_dummy ==1))
-  X_tips_dummy <- model.matrix(~0 + tips_dummy, mf$dist$obs %>% filter(ais_dummy == 0))
+  X_tips_dummy <- model.matrix(~0 + tips_dummy, mf$dist$obs)
   
   ais_join <- mf$dist$obs %>% 
     mutate(col_idx = row_number()) %>%
@@ -324,13 +326,15 @@ model1 <- lapply(c("LSO", "MOZ", "NAM", "UGA", "ZMB", "ETH", "TZA", "MWI", "SWZ"
   class(fit) <- "naomi_fit"  # this is hacky...
   fit <- sample_tmb(fit, random_only=FALSE)
   
+  saveRDS(fit, paste0("~/Downloads/model1/", iso3_current, ".rds"))
+  
+  return(fit)
+  
 })
-
-saveRDS(model1, "~/Downloads/model1.rds")
 
 ###### MODEL 2 ######
 
-model2 <- lapply(c("LSO", "MOZ", "NAM", "UGA", "ZMB", "ETH", "TZA", "MWI", "SWZ", "ZWE"), function(iso3_current) {
+model2 <- lapply(c("LSO", "MOZ", "NAM", "UGA", "ZMB", "ETH", "TZA", "MWI", "ZWE"), function(iso3_current) {
   
   list2env(make_areas_population(iso3_current, naomi_data_path, full = FALSE), globalenv())
   exclude_districts= ""
@@ -484,13 +488,15 @@ model2 <- lapply(c("LSO", "MOZ", "NAM", "UGA", "ZMB", "ETH", "TZA", "MWI", "SWZ"
   class(fit) <- "naomi_fit"  # this is hacky...
   fit <- sample_tmb(fit, random_only=FALSE)
   
+  saveRDS(fit, paste0("~/Downloads/model2/", iso3_current, ".rds"))
+  
+  return(fit)
+  
 })
-
-saveRDS(model2, "~/Downloads/model2.rds")
 
 #### MODEL 3 ####
 
-model3 <- lapply(c("LSO", "MOZ", "MWI", "SWZ", "ZWE"), function(iso3_current) {
+model3 <- lapply(c("LSO", "MOZ", "MWI", "ZWE"), function(iso3_current) {
   
   list2env(make_areas_population(iso3_current, naomi_data_path, full = FALSE), globalenv())
   exclude_districts= ""
@@ -644,13 +650,15 @@ model3 <- lapply(c("LSO", "MOZ", "MWI", "SWZ", "ZWE"), function(iso3_current) {
   class(fit) <- "naomi_fit"  # this is hacky...
   fit <- sample_tmb(fit, random_only=FALSE)
   
+  saveRDS(fit, paste0("~/Downloads/model3/", iso3_current, ".rds"))
+  
+  return(fit)
+  
 })
-
-saveRDS(model3, "~/Downloads/model3.rds")
 
 #### MODEL 4 ####
 
-model4 <- lapply(c("LSO", "MOZ", "MWI", "SWZ", "ZWE"), function(iso3_current) {
+model4 <- lapply(c("LSO", "MOZ", "MWI", "ZWE"), function(iso3_current) {
   
   list2env(make_areas_population(iso3_current, naomi_data_path, full = FALSE), globalenv())
   exclude_districts= ""
@@ -804,13 +812,15 @@ model4 <- lapply(c("LSO", "MOZ", "MWI", "SWZ", "ZWE"), function(iso3_current) {
   class(fit) <- "naomi_fit"  # this is hacky...
   fit <- sample_tmb(fit, random_only=FALSE)
   
+  saveRDS(fit, paste0("~/Downloads/model4/", iso3_current, ".rds"))
+  
+  return(fit)
+  
 })
-
-saveRDS(model4, "~/Downloads/model4.rds")
 
 #### MODEL 5 ####
 
-model5 <- lapply(c("LSO", "MOZ", "NAM", "UGA", "ZMB", "ETH", "TZA", "MWI", "SWZ", "ZWE"), function(iso3_current) {
+model5 <- lapply(c("NAM", "UGA", "ZMB", "ETH", "MWI", "ZWE"), function(iso3_current) {
   
   list2env(make_areas_population(iso3_current, naomi_data_path, full = FALSE), globalenv())
   exclude_districts= ""
@@ -965,13 +975,15 @@ model5 <- lapply(c("LSO", "MOZ", "NAM", "UGA", "ZMB", "ETH", "TZA", "MWI", "SWZ"
   class(fit) <- "naomi_fit"  # this is hacky...
   fit <- sample_tmb(fit, random_only=FALSE)
   
+  saveRDS(fit, paste0("~/Downloads/model5/", iso3_current, ".rds"))
+  
+  return(fit)
+  
 })
-
-saveRDS(model5, "~/Downloads/model5.rds")
 
 #### MODEL 6 ####
 
-model6 <- lapply(c("LSO", "MOZ", "MWI", "SWZ", "ZWE"), function(iso3_current) {
+model6 <- lapply(c("LSO", "MOZ", "MWI", "ZWE"), function(iso3_current) {
   
   list2env(make_areas_population(iso3_current, naomi_data_path, full = FALSE), globalenv())
   exclude_districts= ""
@@ -1124,6 +1136,10 @@ model6 <- lapply(c("LSO", "MOZ", "MWI", "SWZ", "ZWE"), function(iso3_current) {
   
   class(fit) <- "naomi_fit"  # this is hacky...
   fit <- sample_tmb(fit, random_only=FALSE)
+  
+  saveRDS(fit, paste0("~/Downloads/model6/", iso3_current, ".rds"))
+  
+  return(fit)
   
 })
 

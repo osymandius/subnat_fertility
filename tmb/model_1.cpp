@@ -14,8 +14,11 @@ Type objective_function<Type>::operator() ()
   DATA_SPARSE_MATRIX(M_obs);
 
   DATA_MATRIX(X_tips_dummy);
+  DATA_MATRIX(X_urban_dummy);
   // DATA_VECTOR(beta_tips_dummy);
   PARAMETER_VECTOR(beta_tips_dummy);
+  PARAMETER_VECTOR(beta_urban_dummy);
+
 
   DATA_SPARSE_MATRIX(Z_tips);
   DATA_SPARSE_MATRIX(R_tips);
@@ -65,6 +68,7 @@ Type objective_function<Type>::operator() ()
   ///////////////////
 
   nll -= dnorm(beta_tips_dummy, Type(0), Type(sqrt(1/0.001)), true).sum();
+  nll -= dnorm(beta_urban_dummy, Type(0), Type(sqrt(1/0.001)), true).sum();
   // nll -= dnorm(beta_tips_dummy, Type(0.05), Type(0.1), true).sum();
   // nll -= dlgamma(beta_tips_dummy, Type(1.73), Type(1/17.326), true).sum();
   
@@ -238,6 +242,7 @@ Type objective_function<Type>::operator() ()
   vector<Type> mu_obs_pred(M_obs * log_lambda
                           + Z_tips * u_tips_constr * sqrt(1/prec_rw_tips)  // TIPS RW
                           + X_tips_dummy * beta_tips_dummy          // TIPS fixed effect
+                          + X_urban_dummy * beta_urban_dummy
                           + log_offset
                           );
 
@@ -335,6 +340,7 @@ Type objective_function<Type>::operator() ()
   REPORT(log_prec_rw_tips);
 
   REPORT(beta_tips_dummy);
+  REPORT(beta_urban_dummy);
 
   REPORT(eta1);
   REPORT(eta2);

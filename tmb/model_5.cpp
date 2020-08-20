@@ -302,7 +302,7 @@ Type objective_function<Type>::operator() ()
 
     vector<Type> mu_obs_pred_mics(M_obs_mics * log(lambda_mics) +
                                 Z_tips_mics * u_tips_mics * sqrt(1/prec_rw_tips)   +     // TIPS RW
-                                X_tips_dummy_mics * beta_tips_dummy +          // TIPS fixed effect
+                                // X_tips_dummy_mics * beta_tips_dummy +          // TIPS fixed effect
                                 log_offset_mics
 
                 );
@@ -365,6 +365,7 @@ Type objective_function<Type>::operator() ()
 
   REPORT(u_tips);
   REPORT(u_tips_constr);
+  REPORT(u_tips_ais_constr);
   REPORT(u_period);
   REPORT(u_age);
 
