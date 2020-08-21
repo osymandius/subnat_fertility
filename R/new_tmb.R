@@ -24,7 +24,7 @@ source(here("R/fertility_funs.R"))
 # iso3 <- c("LSO", "MOZ", "NAM", "UGA", "ZMB", "ETH", "TZA", "MWI")
 # iso3 <- c("NAM", "UGA", "ZMB", "TZA")
 
-iso3_current <-  "ETH"
+iso3_current <-  c("ZMB", "ZWE")
 
 list2env(make_areas_population(iso3_current, naomi_data_path, full = FALSE), globalenv())
 
@@ -34,13 +34,17 @@ list2env(make_areas_population(iso3_current, naomi_data_path, full = FALSE), glo
 # exclude_districts <- "MWI_5_07"
 exclude_districts= ""
 
-asfr <- get_asfr_pred_df(iso3_current, area_level = "naomi", areas_long, project = FALSE)
+asfr <- lapply(iso3_current, function(iso3_current) {
+  get_asfr_pred_df(iso3_current, area_level = "naomi", areas_long, project = FALSE)
+})
 
-if(filter(mics_key, iso3 == iso3_current)$mics) {
-  mics_asfr <- readRDS(here(grep("mics", list.files(paste0("countries/", iso3_current, "/data"), full.names = TRUE), value=TRUE)))
-} else {
-  mics_asfr <- NULL
-}
+mics_asfr <- lapply(iso3_current, function(iso3_current) {
+  if(filter(mics_key, iso3 == iso3_current)$mics) {
+    readRDS(here(grep("mics", list.files(paste0("countries/", iso3_current, "/data"), full.names = TRUE), value=TRUE)))
+  } else {
+    mics_asfr <- NULL
+  }
+})
 
 # mics_dat <- readRDS("input_data/mics_extract.rds")
 # # #
@@ -99,7 +103,8 @@ if(mf$mics_toggle) {
 }
 
 R <- list()
-R$R_spatial <- make_adjacency_matrix(iso3_current, areas_long, boundaries, exclude_districts, level= unique(asfr %>% left_join(areas_long) %>% .$area_level))
+R$R_spatial <- make_adjacency_matrix(iso3_current, areas_long, boundaries, exclude_districts, level= "naomi")
+# unique(asfr %>% left_join(areas_long) %>% .$area_level)
 R$R_tips <- make_rw_structure_matrix(ncol(Z$Z_tips), 1, adjust_diagonal = TRUE)
 R$R_tips_mics <- make_rw_structure_matrix(ncol(Z$Z_tips_mics), 1, adjust_diagonal = TRUE)
 R$R_age <- make_rw_structure_matrix(ncol(Z$Z_age), 1, adjust_diagonal = TRUE)
@@ -158,7 +163,7 @@ tmb_int$par <- list(
   beta_0 = 0,
 
   beta_tips_dummy = rep(0, ncol(X_tips_dummy)),
-  beta_urban_dummy = rep(0, ncol(X_urban_dummy)),
+  # beta_urban_dummy = rep(0, ncol(X_urban_dummy)),
   u_tips = rep(0, ncol(Z$Z_tips)),
   log_prec_rw_tips = 4,
 
@@ -190,7 +195,7 @@ tmb_int$par <- list(
 
 
 # "u_spatial_str", "u_spatial_iid", "eta1" , "eta1" "beta_tips_dummy",, "eta1""eta1", "u_tips", "beta_tips_dummy", , "u_spatial_iid", "eta3" , 
-tmb_int$random <- c("beta_0", "u_spatial_str", "u_age", "u_period", "beta_tips_dummy", "beta_urban_dummy", "u_tips", "eta1", "eta2", "eta3")
+tmb_int$random <- c("beta_0", "u_spatial_str", "u_age", "u_period", "beta_tips_dummy",  "u_tips", "eta1", "eta2", "eta3")
 
 if(mf$mics_toggle) {
   tmb_int$data <- c(tmb_int$data, 
@@ -238,8 +243,8 @@ fit <- sample_tmb(fit, random_only=FALSE)
 
 qtls1 <- apply(fit$sample$lambda_out, 1, quantile, c(0.025, 0.5, 0.975))
 
-asfr_plot <- readRDS(here("countries/ETH/data/ETH_asfr_plot.rds"))
-tfr_plot <- readRDS(here("countries/ETH/data/ETH_tfr_plot.rds"))
+asfr_plot <- readRDS(here("countries/NAM/data/NAM_asfr_plot.rds"))
+tfr_plot <- readRDS(here("countries/NAM/data/NAM_tfr_plot.rds"))
 
 mf$out$mf_out %>%
 # mf$mf_model %>%
@@ -254,7 +259,8 @@ mf$out$mf_out %>%
   geom_line() +
   geom_point(data=asfr_plot %>% left_join(areas_long) %>% filter(area_level == 1, asfr<2), aes(y=asfr, group=survtype, color=survtype)) +
   geom_ribbon(aes(ymin = lower, ymax = upper, fill=age_group), alpha = 0.3) +
-  facet_grid(age_group~area_name)
+  facet_grid(age_group~area_name) +
+  ylim(0,0.5)
 
 mf$out$mf_out %>%
   mutate(lower = qtls1[1,],

@@ -843,19 +843,24 @@ sample_tmb_test <- function(fit, nsample = 1000, rng_seed = NULL,
 ###
 make_adjacency_matrix <- function(iso3_current, areas_long, boundaries, exclude_districts = exc, level="naomi") {
   
-  if (level == "naomi") {
+  sh <- lapply(iso3_current, function(iso3_current) {
     
-    int <- areas_long %>%
-      filter(iso3 == iso3_current)
+    if (level == "naomi") {
+      
+      int <- areas_long %>%
+        filter(iso3 == iso3_current)
+      
+      level <- unique(int$area_level[int$naomi_level == TRUE])
+      
+    }
     
-    level <- unique(int$area_level[int$naomi_level == TRUE])
+    sh <- areas_long %>%
+      filter(iso3 == iso3_current, area_level == level, !area_id %in% exclude_districts) 
     
-  }
-  
-  sh <- areas_long %>%
-    filter(iso3 == iso3_current, area_level == level, !area_id %in% exclude_districts) %>%
-    # filter(area_id %in% asfr$area_id) %>%
+  }) %>% 
+    bind_rows %>%
     mutate(area_idx = row_number())
+    
   
   #' Neighbor list
   nb <- sh %>%
@@ -865,16 +870,16 @@ make_adjacency_matrix <- function(iso3_current, areas_long, boundaries, exclude_
     spdep::poly2nb() %>%
     `names<-`(sh$area_idx)
   
-  if(iso3_current == "MOZ" & level == 2) {
-    #Make KaTembe adjacent to KaMpfumu and Nhlamankulu
-    nb[[6]] <- c(nb[[6]], 1, 2)
-    nb[[1]] <- c(nb[[1]], 6)
-    nb[[2]] <- c(nb[[2]], 6)
-    
-    #Make KaNyaka adjacent to KaMpfumu	and KaMaxakeni
-    nb[[7]] <- c(1, 3)
-    nb[[1]] <- c(nb[[1]], 7)
-    nb[[3]] <- c(nb[[3]], 7)
+  # if(iso3_current == "MOZ" & level == 2) {
+  #   #Make KaTembe adjacent to KaMpfumu and Nhlamankulu
+  #   nb[[6]] <- c(nb[[6]], 1, 2)
+  #   nb[[1]] <- c(nb[[1]], 6)
+  #   nb[[2]] <- c(nb[[2]], 6)
+  #   
+  #   #Make KaNyaka adjacent to KaMpfumu	and KaMaxakeni
+  #   nb[[7]] <- c(1, 3)
+  #   nb[[1]] <- c(nb[[1]], 7)
+  #   nb[[3]] <- c(nb[[3]], 7)
     
     nb <- lapply(nb, as.integer)
     class(nb) <- "nb"
@@ -943,7 +948,7 @@ make_model_frames <- function(iso3_current, population, asfr, mics_asfr = NULL, 
     left_join(population) %>%
     group_by(area_id, age_group) %>%
     mutate(population = exp(zoo::na.approx(log(population), period, na.rm = FALSE))) %>%
-    fill(population, .direction="up")
+    fill(population, .direction="updown")
     
   
   # population <- crossing(area_id = unique(population$area_id),
@@ -952,28 +957,37 @@ make_model_frames <- function(iso3_current, population, asfr, mics_asfr = NULL, 
   # ) %>%
   #   left_join(population %>% filter(period == min(period)) %>% select(-period)) %>%
   #   bind_rows(population)
+  
+  asfr <- asfr %>%
+    bind_rows()
    
+  mics_asfr <- mics_asfr %>%
+    bind_rows()
+  
   if(!project) {
   
-  if(!is.null(mics_asfr)) {
-    df <- asfr %>%
-      bind_rows(mics_asfr)
-  } else {
-    df <- asfr
+    if(!is.null(mics_asfr)) {
+      df <- asfr %>%
+        bind_rows(mics_asfr)
+    } else {
+      df <- asfr 
+    }
     
+    max_year <- max(df$period)
+      
+  } else {
+      
+      max_year <- project
   }
   
-  max_year <- max(df$period)
+  area_aggregation <- lapply(iso3_current, function(iso3_current) {
     
-  } else {
+    area_merged <- st_read(file.path(naomi_data_path, iso3_current, "data", paste0(tolower(iso3_current), "_areas.geojson")))
+    areas <- create_areas(area_merged = area_merged)
+    area_aggregation <- create_area_aggregation(area_merged$area_id[area_merged$naomi_level], areas) %>%
+      filter(!model_area_id %in% exclude_districts)
     
-    max_year <- project
-  }
-  
-  area_merged <- st_read(file.path(naomi_data_path, iso3_current, "data", paste0(tolower(iso3_current), "_areas.geojson")))
-  areas <- create_areas(area_merged = area_merged)
-  area_aggregation <- create_area_aggregation(area_merged$area_id[area_merged$naomi_level], areas) %>%
-    filter(!model_area_id %in% exclude_districts)
+  }) %>% bind_rows
   
   if(unique(left_join(asfr, areas_long)$naomi_level)) {
   ## Make model frame
@@ -1009,12 +1023,12 @@ make_model_frames <- function(iso3_current, population, asfr, mics_asfr = NULL, 
     ## Make model frame
     mf_model <- crossing(period = 1995:max_year,
                          age_group = c("15-19", "20-24", "25-29", "30-34", "35-39", "40-44", "45-49"),
-                         area_id = filter(areas_long, iso3 == iso3_current, area_level == 1)$area_id) %>%
+                         area_id = filter(areas_long, area_level == 1)$area_id) %>%
       # area_id = iso3_current) %>%
       left_join(population %>%
                   select(area_id, period, age_group, population)
       ) %>%
-      mutate(area_id = factor(area_id, levels = filter(areas_long, iso3 == iso3_current, area_level == 1)$area_id),
+      mutate(area_id = factor(area_id, levels = filter(areas_long, area_level == 1)$area_id),
              # mutate(area_id = factor(iso3_current),
              age_group = factor(age_group, levels = c("15-19", "20-24", "25-29", "30-34", "35-39", "40-44", "45-49")),
              period = factor(period),
