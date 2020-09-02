@@ -1,4 +1,4 @@
-make_areas_population <- function(iso3_current, naomi_data_path, full=FALSE, wide=TRUE, boundaries=TRUE, population=TRUE) {
+make_areas_population <- function(iso3_current, naomi_data_path, full=FALSE, wide=TRUE, boundaries=TRUE, population=TRUE, return_list = TRUE) {
 
 paths <- file.path(naomi_data_path, iso3_current, "data")
 
@@ -39,19 +39,22 @@ areas_long <- lapply(files, "[[", "areas") %>%
     
     return(x)
   }) %>% 
-  bind_rows
+  bind_rows %>%
+  arrange(iso3)
 
 if(full)
   areas_full <- lapply(files, "[[", "areas") %>%
     lapply(st_read) %>% 
-    bind_rows
+    bind_rows %>%
+    arrange(iso3)
 
 if(wide)
   areas_wide <- lapply(files, "[[", "areas") %>%
     lapply(read_sf) %>%
     lapply(function(x) {spread_areas(as.data.frame(x))}) %>%
     lapply(function(x) {x %>% mutate(iso3 = area_id0)}) %>%
-    bind_rows
+    bind_rows %>%
+    arrange(iso3)
 
 if(boundaries)
   area_boundaries <- lapply(files, "[[", "areas") %>%
@@ -70,32 +73,55 @@ if(boundaries)
       
       return(x)
     }) %>% 
-    bind_rows
+    bind_rows %>%
+    arrange(iso3)
 
 if(population)
   area_population <- lapply(files, "[[", "population") %>%
     lapply(read_csv) %>%
+    lapply(left_join, areas_long) %>%
     bind_rows %>%
     mutate(period = year_labels(naomi:::calendar_quarter_to_quarter_id(calendar_quarter))) %>%
-    select("area_id" , "area_name", "source", "sex", "age_group", "population", "period")
+    select(iso3, "area_id" , "area_name", "source", "sex", "age_group", "population", "period") %>%
+    arrange(iso3)
 
 
 
   df <- list()
+  
   df$areas_long <- areas_long
   
-  if(full)
+  # if(length(iso3_current >1 & return_list == TRUE))
+  #   df$areas_long <- df$areas_long %>% group_split(iso3)
+  
+  if(full) {
     df$areas_full <- areas_full
   
-  if(wide)
+    # if(length(iso3_current >1 & return_list == TRUE))
+    #   df$areas_full <- df$areas_full %>% group_split(iso3)
+  }
+  
+  if(wide) {
     df$areas_wide <- areas_wide
   
-  if(boundaries)
+    # if(length(iso3_current >1 & return_list == TRUE))
+    #   df$areas_wide <- df$areas_wide %>% group_split(iso3)
+  }
+  
+  if(boundaries) {
     df$boundaries <- area_boundaries
   
-  if(population)
+    # if(length(iso3_current >1 & return_list == TRUE))
+    #   df$boundaries <- df$boundaries %>% group_split(iso3)
+  }
+  
+  if(population) {
     df$population <- area_population
-
+  
+    # if(length(iso3_current >1 & return_list == TRUE))
+      # df$population <- df$population %>% group_split(iso3)
+  }
+  
   return(df)
 
 

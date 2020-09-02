@@ -881,9 +881,8 @@ make_adjacency_matrix <- function(iso3_current, areas_long, boundaries, exclude_
   #   nb[[1]] <- c(nb[[1]], 7)
   #   nb[[3]] <- c(nb[[3]], 7)
     
-    nb <- lapply(nb, as.integer)
-    class(nb) <- "nb"
-  }
+  nb <- lapply(nb, as.integer)
+  class(nb) <- "nb"
   
   adj <- nb2mat(nb, zero.policy=TRUE, style="B")
   R_spatial <- INLA::inla.scale.model(diag(rowSums(adj)) - 0.99*adj,
@@ -929,12 +928,15 @@ area_populations <- function(population, areas_wide) {
   }
   
   area_populations <- lapply(level_ids, group_area_pops, base_area_pop) %>%
-    bind_rows
+    bind_rows %>%
+    filter(!is.na(area_id))
+  
+  return(area_populations)
   
 }
 
 ###
-make_model_frames <- function(iso3_current, population, asfr, mics_asfr = NULL, exclude_districts = "", project = FALSE) {
+make_model_frames <- function(iso3_current, population, asfr, mics_asfr, exclude_districts = "", project = FALSE, mics_flag = TRUE) {
   
   population <- area_populations(population, areas_wide) %>%
     filter(sex == "female") %>%
@@ -948,7 +950,8 @@ make_model_frames <- function(iso3_current, population, asfr, mics_asfr = NULL, 
     left_join(population) %>%
     group_by(area_id, age_group) %>%
     mutate(population = exp(zoo::na.approx(log(population), period, na.rm = FALSE))) %>%
-    fill(population, .direction="updown")
+    fill(population, .direction="updown") %>%
+    left_join(areas_long %>% select(area_id, iso3))
     
   
   # population <- crossing(area_id = unique(population$area_id),
@@ -960,13 +963,14 @@ make_model_frames <- function(iso3_current, population, asfr, mics_asfr = NULL, 
   
   asfr <- asfr %>%
     bind_rows()
-   
-  mics_asfr <- mics_asfr %>%
-    bind_rows()
   
   if(!project) {
   
-    if(!is.null(mics_asfr)) {
+    if(mics_flag) {
+      
+      mics_asfr <- mics_asfr %>%
+        bind_rows()
+      
       df <- asfr %>%
         bind_rows(mics_asfr)
     } else {
@@ -997,7 +1001,7 @@ make_model_frames <- function(iso3_current, population, asfr, mics_asfr = NULL, 
                  area_id = unique(area_aggregation$model_area_id)) %>%
                  # area_id = iso3_current) %>%
     left_join(population %>%
-                select(area_id, period, age_group, population)
+                select(iso3, area_id, period, age_group, population)
     ) %>%
     # mutate(area_id = factor(area_id),
     mutate(area_id = factor(area_id, levels = unique(area_aggregation$model_area_id)),
@@ -1012,11 +1016,11 @@ make_model_frames <- function(iso3_current, population, asfr, mics_asfr = NULL, 
     ) %>%
     arrange(period, area_id, age_group) %>%
     mutate(idx = factor(row_number()),
-           id.interaction_3d = factor(group_indices(., age_group, period, area_id)),
-           # id.interaction_age_time = factor(group_indices(., age_group, period)),
-           id.interaction1 = factor(group_indices(., age_group, period)),
-           id.interaction2 = factor(group_indices(., period, area_id)),
-           id.interaction3 = factor(group_indices(., age_group, area_id))
+           id.interaction1 = factor(group_indices(., age_group, period, iso3)),
+           id.interaction2 = factor(group_indices(., period, area_id, iso3)),
+           id.interaction3 = factor(group_indices(., age_group, area_id, iso3)),
+           id.omega1 = factor(group_indices(., age_group, iso3)),
+           id.omega2 = factor(group_indices(., period, iso3))
     ) 
    # droplevels()
   } else if(unique(left_join(asfr, areas_long)$area_level) == 1) {
@@ -1026,7 +1030,7 @@ make_model_frames <- function(iso3_current, population, asfr, mics_asfr = NULL, 
                          area_id = filter(areas_long, area_level == 1)$area_id) %>%
       # area_id = iso3_current) %>%
       left_join(population %>%
-                  select(area_id, period, age_group, population)
+                  select(iso3, area_id, period, age_group, population)
       ) %>%
       mutate(area_id = factor(area_id, levels = filter(areas_long, area_level == 1)$area_id),
              # mutate(area_id = factor(iso3_current),
@@ -1040,11 +1044,11 @@ make_model_frames <- function(iso3_current, population, asfr, mics_asfr = NULL, 
       ) %>%
       arrange(period, area_id, age_group) %>%
       mutate(idx = factor(row_number()),
-             id.interaction_3d = factor(group_indices(., age_group, period, area_id)),
-             # id.interaction_age_time = factor(group_indices(., age_group, period)),
-             id.interaction1 = factor(group_indices(., age_group, period)),
-             id.interaction2 = factor(group_indices(., period, area_id)),
-             id.interaction3 = factor(group_indices(., age_group, area_id))
+             id.interaction1 = factor(group_indices(., age_group, period, iso3)),
+             id.interaction2 = factor(group_indices(., period, area_id, iso3)),
+             id.interaction3 = factor(group_indices(., age_group, area_id, iso3)),
+             id.omega1 = factor(group_indices(., age_group, iso3)),
+             id.omega2 = factor(group_indices(., period, iso3))
       ) 
       # droplevels()
   } else {
@@ -1144,7 +1148,7 @@ make_model_frames <- function(iso3_current, population, asfr, mics_asfr = NULL, 
 
   }
   
-  if(!is.null(mics_asfr)) {
+  if(mics_flag) {
     
     # mf_mics <- crossing(area_id = filter(areas_long, area_level == 1)$area_id,
     mf_mics <- crossing(area_id = as.character(unique(mics_asfr$area_id)),

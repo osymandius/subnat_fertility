@@ -14,7 +14,7 @@ devtools::load_all("~/Documents/GitHub/naomi")
 # library(naomi)
 library(here)
 
-naomi_data_path <- "~/Imperial College London/HIV Inference Group - Documents/Analytical datasets/naomi-data"
+naomi_data_path <- "~/Imperial College London/HIV Inference Group - WP - Documents/Analytical datasets/naomi-data"
 mics_key <- read.csv(here("countries/mics_data_key.csv"))
 # naomi_data_path <- "~/naomi-data"
 
@@ -24,9 +24,9 @@ source(here("R/fertility_funs.R"))
 # iso3 <- c("LSO", "MOZ", "NAM", "UGA", "ZMB", "ETH", "TZA", "MWI")
 # iso3 <- c("NAM", "UGA", "ZMB", "TZA")
 
-iso3_current <-  c("ZMB", "ZWE")
+iso3_current <-  c("ZMB", "ZWE", "MOZ", "MWI", "SWZ", "TZA")
 
-list2env(make_areas_population(iso3_current, naomi_data_path, full = FALSE), globalenv())
+list2env(make_areas_population(iso3_current, naomi_data_path, full = FALSE, return_list = FALSE), globalenv())
 
 # exclude_districts <- areas_wide$area_id[areas_wide$area_id1 == "TZA_1_2"]
 # exclude_districts <- c("UGA_3_029", "UGA_3_046")
@@ -61,7 +61,7 @@ mics_asfr <- lapply(iso3_current, function(iso3_current) {
 #   filter(period <= survyear) %>%
 #   rename(age_group = agegr)
 
-mf <- make_model_frames(iso3_current, population, asfr, mics_asfr, exclude_districts, project=FALSE)
+mf <- make_model_frames(iso3_current, population, asfr, mics_asfr, exclude_districts, project=FALSE, mics_flag = FALSE)
 
 # saveRDS(mf, here(paste0("countries/", iso3_current, "/mods/", iso3_current, "_mf.rds")))
 
@@ -69,14 +69,15 @@ Z <- list()
 Z$Z_spatial <- sparse.model.matrix(~0 + area_id, mf$mf_model)
 Z$Z_age <- sparse.model.matrix(~0 + age_group, mf$mf_model)
 Z$Z_period <- sparse.model.matrix(~0 + period, mf$mf_model)
+Z$Z_country <- sparse.model.matrix(~0 + iso3, mf$mf_model)
 
 M_obs <- sparse.model.matrix(~0 + idx, mf$dist$obs) 
 Z$Z_tips <- sparse.model.matrix(~0 + tips_f, mf$dist$obs)
 Z$Z_tips_dhs <- sparse.model.matrix(~0 + tips_f, mf$dist$obs %>% filter(ais_dummy ==0))
-Z$Z_tips_ais <- sparse.model.matrix(~0 + tips_f, mf$dist$obs %>% filter(ais_dummy ==1))
+# Z$Z_tips_ais <- sparse.model.matrix(~0 + tips_f, mf$dist$obs %>% filter(ais_dummy ==1))
 # Z_tips[which(mf$dist$obs$survtype != "DHS"), ] <- 0
 X_tips_dummy <- model.matrix(~0 + tips_dummy, mf$dist$obs %>% filter(ais_dummy == 0))
-X_urban_dummy <- model.matrix(~0 + urban_dummy, mf$dist$obs)
+# X_urban_dummy <- model.matrix(~0 + urban_dummy, mf$dist$obs)
 
 ais_join <- mf$dist$obs %>% 
   mutate(col_idx = row_number()) %>%
@@ -109,31 +110,35 @@ R$R_tips <- make_rw_structure_matrix(ncol(Z$Z_tips), 1, adjust_diagonal = TRUE)
 R$R_tips_mics <- make_rw_structure_matrix(ncol(Z$Z_tips_mics), 1, adjust_diagonal = TRUE)
 R$R_age <- make_rw_structure_matrix(ncol(Z$Z_age), 1, adjust_diagonal = TRUE)
 R$R_period <- make_rw_structure_matrix(ncol(Z$Z_period), 2, adjust_diagonal = TRUE)
+R$R_country <- as(diag(1, length(iso3_current)), "dgTMatrix")
 
 # dyn.unload(dynlib(here("tmb/fertility_tmb_dev")))
-compile(here("tmb/14_aug.cpp"))               # Compile the C++ file
-dyn.load(dynlib(here("tmb/14_aug")))
+compile(here("tmb/multi.cpp"))               # Compile the C++ file
+dyn.load(dynlib(here("tmb/multi")))
 
 tmb_int <- list()
 
 tmb_int$data <- list(M_obs = M_obs,
              X_tips_dummy = X_tips_dummy,
-             X_urban_dummy = X_urban_dummy,
+             # X_urban_dummy = X_urban_dummy,
              X_extract_dhs = X_extract_dhs,
              X_extract_ais = X_extract_ais,
-             # Z_tips = Z$Z_tips,
+             Z_tips = Z$Z_tips,
              Z_tips_dhs = Z$Z_tips_dhs,
-             Z_tips_ais = Z$Z_tips_ais,
+             # Z_tips_ais = Z$Z_tips_ais,
              Z_age = Z$Z_age,
              Z_period = Z$Z_period,
              Z_spatial = Z$Z_spatial,
-             Z_interaction1 = sparse.model.matrix(~0 + id.interaction1, mf$mf_model),
+             # Z_interaction1 = sparse.model.matrix(~0 + id.interaction1, mf$mf_model),
              Z_interaction2 = sparse.model.matrix(~0 + id.interaction2, mf$mf_model),
-             Z_interaction3 = sparse.model.matrix(~0 + id.interaction3, mf$mf_model),
+             # Z_interaction3 = sparse.model.matrix(~0 + id.interaction3, mf$mf_model),
+             Z_omega1 = sparse.model.matrix(~0 + id.omega1, mf$mf_model),
+             Z_omega2 = sparse.model.matrix(~0 + id.omega2, mf$mf_model),
              R_tips = R$R_tips,
              R_age = R$R_age,
              R_period = R$R_period,
              R_spatial = R$R_spatial,
+             R_country = R$R_country,
              rankdef_R_spatial = 1,
              # log_offset = log(mf$dist$obs$pys),
              # births_obs = mf$dist$obs$births,
@@ -169,6 +174,14 @@ tmb_int$par <- list(
 
   u_age = rep(0, ncol(Z$Z_age)),
   log_prec_rw_age = 4,
+  
+  omega1 = array(0, c(ncol(Z$Z_country), ncol(Z$Z_age))),
+  log_prec_omega1 = 4,
+  lag_logit_omega1_phi_age = 0,
+  
+  omega2 = array(0, c(ncol(Z$Z_country), ncol(Z$Z_period))),
+  log_prec_omega2 = 4,
+  lag_logit_omega2_phi_period = 0,
 
   u_period = rep(0, ncol(Z$Z_period)),
   log_prec_rw_period = 4,
@@ -179,23 +192,23 @@ tmb_int$par <- list(
   # u_spatial_iid = rep(0, ncol(Z_spatial)),
   # logit_spatial_rho = 0,
 
-  eta1 = array(0, c(ncol(Z$Z_period), ncol(Z$Z_age))),
-  log_prec_eta1 = 4,
-  lag_logit_eta1_phi_age = 0,
-  lag_logit_eta1_phi_period = 0,
-
-  eta2 = array(0, c(ncol(Z$Z_spatial), ncol(Z$Z_period))),
+  # eta1 = array(0, c(ncol(Z$Z_period), ncol(Z$Z_age))),
+  # log_prec_eta1 = 4,
+  # lag_logit_eta1_phi_age = 0,
+  # lag_logit_eta1_phi_period = 0,
+  # 
+  eta2 = array(0, c(ncol(Z$Z_country), ncol(Z$Z_spatial), ncol(Z$Z_period))),
   log_prec_eta2 = 4,
-  lag_logit_eta2_phi_period = 0,
-  #
-  eta3 = array(0, c(ncol(Z$Z_spatial), ncol(Z$Z_age))),
-  log_prec_eta3 = 4,
-  lag_logit_eta3_phi_age = 0
+  lag_logit_eta2_phi_period = 0
+  # #
+  # eta3 = array(0, c(ncol(Z$Z_spatial), ncol(Z$Z_age))),
+  # log_prec_eta3 = 4,
+  # lag_logit_eta3_phi_age = 0
 )
 
 
-# "u_spatial_str", "u_spatial_iid", "eta1" , "eta1" "beta_tips_dummy",, "eta1""eta1", "u_tips", "beta_tips_dummy", , "u_spatial_iid", "eta3" , 
-tmb_int$random <- c("beta_0", "u_spatial_str", "u_age", "u_period", "beta_tips_dummy",  "u_tips", "eta1", "eta2", "eta3")
+# "u_spatial_str", "u_spatial_iid", "eta1" , "eta1" "beta_tips_dummy",,"beta_tips_dummy",  "u_tips" "eta1""eta1", "u_tips",  "eta1", "eta2", "eta3""beta_tips_dummy", , "u_spatial_iid", "eta3" , 
+tmb_int$random <- c("beta_0", "u_spatial_str", "u_age", "u_period", "beta_tips_dummy", "u_tips", "omega1", "omega2", "eta2")
 
 if(mf$mics_toggle) {
   tmb_int$data <- c(tmb_int$data, 
@@ -206,15 +219,15 @@ if(mf$mics_toggle) {
             "births_obs_mics" = list(mf$mics$obs$births),
             "log_offset_mics" = list(log(mf$mics$obs$pys)),
             "A_mics" = mf$mics$A_mics)
-  tmb_int$par <- c(tmb_int$par,
-                   "u_tips_mics" = list(rep(0, ncol(Z$Z_tips_mics)))
-                   )
+  # tmb_int$par <- c(tmb_int$par,
+  #                  "u_tips_mics" = list(rep(0, ncol(Z$Z_tips_mics)))
+  #                  )
 }
 
 
 f <- mcparallel({TMB::MakeADFun(data = tmb_int$data,
                                 parameters = tmb_int$par,
-                                DLL = "14_aug",
+                                DLL = "multi",
                                 silent=0,
                                 checkParameterOrder=FALSE)
 })
@@ -223,7 +236,7 @@ mccollect(f)
 
 obj <-  MakeADFun(data = tmb_int$data,
                   parameters = tmb_int$par,
-                  DLL = "14_aug",
+                  DLL = "multi",
                   random = tmb_int$random,
                   hessian = FALSE)
 
@@ -235,7 +248,7 @@ fit <- c(f, obj = list(obj))
 fit$sdreport <- sdreport(fit$obj, fit$par)
 
 class(fit) <- "naomi_fit"  # this is hacky...
-fit <- sample_tmb(fit, random_only=FALSE)
+fit <- sample_tmb(fit, random_only=TRUE)
 
 # saveRDS(fit, paste0("countries/", iso3_current, "/mods/", iso3_current, "_latest_tmb_mod.rds"))
 
@@ -257,7 +270,7 @@ mf$out$mf_out %>%
   filter(area_level == 1) %>%
   ggplot(aes(x=period, y=median)) +
   geom_line() +
-  geom_point(data=asfr_plot %>% left_join(areas_long) %>% filter(area_level == 1, asfr<2), aes(y=asfr, group=survtype, color=survtype)) +
+  # geom_point(data=asfr_plot %>% left_join(areas_long) %>% filter(area_level == 1, asfr<2), aes(y=asfr, group=survtype, color=survtype)) +
   geom_ribbon(aes(ymin = lower, ymax = upper, fill=age_group), alpha = 0.3) +
   facet_grid(age_group~area_name) +
   ylim(0,0.5)
@@ -269,12 +282,12 @@ mf$out$mf_out %>%
          source = "tmb") %>%
   type.convert() %>%
   left_join(areas_long) %>%
-  filter(area_level == 2) %>%
+  filter(area_level == 1) %>%
   ggplot(aes(x=period, y=median, group=age_group)) +
   geom_line(aes(color=age_group)) +
   # geom_point(data=asfr_plot %>% left_join(areas_long) %>% filter(survtype == "DHS"), aes(y=asfr, group=survtype, color=survtype)) +
   geom_ribbon(aes(ymin = lower, ymax = upper, fill=age_group), alpha = 0.3) +
-  facet_wrap(~area_name)
+  facet_wrap(~area_id)
 
   
 p <- mf$out$mf_out %>%
