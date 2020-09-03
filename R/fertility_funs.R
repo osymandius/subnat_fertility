@@ -842,23 +842,38 @@ sample_tmb_test <- function(fit, nsample = 1000, rng_seed = NULL,
 
 ###
 make_adjacency_matrix <- function(iso3_current, areas_long, boundaries, exclude_districts = exc, level="naomi") {
-  
-  sh <- lapply(iso3_current, function(iso3_current) {
-    
+
+  sh <- 
     if (level == "naomi") {
-      
-      int <- areas_long %>%
-        filter(iso3 == iso3_current)
-      
-      level <- unique(int$area_level[int$naomi_level == TRUE])
-      
-    }
-    
-    sh <- areas_long %>%
-      filter(iso3 == iso3_current, area_level == level, !area_id %in% exclude_districts) 
-    
-  }) %>% 
-    bind_rows %>%
+      lapply(iso3_current, function(iso3_current) {
+        
+        int <- areas_long %>%
+          filter(iso3 == iso3_current)
+        
+        level <- unique(int$area_level[int$naomi_level == TRUE])
+        
+        sh <- areas_long %>%
+          filter(iso3 == iso3_current, area_level == level, !area_id %in% exclude_districts)
+        
+        return(sh)
+      })
+        
+    } else if(level == "province") {
+        
+      Map(function(iso3_current, level) {
+        sh <- areas_long %>%
+          filter(iso3 == iso3_current, area_level == level, !area_id %in% exclude_districts)
+        return(sh)
+      }, iso3_current = filter(lvl_df, area_level_name == "province")$iso3, level = filter(lvl_df, area_level_name == "province")$area_level_id)
+        
+        
+    } else {
+      areas_long %>%
+        filter(iso3 == iso3_current, area_level == level, !area_id %in% exclude_districts)
+    } 
+
+  sh <- sh %>% 
+    bind_rows() %>%
     mutate(area_idx = row_number())
     
   
@@ -936,7 +951,11 @@ area_populations <- function(population, areas_wide) {
 }
 
 ###
-make_model_frames <- function(iso3_current, population, asfr, mics_asfr, exclude_districts = "", project = FALSE, mics_flag = TRUE) {
+make_model_frames <- function(iso3_current, population, asfr, mics_asfr,
+                              exclude_districts = "",
+                              project = FALSE, 
+                              mics_flag = TRUE,
+                              level = "naomi") {
   
   population <- area_populations(population, areas_wide) %>%
     filter(sex == "female") %>%
@@ -965,12 +984,10 @@ make_model_frames <- function(iso3_current, population, asfr, mics_asfr, exclude
     bind_rows()
   
   if(!project) {
-  
     if(mics_flag) {
-      
       mics_asfr <- mics_asfr %>%
         bind_rows()
-      
+    
       df <- asfr %>%
         bind_rows(mics_asfr)
     } else {
@@ -980,7 +997,6 @@ make_model_frames <- function(iso3_current, population, asfr, mics_asfr, exclude
     max_year <- max(df$period)
       
   } else {
-      
       max_year <- project
   }
   
@@ -993,7 +1009,7 @@ make_model_frames <- function(iso3_current, population, asfr, mics_asfr, exclude
     
   }) %>% bind_rows
   
-  if(unique(left_join(asfr, areas_long)$naomi_level)) {
+  if(level == "naomi") {
   ## Make model frame
   mf_model <- crossing(period = 1995:max_year,
                  age_group = c("15-19", "20-24", "25-29", "30-34", "35-39", "40-44", "45-49"),
@@ -1017,22 +1033,25 @@ make_model_frames <- function(iso3_current, population, asfr, mics_asfr, exclude
     arrange(period, area_id, age_group) %>%
     mutate(idx = factor(row_number()),
            id.interaction1 = factor(group_indices(., age_group, period, iso3)),
-           id.interaction2 = factor(group_indices(., period, area_id, iso3)),
-           id.interaction3 = factor(group_indices(., age_group, area_id, iso3)),
+           id.interaction2 = factor(group_indices(., period, area_id)),
+           id.interaction3 = factor(group_indices(., age_group, area_id)),
            id.omega1 = factor(group_indices(., age_group, iso3)),
            id.omega2 = factor(group_indices(., period, iso3))
     ) 
    # droplevels()
-  } else if(unique(left_join(asfr, areas_long)$area_level) == 1) {
-    ## Make model frame
-    mf_model <- crossing(period = 1995:max_year,
-                         age_group = c("15-19", "20-24", "25-29", "30-34", "35-39", "40-44", "45-49"),
-                         area_id = filter(areas_long, area_level == 1)$area_id) %>%
+  } else if(level == "province") {
+    
+    mf_model <- Map(function(iso3_current, level) {
+                  crossing(period = 1995:max_year,
+                  age_group = c("15-19", "20-24", "25-29", "30-34", "35-39", "40-44", "45-49"),
+                  area_id = filter(areas_long, area_level == level)$area_id)
+      }, iso3_current = filter(lvl_df, area_level_name == "province")$iso3, level = filter(lvl_df, area_level_name == "province")$area_level_id) %>%
+      bind_rows() %>%
       # area_id = iso3_current) %>%
       left_join(population %>%
                   select(iso3, area_id, period, age_group, population)
       ) %>%
-      mutate(area_id = factor(area_id, levels = filter(areas_long, area_level == 1)$area_id),
+      mutate(area_id = factor(area_id),
              # mutate(area_id = factor(iso3_current),
              age_group = factor(age_group, levels = c("15-19", "20-24", "25-29", "30-34", "35-39", "40-44", "45-49")),
              period = factor(period),
@@ -1045,8 +1064,8 @@ make_model_frames <- function(iso3_current, population, asfr, mics_asfr, exclude
       arrange(period, area_id, age_group) %>%
       mutate(idx = factor(row_number()),
              id.interaction1 = factor(group_indices(., age_group, period, iso3)),
-             id.interaction2 = factor(group_indices(., period, area_id, iso3)),
-             id.interaction3 = factor(group_indices(., age_group, area_id, iso3)),
+             id.interaction2 = factor(group_indices(., period, area_id)),
+             id.interaction3 = factor(group_indices(., age_group, area_id)),
              id.omega1 = factor(group_indices(., age_group, iso3)),
              id.omega2 = factor(group_indices(., period, iso3))
       ) 
@@ -1085,7 +1104,7 @@ make_model_frames <- function(iso3_current, population, asfr, mics_asfr, exclude
   
   ## Outputs
 
-  if(unique(asfr %>%left_join(areas_long) %>% .$naomi_level)) {
+  if(level == "naomi") {
 
     mf_out <- crossing(
       area_id = area_aggregation$area_id,

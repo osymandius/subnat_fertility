@@ -169,9 +169,11 @@ clusters_to_surveys <- function(surveys, cluster_areas, single_tips = TRUE) {
 
     ird <- ird %>%
       mutate(path = unlist(get_datasets(.))) %>%
-      bind_rows
-
+      bind_rows()
+      
     ir <- lapply(ird$path, readRDS) %>%
+      lapply(function(x) {class(x) <- "data.frame"
+      return(x)}) %>%
       Map(function(ir, surveys) {
         mutate(ir,
            surveyid = surveys$SurveyId,

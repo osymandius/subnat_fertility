@@ -26,6 +26,8 @@ source(here("R/fertility_funs.R"))
 
 iso3_current <-  c("ZMB", "ZWE", "MOZ", "MWI", "SWZ", "TZA")
 
+lvl_df <- data.frame("iso3" = rep(iso3_current, times=2), "area_level_name" = c(rep("province", times=6), rep("district", times=6)), "area_level_id" = c(1,1,1,1,1,2,2,2,2,5,2,3))
+
 list2env(make_areas_population(iso3_current, naomi_data_path, full = FALSE, return_list = FALSE), globalenv())
 
 # exclude_districts <- areas_wide$area_id[areas_wide$area_id1 == "TZA_1_2"]
@@ -34,9 +36,9 @@ list2env(make_areas_population(iso3_current, naomi_data_path, full = FALSE, retu
 # exclude_districts <- "MWI_5_07"
 exclude_districts= ""
 
-asfr <- lapply(iso3_current, function(iso3_current) {
-  get_asfr_pred_df(iso3_current, area_level = "naomi", areas_long, project = FALSE)
-})
+asfr <- Map(function(iso3_current, level) {
+  get_asfr_pred_df(iso3_current, area_level = level, areas_long, project = FALSE)
+}, iso3_current = filter(lvl_df, area_level_name == "province")$iso3, level = filter(lvl_df, area_level_name == "province")$area_level_id)
 
 mics_asfr <- lapply(iso3_current, function(iso3_current) {
   if(filter(mics_key, iso3 == iso3_current)$mics) {
@@ -45,6 +47,17 @@ mics_asfr <- lapply(iso3_current, function(iso3_current) {
     mics_asfr <- NULL
   }
 })
+
+names(mics_asfr) <- iso3_current
+
+asfr[["ZWE"]] <- asfr[["ZWE"]] %>%
+  bind_rows(mics_asfr[["ZWE"]])
+
+asfr[["SWZ"]] <- asfr[["SWZ"]] %>%
+  bind_rows(mics_asfr[["SWZ"]])
+
+asfr[["MOZ"]] <- asfr[["MOZ"]] %>%
+  bind_rows(mics_asfr[["MOZ"]])
 
 # mics_dat <- readRDS("input_data/mics_extract.rds")
 # # #
@@ -60,8 +73,12 @@ mics_asfr <- lapply(iso3_current, function(iso3_current) {
 #   separate(col=survey_id, into=c(NA, "survyear", NA), sep=c(3,7), remove = FALSE, convert = TRUE) %>%
 #   filter(period <= survyear) %>%
 #   rename(age_group = agegr)
-
-mf <- make_model_frames(iso3_current, population, asfr, mics_asfr, exclude_districts, project=FALSE, mics_flag = FALSE)
+debugonce(make_model_frames)
+mf <- make_model_frames(iso3_current, population, asfr, mics_asfr,
+                        exclude_districts,
+                        project=FALSE,
+                        mics_flag = FALSE,
+                        level = "province")
 
 # saveRDS(mf, here(paste0("countries/", iso3_current, "/mods/", iso3_current, "_mf.rds")))
 
@@ -104,7 +121,7 @@ if(mf$mics_toggle) {
 }
 
 R <- list()
-R$R_spatial <- make_adjacency_matrix(iso3_current, areas_long, boundaries, exclude_districts, level= "naomi")
+R$R_spatial <- make_adjacency_matrix(iso3_current, areas_long, boundaries, exclude_districts, level= "province")
 # unique(asfr %>% left_join(areas_long) %>% .$area_level)
 R$R_tips <- make_rw_structure_matrix(ncol(Z$Z_tips), 1, adjust_diagonal = TRUE)
 R$R_tips_mics <- make_rw_structure_matrix(ncol(Z$Z_tips_mics), 1, adjust_diagonal = TRUE)
@@ -129,9 +146,9 @@ tmb_int$data <- list(M_obs = M_obs,
              Z_age = Z$Z_age,
              Z_period = Z$Z_period,
              Z_spatial = Z$Z_spatial,
-             # Z_interaction1 = sparse.model.matrix(~0 + id.interaction1, mf$mf_model),
+             Z_interaction1 = sparse.model.matrix(~0 + id.interaction1, mf$mf_model),
              Z_interaction2 = sparse.model.matrix(~0 + id.interaction2, mf$mf_model),
-             # Z_interaction3 = sparse.model.matrix(~0 + id.interaction3, mf$mf_model),
+             Z_interaction3 = sparse.model.matrix(~0 + id.interaction3, mf$mf_model),
              Z_omega1 = sparse.model.matrix(~0 + id.omega1, mf$mf_model),
              Z_omega2 = sparse.model.matrix(~0 + id.omega2, mf$mf_model),
              R_tips = R$R_tips,
@@ -147,7 +164,7 @@ tmb_int$data <- list(M_obs = M_obs,
              log_offset_ais = log(filter(mf$dist$obs, ais_dummy ==1)$pys),
              births_obs_ais = filter(mf$dist$obs, ais_dummy ==1)$births,
              pop = mf$mf_model$population,
-             A_out = mf$out$A_out,
+             # A_out = mf$out$A_out,
              mics_toggle = mf$mics_toggle,
              out_toggle = mf$out_toggle
              
@@ -187,20 +204,20 @@ tmb_int$par <- list(
   log_prec_rw_period = 4,
 
   u_spatial_str = rep(0, ncol(Z$Z_spatial)),
-  log_prec_spatial = 0,
+  log_prec_spatial = 0
 
   # u_spatial_iid = rep(0, ncol(Z_spatial)),
   # logit_spatial_rho = 0,
 
-  # eta1 = array(0, c(ncol(Z$Z_period), ncol(Z$Z_age))),
+  # eta1 = array(0, c(ncol(Z$Z_country), ncol(Z$Z_period), ncol(Z$Z_age))),
   # log_prec_eta1 = 4,
   # lag_logit_eta1_phi_age = 0,
   # lag_logit_eta1_phi_period = 0,
-  # 
-  eta2 = array(0, c(ncol(Z$Z_country), ncol(Z$Z_spatial), ncol(Z$Z_period))),
-  log_prec_eta2 = 4,
-  lag_logit_eta2_phi_period = 0
-  # #
+  # # 
+  # eta2 = array(0, c(ncol(Z$Z_spatial), ncol(Z$Z_period))),
+  # log_prec_eta2 = 4,
+  # lag_logit_eta2_phi_period = 0,
+  # # #
   # eta3 = array(0, c(ncol(Z$Z_spatial), ncol(Z$Z_age))),
   # log_prec_eta3 = 4,
   # lag_logit_eta3_phi_age = 0
@@ -208,7 +225,7 @@ tmb_int$par <- list(
 
 
 # "u_spatial_str", "u_spatial_iid", "eta1" , "eta1" "beta_tips_dummy",,"beta_tips_dummy",  "u_tips" "eta1""eta1", "u_tips",  "eta1", "eta2", "eta3""beta_tips_dummy", , "u_spatial_iid", "eta3" , 
-tmb_int$random <- c("beta_0", "u_spatial_str", "u_age", "u_period", "beta_tips_dummy", "u_tips", "omega1", "omega2", "eta2")
+tmb_int$random <- c("beta_0", "u_spatial_str", "u_age", "u_period", "beta_tips_dummy", "u_tips", "omega1", "omega2")
 
 if(mf$mics_toggle) {
   tmb_int$data <- c(tmb_int$data, 
