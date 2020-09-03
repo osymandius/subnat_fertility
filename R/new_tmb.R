@@ -38,7 +38,7 @@ exclude_districts= ""
 
 asfr <- Map(function(iso3_current, level) {
   get_asfr_pred_df(iso3_current, area_level = level, areas_long, project = FALSE)
-}, iso3_current = filter(lvl_df, area_level_name == "province")$iso3, level = filter(lvl_df, area_level_name == "province")$area_level_id)
+}, iso3_current = filter(lvl_df, area_level_name == "district")$iso3, level = filter(lvl_df, area_level_name == "district")$area_level_id)
 
 mics_asfr <- lapply(iso3_current, function(iso3_current) {
   if(filter(mics_key, iso3 == iso3_current)$mics) {
@@ -48,16 +48,16 @@ mics_asfr <- lapply(iso3_current, function(iso3_current) {
   }
 })
 
-names(mics_asfr) <- iso3_current
-
-asfr[["ZWE"]] <- asfr[["ZWE"]] %>%
-  bind_rows(mics_asfr[["ZWE"]])
-
-asfr[["SWZ"]] <- asfr[["SWZ"]] %>%
-  bind_rows(mics_asfr[["SWZ"]])
-
-asfr[["MOZ"]] <- asfr[["MOZ"]] %>%
-  bind_rows(mics_asfr[["MOZ"]])
+# names(mics_asfr) <- iso3_current
+# 
+# asfr[["ZWE"]] <- asfr[["ZWE"]] %>%
+#   bind_rows(mics_asfr[["ZWE"]])
+# 
+# asfr[["SWZ"]] <- asfr[["SWZ"]] %>%
+#   bind_rows(mics_asfr[["SWZ"]])
+# 
+# asfr[["MOZ"]] <- asfr[["MOZ"]] %>%
+#   bind_rows(mics_asfr[["MOZ"]])
 
 # mics_dat <- readRDS("input_data/mics_extract.rds")
 # # #
@@ -73,12 +73,12 @@ asfr[["MOZ"]] <- asfr[["MOZ"]] %>%
 #   separate(col=survey_id, into=c(NA, "survyear", NA), sep=c(3,7), remove = FALSE, convert = TRUE) %>%
 #   filter(period <= survyear) %>%
 #   rename(age_group = agegr)
-debugonce(make_model_frames)
+
 mf <- make_model_frames(iso3_current, population, asfr, mics_asfr,
                         exclude_districts,
                         project=FALSE,
-                        mics_flag = FALSE,
-                        level = "province")
+                        mics_flag = TRUE,
+                        level = "naomi")
 
 # saveRDS(mf, here(paste0("countries/", iso3_current, "/mods/", iso3_current, "_mf.rds")))
 
@@ -121,7 +121,7 @@ if(mf$mics_toggle) {
 }
 
 R <- list()
-R$R_spatial <- make_adjacency_matrix(iso3_current, areas_long, boundaries, exclude_districts, level= "province")
+R$R_spatial <- make_adjacency_matrix(iso3_current, areas_long, boundaries, exclude_districts, level= "naomi")
 # unique(asfr %>% left_join(areas_long) %>% .$area_level)
 R$R_tips <- make_rw_structure_matrix(ncol(Z$Z_tips), 1, adjust_diagonal = TRUE)
 R$R_tips_mics <- make_rw_structure_matrix(ncol(Z$Z_tips_mics), 1, adjust_diagonal = TRUE)
@@ -216,7 +216,7 @@ tmb_int$par <- list(
   # # 
   # eta2 = array(0, c(ncol(Z$Z_spatial), ncol(Z$Z_period))),
   # log_prec_eta2 = 4,
-  # lag_logit_eta2_phi_period = 0,
+  # lag_logit_eta2_phi_period = 0
   # # #
   # eta3 = array(0, c(ncol(Z$Z_spatial), ncol(Z$Z_age))),
   # log_prec_eta3 = 4,
@@ -236,9 +236,9 @@ if(mf$mics_toggle) {
             "births_obs_mics" = list(mf$mics$obs$births),
             "log_offset_mics" = list(log(mf$mics$obs$pys)),
             "A_mics" = mf$mics$A_mics)
-  # tmb_int$par <- c(tmb_int$par,
-  #                  "u_tips_mics" = list(rep(0, ncol(Z$Z_tips_mics)))
-  #                  )
+  tmb_int$par <- c(tmb_int$par,
+                   "u_tips_mics" = list(rep(0, ncol(Z$Z_tips_mics)))
+                   )
 }
 
 
@@ -265,13 +265,13 @@ fit <- c(f, obj = list(obj))
 fit$sdreport <- sdreport(fit$obj, fit$par)
 
 class(fit) <- "naomi_fit"  # this is hacky...
-fit <- sample_tmb(fit, random_only=TRUE)
+fit <- sample_tmb(fit, random_only=FALSE)
 
 # saveRDS(fit, paste0("countries/", iso3_current, "/mods/", iso3_current, "_latest_tmb_mod.rds"))
 
 
 
-qtls1 <- apply(fit$sample$lambda_out, 1, quantile, c(0.025, 0.5, 0.975))
+qtls1 <- apply(fit$sample$lambda, 1, quantile, c(0.025, 0.5, 0.975))
 
 asfr_plot <- readRDS(here("countries/NAM/data/NAM_asfr_plot.rds"))
 tfr_plot <- readRDS(here("countries/NAM/data/NAM_tfr_plot.rds"))
@@ -292,7 +292,8 @@ mf$out$mf_out %>%
   facet_grid(age_group~area_name) +
   ylim(0,0.5)
 
-mf$out$mf_out %>%
+# mf$out$mf_out %>%
+mf$mf_model %>%
   mutate(lower = qtls1[1,],
          median = qtls1[2,],
          upper = qtls1[3,],
@@ -307,11 +308,13 @@ mf$out$mf_out %>%
   facet_wrap(~area_id)
 
   
-p <- mf$out$mf_out %>%
-  cbind(fit$sample$lambda_out) %>%
+p <- mf$mf_model %>%
+    select(period, age_group, area_id) %>%
+  cbind(fit$sample$lambda) %>%
   type.convert() %>%
   group_by(area_id, period) %>%
-  summarise_at(.vars = vars(-c(age_group, out_idx)), sum) %>%
+  # summarise_at(.vars = vars(-c(age_group, out_idx)), sum) %>%
+  summarise_at(.vars = vars(-c(age_group)), sum) %>%
   ungroup %>%
   mutate_at(.vars = vars(-c(area_id, period)), function(x) 5*x) %>%
   mutate(
@@ -324,12 +327,12 @@ p %>%
   select(area_id, period, lower, median, upper) %>%
   left_join(areas_long) %>%
   type.convert() %>%
-  filter(area_level == 4) %>%
+  # filter(area_level == 4) %>%
   ggplot(aes(x=period, y=median)) +
   geom_ribbon(aes(ymin = lower, ymax = upper), alpha = 0.3) +
   geom_line() +
   # geom_point(data=tfr_plot %>% left_join(areas_long) %>% filter(area_level == 1), aes(y=tfr, group=survtype, color=survtype)) +
-  facet_wrap(~area_name)
+  facet_wrap(~area_id)
 
 # saveRDS(mod[[2]], "countries/MOZ/mods/MOZ_no18MIS.rds")
 

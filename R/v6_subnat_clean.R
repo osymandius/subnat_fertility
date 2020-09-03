@@ -16,14 +16,14 @@ library(here)
 
 # naomi_data_path <- "~/naomi-data"
 
-naomi_data_path <- "~/Imperial College London/HIV Inference Group - Documents/Analytical datasets/naomi-data/"
+naomi_data_path <- "~/Imperial College London/HIV Inference Group - WP - Documents/Analytical datasets/naomi-data"
 
 
 source(here("R/inputs.R"))
 source(here("R/fertility_funs.R"))
 
 
-iso3_current <- "ETH"
+iso3_current <- "SWZ"
 # iso3 <- c("LSO", "MOZ", "MWI", "NAM", "TZA", "UGA", "ZMB", "ZWE")
 # 
 
@@ -60,7 +60,7 @@ surveys <- dhs_surveys(surveyIds = unique(clusters$DHS_survey_id)) %>%
 ## Needs check to ensure level is < max_level
 cluster_areas <- assign_cluster_area(clusters, 1)
 
-dat <- clusters_to_surveys(surveys, cluster_areas, single_tips = FALSE)
+dat <- clusters_to_surveys(surveys, cluster_areas, single_tips = TRUE)
 
 asfr <- Map(calc_asfr1, dat$ir,
               y=1:length(dat$ir),
@@ -77,7 +77,7 @@ asfr <- Map(calc_asfr1, dat$ir,
          iso3 = ifelse(country == "Eswatini", "SWZ", iso3)) %>%
   select(-country)
 
-saveRDS(tfr, "countries/SWZ/data/SWZ_tfr_admin1.rds")
+saveRDS(asfr, "countries/SWZ/data/SWZ_asfr_admin1.rds")
 
 tfr <- Map(calc_tfr, dat$ir,
             by = list(~country + surveyid + survtype + survyear + area_id),

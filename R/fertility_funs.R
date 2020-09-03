@@ -880,6 +880,7 @@ make_adjacency_matrix <- function(iso3_current, areas_long, boundaries, exclude_
   #' Neighbor list
   nb <- sh %>%
     left_join(boundaries) %>%
+    arrange(area_id) %>%
     st_as_sf %>%
     as("Spatial") %>%
     spdep::poly2nb() %>%
@@ -1044,7 +1045,7 @@ make_model_frames <- function(iso3_current, population, asfr, mics_asfr,
     mf_model <- Map(function(iso3_current, level) {
                   crossing(period = 1995:max_year,
                   age_group = c("15-19", "20-24", "25-29", "30-34", "35-39", "40-44", "45-49"),
-                  area_id = filter(areas_long, area_level == level)$area_id)
+                  area_id = filter(areas_long, area_level == level, iso3 == iso3_current)$area_id)
       }, iso3_current = filter(lvl_df, area_level_name == "province")$iso3, level = filter(lvl_df, area_level_name == "province")$area_level_id) %>%
       bind_rows() %>%
       # area_id = iso3_current) %>%
@@ -1078,7 +1079,7 @@ make_model_frames <- function(iso3_current, population, asfr, mics_asfr,
   
   obs <- asfr %>%
     mutate(period = factor(period, levels(mf_model$period))) %>%
-    filter(!is.na(surveyid), !area_id %in% exclude_districts) %>%
+    filter(!is.na(births), !area_id %in% exclude_districts) %>%
     select(survtype, area_id, period, age_group, tips, births, pys) %>%
     left_join(mf_model) %>%
     mutate(tips_dummy = as.integer(tips > 5),
@@ -1181,11 +1182,10 @@ make_model_frames <- function(iso3_current, population, asfr, mics_asfr,
       rename(idx_row = idx) %>%
       left_join(area_aggregation) %>%
       left_join(mf_model, by=c("age_group", "period", "model_area_id" = "area_id")) %>%
-      mutate(idx_col = row_number(),
-             x=1) %>%
+      mutate(x=1) %>%
       type.convert()
     
-    A_mics <- sparseMatrix(i = join_mics$idx_row, j=join_mics$idx, x=join_mics$x, use.last.ij = TRUE)
+    A_mics <- sparseMatrix(i = join_mics$idx_row, j=join_mics$idx, x=join_mics$x, dims = c(max(join_mics$idx_row), nrow(mf_model)), use.last.ij = TRUE)
     
     
     obs_mics <- mics_asfr %>%
