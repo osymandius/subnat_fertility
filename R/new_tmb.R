@@ -164,7 +164,7 @@ tmb_int$data <- list(M_obs = M_obs,
              log_offset_ais = log(filter(mf$dist$obs, ais_dummy ==1)$pys),
              births_obs_ais = filter(mf$dist$obs, ais_dummy ==1)$births,
              pop = mf$mf_model$population,
-             # A_out = mf$out$A_out,
+             A_out = mf$out$A_out,
              mics_toggle = mf$mics_toggle,
              out_toggle = mf$out_toggle
              
@@ -204,28 +204,28 @@ tmb_int$par <- list(
   log_prec_rw_period = 4,
 
   u_spatial_str = rep(0, ncol(Z$Z_spatial)),
-  log_prec_spatial = 0
+  log_prec_spatial = 0,
 
   # u_spatial_iid = rep(0, ncol(Z_spatial)),
   # logit_spatial_rho = 0,
 
-  # eta1 = array(0, c(ncol(Z$Z_country), ncol(Z$Z_period), ncol(Z$Z_age))),
-  # log_prec_eta1 = 4,
-  # lag_logit_eta1_phi_age = 0,
-  # lag_logit_eta1_phi_period = 0,
-  # # 
-  # eta2 = array(0, c(ncol(Z$Z_spatial), ncol(Z$Z_period))),
-  # log_prec_eta2 = 4,
-  # lag_logit_eta2_phi_period = 0
-  # # #
-  # eta3 = array(0, c(ncol(Z$Z_spatial), ncol(Z$Z_age))),
-  # log_prec_eta3 = 4,
-  # lag_logit_eta3_phi_age = 0
+  eta1 = array(0, c(ncol(Z$Z_country), ncol(Z$Z_period), ncol(Z$Z_age))),
+  log_prec_eta1 = 4,
+  lag_logit_eta1_phi_age = 0,
+  lag_logit_eta1_phi_period = 0,
+  #
+  eta2 = array(0, c(ncol(Z$Z_spatial), ncol(Z$Z_period))),
+  log_prec_eta2 = 4,
+  lag_logit_eta2_phi_period = 0,
+  # #
+  eta3 = array(0, c(ncol(Z$Z_spatial), ncol(Z$Z_age))),
+  log_prec_eta3 = 4,
+  lag_logit_eta3_phi_age = 0
 )
 
 
 # "u_spatial_str", "u_spatial_iid", "eta1" , "eta1" "beta_tips_dummy",,"beta_tips_dummy",  "u_tips" "eta1""eta1", "u_tips",  "eta1", "eta2", "eta3""beta_tips_dummy", , "u_spatial_iid", "eta3" , 
-tmb_int$random <- c("beta_0", "u_spatial_str", "u_age", "u_period", "beta_tips_dummy", "u_tips", "omega1", "omega2")
+tmb_int$random <- c("beta_0", "u_spatial_str", "u_age", "u_period", "beta_tips_dummy", "u_tips", "omega1", "omega2", "eta1", "eta2", "eta3")
 
 if(mf$mics_toggle) {
   tmb_int$data <- c(tmb_int$data, 

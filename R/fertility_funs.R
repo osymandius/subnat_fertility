@@ -874,17 +874,32 @@ make_adjacency_matrix <- function(iso3_current, areas_long, boundaries, exclude_
 
   sh <- sh %>% 
     bind_rows() %>%
+    arrange(area_id) %>%
     mutate(area_idx = row_number())
-    
   
   #' Neighbor list
   nb <- sh %>%
     left_join(boundaries) %>%
-    arrange(area_id) %>%
     st_as_sf %>%
     as("Spatial") %>%
     spdep::poly2nb() %>%
     `names<-`(sh$area_idx)
+  
+  names(nb) <- sh$area_id
+  
+  df <- crossing(a = c("TZA_2_51", "TZA_2_52", "TZA_2_53", "TZA_2_54", "TZA_2_55"), 
+           b = c("TZA_2_51", "TZA_2_52", "TZA_2_53", "TZA_2_54", "TZA_2_55")) %>%
+    filter(a != b)
+  
+  for (i in 1:nrow(df)) {
+    
+    a <- df$a[[i]]
+    b <- df$b[[i]]
+    
+    nb[[a]] <- c(nb[[a]], which(names(nb) == b))
+  }
+  
+  nb <- lapply(nb, unique)
   
   # if(iso3_current == "MOZ" & level == 2) {
   #   #Make KaTembe adjacent to KaMpfumu and Nhlamankulu
