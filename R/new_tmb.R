@@ -66,33 +66,58 @@ Z <- list()
 Z$Z_spatial <- sparse.model.matrix(~0 + area_id, mf$mf_model)
 Z$Z_age <- sparse.model.matrix(~0 + age_group, mf$mf_model)
 Z$Z_period <- sparse.model.matrix(~0 + period, mf$mf_model)
+Z$Z_country <- sparse.model.matrix(~0 + iso3, mf$mf_model)
 
 M_obs <- sparse.model.matrix(~0 + idx, mf$dist$obs) 
 Z$Z_tips <- sparse.model.matrix(~0 + tips_f, mf$dist$obs)
-# Z_tips[which(mf$dist$obs$survtype != "DHS"), ] <- 0
-X_tips_dummy <- model.matrix(~0 + tips_dummy, mf$dist$obs)
+Z$Z_tips_dhs <- sparse.model.matrix(~0 + tips_f, mf$dist$obs %>% filter(ais_dummy ==0))
+
+X_tips_dummy <- model.matrix(~0 + tips_dummy, mf$dist$obs %>% filter(ais_dummy == 0))
+X_urban_dummy <- model.matrix(~0 + urban_dummy, mf$dist$obs)
+
+ais_join <- mf$dist$obs %>% 
+  mutate(col_idx = row_number()) %>%
+  select(col_idx, ais_dummy) %>%
+  filter(ais_dummy == 1) %>%
+  mutate(row_idx = row_number(),
+         x=1)
+
+X_extract_ais <- spMatrix(nrow(ais_join), nrow(mf$dist$obs), i=ais_join$row_idx, j=ais_join$col_idx, x=ais_join$x)
+
+dhs_join <- mf$dist$obs %>% 
+  mutate(col_idx = row_number()) %>%
+  select(col_idx, ais_dummy) %>%
+  filter(ais_dummy == 0) %>%
+  mutate(row_idx = row_number(),
+         x=1)
+
+X_extract_dhs <- spMatrix(nrow(dhs_join), nrow(mf$dist$obs), i=dhs_join$row_idx, j=dhs_join$col_idx, x=dhs_join$x)
 
 if(mf$mics_toggle) {
   M_obs_mics <- sparse.model.matrix(~0 + idx, mf$mics$obs) 
   Z$Z_tips_mics <- sparse.model.matrix(~0 + tips_f, mf$mics$obs)
-  X_tips_dummy_mics <- model.matrix(~0 + tips_dummy, mf$mics$obs)
 }
 
 R <- list()
-R$R_spatial <- make_adjacency_matrix(iso3_current, areas_long, boundaries, exclude_districts, level= unique(asfr %>% left_join(areas_long) %>% .$area_level))
+R$R_spatial <- make_adjacency_matrix(iso3_current, areas_long, boundaries, exclude_districts, level= "naomi")
 R$R_tips <- make_rw_structure_matrix(ncol(Z$Z_tips), 1, adjust_diagonal = TRUE)
+R$R_tips_mics <- make_rw_structure_matrix(ncol(Z$Z_tips_mics), 1, adjust_diagonal = TRUE)
 R$R_age <- make_rw_structure_matrix(ncol(Z$Z_age), 1, adjust_diagonal = TRUE)
 R$R_period <- make_rw_structure_matrix(ncol(Z$Z_period), 2, adjust_diagonal = TRUE)
 
 # dyn.unload(dynlib(here("tmb/fertility_tmb_dev")))
-compile(here("tmb/besag.cpp"))               # Compile the C++ file
-dyn.load(dynlib(here("tmb/besag")))
+compile(here("tmb/14_aug.cpp"))               # Compile the C++ file
+dyn.load(dynlib(here("tmb/14_aug")))
 
 tmb_int <- list()
 
 tmb_int$data <- list(M_obs = M_obs,
              X_tips_dummy = X_tips_dummy,
+             X_urban_dummy = X_urban_dummy,
+             X_extract_dhs = X_extract_dhs,
+             X_extract_ais = X_extract_ais,
              Z_tips = Z$Z_tips,
+             Z_tips_dhs = Z$Z_tips_dhs,
              Z_age = Z$Z_age,
              Z_period = Z$Z_period,
              Z_spatial = Z$Z_spatial,
@@ -104,8 +129,10 @@ tmb_int$data <- list(M_obs = M_obs,
              R_period = R$R_period,
              R_spatial = R$R_spatial,
              rankdef_R_spatial = 1,
-             log_offset = log(mf$dist$obs$pys),
-             births_obs = mf$dist$obs$births,
+             log_offset_dhs = log(filter(mf$dist$obs, ais_dummy ==0)$pys),
+             births_obs_dhs = filter(mf$dist$obs, ais_dummy ==0)$births,
+             log_offset_ais = log(filter(mf$dist$obs, ais_dummy ==1)$pys),
+             births_obs_ais = filter(mf$dist$obs, ais_dummy ==1)$births,
              pop = mf$mf_model$population,
              A_out = mf$out$A_out,
              mics_toggle = mf$mics_toggle,
@@ -130,6 +157,8 @@ tmb_int$par <- list(
   beta_tips_dummy = rep(0, ncol(X_tips_dummy)),
   u_tips = rep(0, ncol(Z$Z_tips)),
   log_prec_rw_tips = 4,
+  
+  beta_urban_dummy = rep(0, ncol(X_urban_dummy)),
 
   u_age = rep(0, ncol(Z$Z_age)),
   log_prec_rw_age = 4,
@@ -159,7 +188,7 @@ tmb_int$par <- list(
 
 
 # "u_spatial_str", "u_spatial_iid", "eta1" , "eta1" "beta_tips_dummy",, "eta1""eta1", "u_tips", "beta_tips_dummy", , "u_spatial_iid", "eta3" , 
-tmb_int$random <- c("beta_0", "u_spatial_str", "u_age", "u_period", "beta_tips_dummy", "u_tips", "eta1", "eta2", "eta3")
+tmb_int$random <- c("beta_0", "u_spatial_str", "u_age", "u_period", "beta_tips_dummy", "beta_urban_dummy", "u_tips", "eta1", "eta2", "eta3")
 
 if(mf$mics_toggle) {
   tmb_int$data <- c(tmb_int$data, "M_obs_mics" = M_obs_mics,
@@ -168,14 +197,14 @@ if(mf$mics_toggle) {
             "births_obs_mics" = list(mf$mics$obs$births),
             "log_offset_mics" = list(log(mf$mics$obs$pys)),
             "A_mics" = mf$mics$A_mics)
-  # tmb_int$par <- c(tmb_int$par, "beta_tips_dummy_mics" = rep(0, ncol(X_tips_dummy_mics)))
-  # tmb_int$random <- c(tmb_int$random, "beta_tips_dummy_mics")
+  tmb_int$par <- c(tmb_int$par, "u_tips_mics" = rep(0, ncol(Z_tips_mics)))
+  tmb_int$random <- c(tmb_int$random, "u_tips_mics")
 }
 
 
 f <- mcparallel({TMB::MakeADFun(data = tmb_int$data,
                                 parameters = tmb_int$par,
-                                DLL = "besag",
+                                DLL = "14_aug",
                                 silent=0,
                                 checkParameterOrder=FALSE)
 })
@@ -184,7 +213,7 @@ mccollect(f)
 
 obj <-  MakeADFun(data = tmb_int$data,
                   parameters = tmb_int$par,
-                  DLL = "besag",
+                  DLL = "14_aug",
                   random = tmb_int$random,
                   hessian = FALSE)
 
@@ -204,8 +233,8 @@ fit <- sample_tmb(fit, random_only=FALSE)
 
 qtls1 <- apply(fit$sample$lambda_out, 1, quantile, c(0.025, 0.5, 0.975))
 
-asfr_plot <- readRDS(here("countries/MOZ/data/MOZ_asfr_plot.rds"))
-tfr_plot <- readRDS(here("countries/MOZ/data/MOZ_tfr_plot.rds"))
+asfr_plot <- readRDS(here("countries/ETH/data/ETH_asfr_plot.rds"))
+tfr_plot <- readRDS(here("countries/ETH/data/ETH_tfr_plot.rds"))
 
 
 mf$out$mf_out %>%
@@ -236,8 +265,7 @@ mf$out$mf_out %>%
   geom_line(aes(color=age_group)) +
   # geom_point(data=asfr_plot %>% left_join(areas_long) %>% filter(survtype == "DHS"), aes(y=asfr, group=survtype, color=survtype)) +
   geom_ribbon(aes(ymin = lower, ymax = upper, fill=age_group), alpha = 0.3) +
-  facet_wrap(~area_name) +
-  ylim(0, 0.5)
+  facet_wrap(~area_name)
 
   
 p <- mf$out$mf_out %>%
@@ -263,7 +291,7 @@ p %>%
   geom_line() +
   geom_point(data=tfr_plot %>% left_join(areas_long) %>% filter(area_level == 1), aes(y=tfr, group=survtype, color=survtype)) +
   facet_wrap(~area_name) +
-  ylim(1,11)
+  ylim(1,15)
 
 # saveRDS(mod[[2]], "countries/MOZ/mods/MOZ_no18MIS.rds")
 
