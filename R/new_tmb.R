@@ -38,7 +38,7 @@ exclude_districts= ""
 
 asfr <- Map(function(iso3_current, level) {
   get_asfr_pred_df(iso3_current, area_level = level, areas_long, project = FALSE)
-}, iso3_current = filter(lvl_df, area_level_name == "district")$iso3, level = filter(lvl_df, area_level_name == "district")$area_level_id)
+}, iso3_current = filter(lvl_df, area_level_name == "province")$iso3, level = filter(lvl_df, area_level_name == "province")$area_level_id)
 
 mics_asfr <- lapply(iso3_current, function(iso3_current) {
   if(filter(mics_key, iso3 == iso3_current)$mics) {
@@ -48,16 +48,16 @@ mics_asfr <- lapply(iso3_current, function(iso3_current) {
   }
 })
 
-# names(mics_asfr) <- iso3_current
-# 
-# asfr[["ZWE"]] <- asfr[["ZWE"]] %>%
-#   bind_rows(mics_asfr[["ZWE"]])
-# 
-# asfr[["SWZ"]] <- asfr[["SWZ"]] %>%
-#   bind_rows(mics_asfr[["SWZ"]])
-# 
-# asfr[["MOZ"]] <- asfr[["MOZ"]] %>%
-#   bind_rows(mics_asfr[["MOZ"]])
+names(mics_asfr) <- iso3_current
+
+asfr[["ZWE"]] <- asfr[["ZWE"]] %>%
+  bind_rows(mics_asfr[["ZWE"]])
+
+asfr[["SWZ"]] <- asfr[["SWZ"]] %>%
+  bind_rows(mics_asfr[["SWZ"]])
+
+asfr[["MOZ"]] <- asfr[["MOZ"]] %>%
+  bind_rows(mics_asfr[["MOZ"]])
 
 # mics_dat <- readRDS("input_data/mics_extract.rds")
 # # #
@@ -77,8 +77,8 @@ mics_asfr <- lapply(iso3_current, function(iso3_current) {
 mf <- make_model_frames(iso3_current, population, asfr, mics_asfr,
                         exclude_districts,
                         project=FALSE,
-                        mics_flag = TRUE,
-                        level = "naomi")
+                        mics_flag = FALSE,
+                        level = "province")
 
 # saveRDS(mf, here(paste0("countries/", iso3_current, "/mods/", iso3_current, "_mf.rds")))
 
@@ -121,7 +121,7 @@ if(mf$mics_toggle) {
 }
 
 R <- list()
-R$R_spatial <- make_adjacency_matrix(iso3_current, areas_long, boundaries, exclude_districts, level= "naomi")
+R$R_spatial <- make_adjacency_matrix(iso3_current, areas_long, boundaries, exclude_districts, level= "province")
 # unique(asfr %>% left_join(areas_long) %>% .$area_level)
 R$R_tips <- make_rw_structure_matrix(ncol(Z$Z_tips), 1, adjust_diagonal = TRUE)
 R$R_tips_mics <- make_rw_structure_matrix(ncol(Z$Z_tips_mics), 1, adjust_diagonal = TRUE)
@@ -164,20 +164,22 @@ tmb_int$data <- list(M_obs = M_obs,
              log_offset_ais = log(filter(mf$dist$obs, ais_dummy ==1)$pys),
              births_obs_ais = filter(mf$dist$obs, ais_dummy ==1)$births,
              pop = mf$mf_model$population,
-             A_out = mf$out$A_out,
+             # A_out = mf$out$A_out,
              mics_toggle = mf$mics_toggle,
-             out_toggle = mf$out_toggle
+             out_toggle = mf$out_toggle,
              
-             # beta_tips_dummy = 0.05
-             # log_prec_rw_tips = 7
-             
-             # log_prec_eta1 = 0.7717237,
-             # lag_logit_eta1_phi_age = 1.8265262,
-             # lag_logit_eta1_phi_period  = 4.9531259,
-             # log_prec_eta2 = 3.0783250,
-             # lag_logit_eta2_phi_period = 1.9670780,
-             # log_prec_eta3 = 3.4021674,
-             # lag_logit_eta3_phi_age = 2.3139407
+             log_prec_omega1             =  9.91803655,
+             lag_logit_omega1_phi_age    =  0.06077314,
+             log_prec_omega2             =  6.50121889,
+             lag_logit_omega2_phi_period = -0.56476555,
+             log_prec_eta1               =  4.00276563,
+             lag_logit_eta1_phi_age      =  2.09492833,
+             lag_logit_eta1_phi_period   =  3.55370832,
+             log_prec_eta2               =  5.18568963,
+             lag_logit_eta2_phi_period   =  4.54900044,
+             log_prec_eta3               =  3.31811459,
+             lag_logit_eta3_phi_age      =  3.17936224
+
 
 )
 
@@ -187,21 +189,24 @@ tmb_int$par <- list(
   beta_tips_dummy = rep(0, ncol(X_tips_dummy)),
   # beta_urban_dummy = rep(0, ncol(X_urban_dummy)),
   u_tips = rep(0, ncol(Z$Z_tips)),
-  log_prec_rw_tips = 4,
+  log_prec_rw_tips = 0,
 
   u_age = rep(0, ncol(Z$Z_age)),
-  log_prec_rw_age = 4,
+  log_prec_rw_age = 0,
+  
+  u_country = rep(0, ncol(Z$Z_country)),
+  log_prec_country = 0,
   
   omega1 = array(0, c(ncol(Z$Z_country), ncol(Z$Z_age))),
-  log_prec_omega1 = 4,
+  log_prec_omega1 = 0,
   lag_logit_omega1_phi_age = 0,
   
   omega2 = array(0, c(ncol(Z$Z_country), ncol(Z$Z_period))),
-  log_prec_omega2 = 4,
+  log_prec_omega2 = 0,
   lag_logit_omega2_phi_period = 0,
 
   u_period = rep(0, ncol(Z$Z_period)),
-  log_prec_rw_period = 4,
+  log_prec_rw_period = 0,
 
   u_spatial_str = rep(0, ncol(Z$Z_spatial)),
   log_prec_spatial = 0,
@@ -210,16 +215,16 @@ tmb_int$par <- list(
   # logit_spatial_rho = 0,
 
   eta1 = array(0, c(ncol(Z$Z_country), ncol(Z$Z_period), ncol(Z$Z_age))),
-  log_prec_eta1 = 4,
+  log_prec_eta1 = 0,
   lag_logit_eta1_phi_age = 0,
   lag_logit_eta1_phi_period = 0,
   #
   eta2 = array(0, c(ncol(Z$Z_spatial), ncol(Z$Z_period))),
-  log_prec_eta2 = 4,
+  log_prec_eta2 = 0,
   lag_logit_eta2_phi_period = 0,
   # #
   eta3 = array(0, c(ncol(Z$Z_spatial), ncol(Z$Z_age))),
-  log_prec_eta3 = 4,
+  log_prec_eta3 = 0,
   lag_logit_eta3_phi_age = 0
 )
 
@@ -274,7 +279,12 @@ fit <- sample_tmb(fit, random_only=FALSE)
 qtls1 <- apply(fit$sample$lambda, 1, quantile, c(0.025, 0.5, 0.975))
 
 asfr_plot <- readRDS(here("countries/NAM/data/NAM_asfr_plot.rds"))
-tfr_plot <- readRDS(here("countries/NAM/data/NAM_tfr_plot.rds"))
+
+tfr_plot <- lapply(iso3_current, function(x) {
+  readRDS(here(paste0("countries/", x, "/data/", x, "_tfr_plot.rds")))
+}) %>%
+  bind_rows %>%
+  mutate(surveyid = ifelse(is.na(surveyid), as.character(survey_id), as.character(surveyid)))
 
 mf$out$mf_out %>%
 # mf$mf_model %>%
@@ -331,8 +341,9 @@ p %>%
   ggplot(aes(x=period, y=median)) +
   geom_ribbon(aes(ymin = lower, ymax = upper), alpha = 0.3) +
   geom_line() +
-  # geom_point(data=tfr_plot %>% left_join(areas_long) %>% filter(area_level == 1), aes(y=tfr, group=survtype, color=survtype)) +
-  facet_wrap(~area_id)
+  geom_point(data=tfr_plot %>% left_join(areas_long) %>% filter(area_id %in% p$area_id), aes(y=tfr, group=survtype, color=survtype)) +
+  facet_wrap(~area_id) +
+  ylim(0,10)
 
 # saveRDS(mod[[2]], "countries/MOZ/mods/MOZ_no18MIS.rds")
 

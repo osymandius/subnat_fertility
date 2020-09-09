@@ -887,19 +887,21 @@ make_adjacency_matrix <- function(iso3_current, areas_long, boundaries, exclude_
   
   names(nb) <- sh$area_id
   
-  df <- crossing(a = c("TZA_2_51", "TZA_2_52", "TZA_2_53", "TZA_2_54", "TZA_2_55"), 
-           b = c("TZA_2_51", "TZA_2_52", "TZA_2_53", "TZA_2_54", "TZA_2_55")) %>%
-    filter(a != b)
-  
-  for (i in 1:nrow(df)) {
+  if(level == "province") {
+    df <- crossing(a = c("TZA_2_51", "TZA_2_52", "TZA_2_53", "TZA_2_54", "TZA_2_55"), 
+             b = c("TZA_2_51", "TZA_2_52", "TZA_2_53", "TZA_2_54", "TZA_2_55")) %>%
+      filter(a != b)
     
-    a <- df$a[[i]]
-    b <- df$b[[i]]
+    for (i in 1:nrow(df)) {
+      
+      a <- df$a[[i]]
+      b <- df$b[[i]]
+      
+      nb[[a]] <- c(nb[[a]], which(names(nb) == b))
+    }
     
-    nb[[a]] <- c(nb[[a]], which(names(nb) == b))
+    nb <- lapply(nb, unique)
   }
-  
-  nb <- lapply(nb, unique)
   
   # if(iso3_current == "MOZ" & level == 2) {
   #   #Make KaTembe adjacent to KaMpfumu and Nhlamankulu
@@ -1121,17 +1123,27 @@ make_model_frames <- function(iso3_current, population, asfr, mics_asfr,
   ## Outputs
 
   if(level == "naomi") {
+    
+    age_aggregation <- data.frame(
+      "age_group" = filter(get_age_groups(), age_group_id %in% 4:10)$age_group,
+      "model_age_group" = filter(get_age_groups(), age_group_id %in% 4:10)$age_group
+    ) %>%
+      bind_rows(data.frame(
+        "age_group" = "15-49",
+        "model_age_group" = filter(get_age_groups(), age_group_id %in% 4:10)$age_group
+      ))
 
-    mf_out <- crossing(
+    asfr_out <- crossing(
       area_id = area_aggregation$area_id,
       age_group = unique(mf_model$age_group),
-      period = unique(mf_model$period)
+      period = unique(mf_model$period),
+      variable = "asfr"
     ) %>%
-      arrange(area_id, age_group, period) %>%
+      arrange(variable, area_id, age_group, period) %>%
       mutate(out_idx = row_number()) %>%
       droplevels()
 
-    join_out <- crossing(area_aggregation,
+    asfr_join_out <- crossing(area_aggregation,
                          age_group = unique(mf_model$age_group),
                          period = unique(mf_model$period)) %>%
       full_join(mf_model %>%
@@ -1139,46 +1151,48 @@ make_model_frames <- function(iso3_current, population, asfr, mics_asfr,
                                                                   "age_group",
                                                                   "period")
       ) %>%
-      full_join(mf_out) %>%
-      # full_join(mf_out, by=c("area_id",
-      #                        "period",
-      #                        "age_group_out" = "age_group")
-      #           ) %>%
+      full_join(asfr_out) %>%
       mutate(x=1) %>%
       filter(!is.na(model_area_id))
+    
+    tfr_out <- crossing(
+      area_id = area_aggregation$area_id,
+      age_group = "15-49",
+      period = unique(mf_model$period),
+      variable = "tfr"
+    ) %>%
+      arrange(variable, area_id, age_group, period) %>%
+      mutate(out_idx = row_number()) %>%
+      droplevels()
+    
+    asfr_join_out %>%
+      select(area_id, age_group, period, out_idx) %>%
+      unique
+    
+    tfr_join_out <- crossing(area_id = area_aggregation$area_id,
+                              age_aggregation %>% filter(age_group == "15-49"),
+                              period = unique(mf_model$period)) %>%
+      full_join(asfr_join_out %>%
+                  select(area_id, age_group, period, out_idx) %>%
+                  unique, by = c("area_id",
+                                                                  "model_age_group" = "age_group",
+                                                                  "period")
+      ) %>%
+      rename(idx = out_idx) %>%
+      arrange(period, area_id, age_group) %>%
+      full_join(tfr_out) %>%
+      mutate(x=5)
 
-    A_out <- spMatrix(nrow(mf_out), nrow(mf_model), join_out$out_idx, as.integer(join_out$idx), join_out$x)
-
-    # mf_out_restype <- crossing(
-    #   age_group = unique(mf_model$age_group),
-    #   period = unique(mf_model$period),
-    #   restype = c(1, 0)
-    #   ) %>%
-    # arrange(age_group, period) %>%
-    # mutate(out_idx = row_number()) %>%
-    # droplevels()
-    #
-    # join_out_restype <- crossing(
-    #   age_group = unique(mf_model$age_group),
-    #   period = unique(mf_model$period),
-    #   restype = c(1, 0)
-    # ) %>%
-    # full_join(mf_model %>%
-    #             select(age_group, period, restype, idx)) %>%
-    # full_join(mf_out_restype) %>%
-    # # full_join(mf_out, by=c("area_id",
-    # #                        "period",
-    # #                        "age_group_out" = "age_group")
-    # #           ) %>%
-    # mutate(x=1)
-    #
-    # A_out_restype <- spMatrix(nrow(mf_out_restype), nrow(mf_model), join_out_restype$out_idx, as.integer(join_out_restype$idx), join_out_restype$x)
-    #
-    # mf$out$mf_out_restype <- mf_out_restype
-    # mf$out$A_out_restype <- A_out_restype
+    A_asfr_out <- spMatrix(nrow(asfr_out), nrow(mf_model), asfr_join_out$out_idx, as.integer(asfr_join_out$idx), asfr_join_out$x)
+    A_tfr_out <- spMatrix(nrow(tfr_out), nrow(asfr_out), tfr_join_out$out_idx, as.integer(tfr_join_out$idx), tfr_join_out$x)
+    
+    mf_out <- asfr_out %>%
+      bind_rows(tfr_out) %>%
+      select(-out_idx)
 
     mf$out$mf_out <- mf_out
-    mf$out$A_out <- A_out
+    mf$out$A_asfr_out <- A_asfr_out
+    mf$out$A_tfr_out <- A_tfr_out
     mf$out_toggle <- 1
 
   }
@@ -1223,3 +1237,19 @@ make_model_frames <- function(iso3_current, population, asfr, mics_asfr,
   return(mf)
 }
 
+tmb_outputs <- function(fit, mf) {
+  
+  asfr_qtls <- apply(fit$sample$lambda_out, 1, quantile, c(0.025, 0.5, 0.975))
+  tfr_qtls <- apply(fit$sample$tfr_out, 1, quantile, c(0.025, 0.5, 0.975))
+  
+  tmb_results <- mf$out$mf_out %>%
+    mutate(lower = c(asfr_qtls[1,], tfr_qtls[1,]),
+           median = c(asfr_qtls[2,], tfr_qtls[2,]),
+           upper = c(asfr_qtls[3,], tfr_qtls[3,]),
+           source = "tmb") %>%
+    type.convert() %>%
+    left_join(areas_long)
+  
+  return(tmb_results)
+  
+}
