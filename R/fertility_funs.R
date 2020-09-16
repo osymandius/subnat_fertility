@@ -1024,6 +1024,31 @@ make_model_frames <- function(iso3_current, population, asfr, mics_asfr = NULL, 
              id.interaction3 = factor(group_indices(., age_group, area_id))
       ) 
       # droplevels()
+    
+  } else if(unique(left_join(asfr, areas_long)$area_level) == 0) {
+    
+    mf_model <- crossing(period = 1995:max_year,
+                         age_group = c("15-19", "20-24", "25-29", "30-34", "35-39", "40-44", "45-49"),
+                         area_id = iso3_current) %>%
+      # area_id = iso3_current) %>%
+      left_join(population %>%
+                  select(area_id, period, age_group, population)
+      ) %>%
+      mutate(area_id = factor(area_id),
+             # mutate(area_id = factor(iso3_current),
+             age_group = factor(age_group, levels = c("15-19", "20-24", "25-29", "30-34", "35-39", "40-44", "45-49")),
+             period = factor(period)
+      ) %>%
+      arrange(period, area_id, age_group) %>%
+      mutate(idx = factor(row_number()),
+             id.interaction_3d = factor(group_indices(., age_group, period, area_id)),
+             # id.interaction_age_time = factor(group_indices(., age_group, period)),
+             id.interaction1 = factor(group_indices(., age_group, period)),
+             id.interaction2 = factor(group_indices(., period, area_id)),
+             id.interaction3 = factor(group_indices(., age_group, area_id))
+      ) 
+    # droplevels()
+    
   } else {
     
     stop("What level did you want this to run at?")

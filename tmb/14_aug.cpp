@@ -25,12 +25,12 @@ Type objective_function<Type>::operator() ()
   PARAMETER(log_prec_rw_tips);
   PARAMETER_VECTOR(u_tips);
 
-  DATA_SPARSE_MATRIX(Z_spatial);
-  DATA_SPARSE_MATRIX(R_spatial);
-  DATA_SCALAR(rankdef_R_spatial); // rank deficiency of the R_spatial structure matrix
+  // DATA_SPARSE_MATRIX(Z_spatial);
+  // DATA_SPARSE_MATRIX(R_spatial);
+  // DATA_SCALAR(rankdef_R_spatial); // rank deficiency of the R_spatial structure matrix
   
-  PARAMETER_VECTOR(u_spatial_str);
-  PARAMETER(log_prec_spatial);
+  // PARAMETER_VECTOR(u_spatial_str);
+  // PARAMETER(log_prec_spatial);
   
   DATA_SPARSE_MATRIX(Z_interaction1);
   PARAMETER_ARRAY(eta1);
@@ -39,14 +39,14 @@ Type objective_function<Type>::operator() ()
   PARAMETER(lag_logit_eta1_phi_period);
 
   DATA_SPARSE_MATRIX(Z_interaction2);
-  PARAMETER_ARRAY(eta2);
-  PARAMETER(log_prec_eta2);
-  PARAMETER(lag_logit_eta2_phi_period);
+  // PARAMETER_ARRAY(eta2);
+  // PARAMETER(log_prec_eta2);
+  // PARAMETER(lag_logit_eta2_phi_period);
 
   DATA_SPARSE_MATRIX(Z_interaction3);
-  PARAMETER_ARRAY(eta3);
-  PARAMETER(log_prec_eta3);
-  PARAMETER(lag_logit_eta3_phi_age);
+  // PARAMETER_ARRAY(eta3);
+  // PARAMETER(log_prec_eta3);
+  // PARAMETER(lag_logit_eta3_phi_age);
  
   // observations
 
@@ -59,8 +59,8 @@ Type objective_function<Type>::operator() ()
   DATA_INTEGER(out_toggle);
 
 
-  DATA_MATRIX(X_urban_dummy);
-  PARAMETER_VECTOR(beta_urban_dummy);
+  // DATA_MATRIX(X_urban_dummy);
+  // PARAMETER_VECTOR(beta_urban_dummy);
 
  
   nll -= dnorm(beta_0, Type(0), Type(sqrt(1/0.001)), true);
@@ -81,16 +81,16 @@ Type objective_function<Type>::operator() ()
 
   /////////////////
 
-  nll -= dnorm(beta_urban_dummy, Type(0), Type(sqrt(1/0.001)), true).sum();
+  // nll -= dnorm(beta_urban_dummy, Type(0), Type(sqrt(1/0.001)), true).sum();
 
   ///////////////////
 
-  nll -= dlgamma(log_prec_spatial, Type(1), Type(20000), true);
-  Type prec_spatial = exp(log_prec_spatial);
+  // nll -= dlgamma(log_prec_spatial, Type(1), Type(20000), true);
+  // Type prec_spatial = exp(log_prec_spatial);
 
-  nll -= Type(-0.5) * (u_spatial_str * (R_spatial * u_spatial_str)).sum();
+  // nll -= Type(-0.5) * (u_spatial_str * (R_spatial * u_spatial_str)).sum();
   
-  nll -= dnorm(u_spatial_str.sum(), Type(0), Type(0.01) * u_spatial_str.size(), 1);
+  // nll -= dnorm(u_spatial_str.sum(), Type(0), Type(0.01) * u_spatial_str.size(), 1);
 
   ///////////////////
 
@@ -175,52 +175,52 @@ Type objective_function<Type>::operator() ()
   ///////////////////
    // ETA-2 - Space x time interaction
 
-  nll -= dlgamma(log_prec_eta2, Type(1), Type(20000), true);
-  Type prec_eta2 = exp(log_prec_eta2);
+  // nll -= dlgamma(log_prec_eta2, Type(1), Type(20000), true);
+  // Type prec_eta2 = exp(log_prec_eta2);
 
-  nll -= dnorm(lag_logit_eta2_phi_period, Type(0), Type(sqrt(1/0.15)), true);
-  Type eta2_phi_period = 2*exp(lag_logit_eta2_phi_period)/(1+exp(lag_logit_eta2_phi_period))-1;
+  // nll -= dnorm(lag_logit_eta2_phi_period, Type(0), Type(sqrt(1/0.15)), true);
+  // Type eta2_phi_period = 2*exp(lag_logit_eta2_phi_period)/(1+exp(lag_logit_eta2_phi_period))-1;
   
-  nll += SEPARABLE(AR1(Type(eta2_phi_period)), GMRF(R_spatial))(eta2);
+  // nll += SEPARABLE(AR1(Type(eta2_phi_period)), GMRF(R_spatial))(eta2);
 
   // Adjust normalising constant for rank deficience of R_spatial. SEPARABLE calculates the
   // normalizing constant assuming full rank precision matrix. Add the component of the
   // constant back.
   
-  Type log_det_Qar1_eta2((eta2.cols() - 1) * log(1 - eta2_phi_period * eta2_phi_period));
-  nll -= rankdef_R_spatial * 0.5 * (log_det_Qar1_eta2 - log(2 * PI));
+  // Type log_det_Qar1_eta2((eta2.cols() - 1) * log(1 - eta2_phi_period * eta2_phi_period));
+  // nll -= rankdef_R_spatial * 0.5 * (log_det_Qar1_eta2 - log(2 * PI));
 
   // sum-to-zero on space x time interaction. Ensure each space effects (row) in each year (col) sum to zeo.
-  for (int i = 0; i < eta2.cols(); i++) {
-    nll -= dnorm(eta2.col(i).sum(), Type(0), Type(0.01) * eta2.col(i).size(), true);}
+  // for (int i = 0; i < eta2.cols(); i++) {
+    // nll -= dnorm(eta2.col(i).sum(), Type(0), Type(0.01) * eta2.col(i).size(), true);}
 
 
-  vector<Type> eta2_v(eta2);
+  // vector<Type> eta2_v(eta2);
 
   ////////////////////
 
-  nll -= dlgamma(log_prec_eta3, Type(1), Type(20000), true);
-  Type prec_eta3 = exp(log_prec_eta3);
+  // nll -= dlgamma(log_prec_eta3, Type(1), Type(20000), true);
+  // Type prec_eta3 = exp(log_prec_eta3);
 
-  nll -= dnorm(lag_logit_eta3_phi_age, Type(0), Type(sqrt(1/0.15)), true);
-  Type eta3_phi_age = 2*exp(lag_logit_eta3_phi_age)/(1+exp(lag_logit_eta3_phi_age))-1;
+  // nll -= dnorm(lag_logit_eta3_phi_age, Type(0), Type(sqrt(1/0.15)), true);
+  // Type eta3_phi_age = 2*exp(lag_logit_eta3_phi_age)/(1+exp(lag_logit_eta3_phi_age))-1;
 
   
-  nll += SEPARABLE(AR1(Type(eta3_phi_age)), GMRF(R_spatial))(eta3);
+  // nll += SEPARABLE(AR1(Type(eta3_phi_age)), GMRF(R_spatial))(eta3);
 
     // Adjust normalising constant for rank deficience of R_spatial. SEPARABLE calculates the
   // normalizing constant assuming full rank precision matrix. Add the component of the
   // constant back.
   
-  Type log_det_Qar1_eta3((eta3.cols() - 1) * log(1 - eta3_phi_age * eta3_phi_age));
-  nll -= rankdef_R_spatial * 0.5 * (log_det_Qar1_eta3 - log(2 * PI));
+  // Type log_det_Qar1_eta3((eta3.cols() - 1) * log(1 - eta3_phi_age * eta3_phi_age));
+  // nll -= rankdef_R_spatial * 0.5 * (log_det_Qar1_eta3 - log(2 * PI));
 
   // // sum-to-zero on space x age interaction. Ensure each space effects (row) in each year (col) sum to zeo.
-  for (int i = 0; i < eta3.cols(); i++) {
-    nll -= dnorm(eta3.col(i).sum(), Type(0), Type(0.01) * eta3.col(i).size(), true);}
+  // for (int i = 0; i < eta3.cols(); i++) {
+    // nll -= dnorm(eta3.col(i).sum(), Type(0), Type(0.01) * eta3.col(i).size(), true);}
 
 
-  vector<Type> eta3_v(eta3);
+  // vector<Type> eta3_v(eta3);
 
   ///////////////////////
 
@@ -229,10 +229,10 @@ Type objective_function<Type>::operator() ()
                      + Z_age * u_age * sqrt(1/prec_rw_age)
                      + Z_period * u_period * sqrt(1/prec_rw_period)
                      // + Z_spatial * spatial                     
-                     + Z_spatial * u_spatial_str * sqrt(1/prec_spatial)
+                     // + Z_spatial * u_spatial_str * sqrt(1/prec_spatial)
                      + Z_interaction1 * eta1_v * sqrt(1/prec_eta1)
-                     + Z_interaction2 * eta2_v * sqrt(1/prec_eta2)
-                     + Z_interaction3 * eta3_v * sqrt(1/prec_eta3)
+                     // + Z_interaction2 * eta2_v * sqrt(1/prec_eta2)
+                     // + Z_interaction3 * eta3_v * sqrt(1/prec_eta3)
                      );
 
   
@@ -241,7 +241,7 @@ Type objective_function<Type>::operator() ()
   vector<Type> mu_obs_pred_dhs(X_extract_dhs * (M_obs * log_lambda)
                           + Z_tips_dhs * u_tips_constr * sqrt(1/prec_rw_tips)  // TIPS RW
                           + X_tips_dummy * beta_tips_dummy          // TIPS fixed effect
-                          + X_urban_dummy * beta_urban_dummy          // Urban fixed effect
+                          // + X_urban_dummy * beta_urban_dummy          // Urban fixed effect
                           + log_offset_dhs    
                           );
 
@@ -320,38 +320,38 @@ Type objective_function<Type>::operator() ()
   }
   
   REPORT(lambda);
-  REPORT(births);
+  // REPORT(births);
 
-  REPORT(log_prec_spatial);
+  // REPORT(log_prec_spatial);
   // REPORT(logit_spatial_rho);
 
-  REPORT(log_prec_eta1);
-  REPORT(eta1_phi_age);
-  REPORT(eta1_phi_period);
+  // REPORT(log_prec_eta1);
+  // REPORT(eta1_phi_age);
+  // REPORT(eta1_phi_period);
 
-  REPORT(log_prec_eta2);
-  REPORT(eta2_phi_period);
+  // REPORT(log_prec_eta2);
+  // REPORT(eta2_phi_period);
 
-  REPORT(log_prec_eta3);
-  REPORT(eta3_phi_age);
+  // REPORT(log_prec_eta3);
+  // REPORT(eta3_phi_age);
 
-  REPORT(log_prec_rw_age);
-  REPORT(log_prec_rw_period);
-  REPORT(log_prec_rw_tips);
+  // REPORT(log_prec_rw_age);
+  // REPORT(log_prec_rw_period);
+  // REPORT(log_prec_rw_tips);
 
-  REPORT(beta_tips_dummy);
-  REPORT(beta_urban_dummy);
+  // REPORT(beta_tips_dummy);
+  // REPORT(beta_urban_dummy);
 
-  REPORT(eta1);
-  REPORT(eta2);
-  REPORT(eta3);
+  // REPORT(eta1);
+  // REPORT(eta2);
+  // REPORT(eta3);
 
-  REPORT(u_tips);
-  REPORT(u_tips_constr);
-  REPORT(u_period);
-  REPORT(u_age);
+  // REPORT(u_tips);
+  // REPORT(u_tips_constr);
+  // REPORT(u_period);
+  // REPORT(u_age);
 
-  REPORT(beta_0);
+  // REPORT(beta_0);
 
 
   return nll;
