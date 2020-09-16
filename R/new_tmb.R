@@ -24,10 +24,11 @@ source(here("R/fertility_funs.R"))
 # iso3 <- c("LSO", "MOZ", "NAM", "UGA", "ZMB", "ETH", "TZA", "MWI")
 # iso3 <- c("NAM", "UGA", "ZMB", "TZA")
 
-iso3_current <-  c("ZMB", "ZWE", "MOZ", "MWI", "SWZ", "TZA")
-# iso3_current <-  c("ZMB", "MWI", "SWZ")
+iso3_current <-  sort(c("ZMB", "ZWE", "MOZ", "MWI", "SWZ", "TZA"))
+# iso3_current <-  c("ZMB")
 
-lvl_df <- data.frame("iso3" = rep(iso3_current, times=2), "area_level_name" = c(rep("province", times=6), rep("district", times=6)), "area_level_id" = c(1,1,1,1,1,2,2,2,2,5,2,3))
+lvl_df <- read.csv("input_data/lvl_df.csv") %>%
+  filter(iso3 %in% iso3_current)
 
 list2env(make_areas_population(iso3_current, naomi_data_path, full = FALSE, return_list = FALSE), globalenv())
 
@@ -301,6 +302,66 @@ tfr_plot <- lapply(iso3_current, function(x) {
   mutate(surveyid = ifelse(is.na(surveyid), as.character(survey_id), as.character(surveyid)))
 
 df <- tmb_outputs(fit, mf) 
+
+qtls1 <- readRDS("~/Downloads/qtls1.rds")
+
+tmb_results <- mf$out$mf_out %>%
+    filter(variable == "asfr") %>%
+    mutate(lower = qtls1[1,],
+           median = qtls1[2,],
+           upper = qtls1[3,],
+           source = "tmb") %>%
+    type.convert() %>%
+    left_join(areas_long) %>%
+    arrange(iso3)
+
+tmb_results <- tmb_results %>%
+  group_split(iso3)
+
+tfr_plot <- tfr_plot %>%
+  arrange(iso3) %>%
+  group_split(iso3)
+
+asfr_plot <- asfr_plot %>%
+  arrange(iso3) %>%
+  group_split(iso3)
+
+asfr_plots <- Map(function(tmb_results, asfr_plot) {
+  
+  asfr_plot <- asfr_plot %>%
+    filter(area_level !=0)
+  
+  p <- tmb_results %>%
+    filter(area_id %in% asfr_plot$area_id) %>%
+    ggplot(aes(x=period, y=median, group=age_group)) +
+    geom_line(aes(color=age_group)) +
+    # geom_point(data=asfr_plot, aes(y=asfr, color=age_group)) +
+    geom_ribbon(aes(ymin = lower, ymax = upper, fill=age_group), alpha = 0.3) +
+    facet_wrap(~area_id) +
+    ylim(0,0.4) +
+    theme_minimal()
+  
+  print(p)
+  
+}, tmb_results, asfr_plot)
+
+asfr_age_plots <- Map(function(res, asfr_plot) {
+  
+  asfr_plot <- asfr_plot %>%
+    filter(area_level !=0)
+  
+  p <- res %>%
+    filter(area_id %in% asfr_plot$area_id) %>%
+    ggplot(aes(x=period, y=median)) +
+    geom_line() +
+    geom_point(data=asfr_plot, aes(y=asfr)) +
+    geom_ribbon(aes(ymin = lower, ymax = upper, fill=age_group), alpha = 0.3) +
+    facet_grid(age_group~area_name) +
+    ylim(0,0.4)
+  
+  print(p)
+  
+}, tmb_results, asfr_plot)
 
 df %>%
   filter(iso3 =="SWZ", area_level == 2, variable == "tfr") %>%
