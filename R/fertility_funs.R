@@ -828,7 +828,7 @@ make_model_frames <- function(iso3_current, population, asfr, mics_asfr,
   
   area_aggregation <- lapply(iso3_current, function(iso3_current) {
     
-    area_merged <- st_read(file.path(naomi_data_path, iso3_current, "data", paste0(tolower(iso3_current), "_areas.geojson")))
+    area_merged <- read_sf(file.path(naomi_data_path, iso3_current, "data", paste0(tolower(iso3_current), "_areas.geojson")))
     areas <- create_areas(area_merged = area_merged)
     area_aggregation <- create_area_aggregation(area_merged$area_id[area_merged$naomi_level], areas) %>%
       filter(!model_area_id %in% exclude_districts)
