@@ -795,6 +795,7 @@ make_model_frames <- function(iso3_current, population, asfr, mics_asfr,
     left_join(population, c("area_id", "age_group", "period")) %>%
     group_by(area_id, age_group) %>%
     mutate(population = exp(zoo::na.approx(log(population), period, na.rm = FALSE))) %>%
+    ungroup() %>%
     fill(population, .direction="updown") %>%
     left_join(
       areas_long %>% select(area_id, iso3),
