@@ -1,17 +1,12 @@
 library(TMB)
 library(INLA)
 library(tidyverse)
-library(abind)
 library(sf)
 library(spdep)
 library(Matrix)
 library(countrycode)
-library(haven)
-library(survival)
-library(parallel)
-library(demogsurv)
-devtools::load_all("~/Documents/GitHub/naomi")
-# library(naomi)
+# devtools::load_all("~/Documents/GitHub/naomi")
+library(naomi)
 library(here)
 
 naomi_data_path <- "~/Imperial College London/HIV Inference Group - WP - Documents/Analytical datasets/naomi-data"
@@ -21,21 +16,13 @@ mics_key <- read.csv(here("countries/mics_data_key.csv"))
 source(here("R/inputs.R"))
 source(here("R/fertility_funs.R"))
 
-# iso3 <- c("LSO", "MOZ", "NAM", "UGA", "ZMB", "ETH", "TZA", "MWI")
-# iso3 <- c("NAM", "UGA", "ZMB", "TZA")
-
 iso3_current <-  sort(c("ZMB", "ZWE", "MOZ", "MWI", "SWZ", "TZA"))
-# iso3_current <-  c("ZMB")
 
 lvl_df <- read.csv("input_data/lvl_df.csv") %>%
   filter(iso3 %in% iso3_current)
 
 list2env(make_areas_population(iso3_current, naomi_data_path, full = FALSE, return_list = FALSE), globalenv())
 
-# exclude_districts <- areas_wide$area_id[areas_wide$area_id1 == "TZA_1_2"]
-# exclude_districts <- c("UGA_3_029", "UGA_3_046")
-# exclude_districts <- c("MOZ_2_0107", "MOZ_2_1009")
-# exclude_districts <- "MWI_5_07"
 exclude_districts= ""
 
 asfr <- Map(function(iso3_current, level) {
@@ -50,12 +37,7 @@ mics_asfr <- lapply(iso3_current, function(iso3_current) {
   }
 })
 
-names(mics_asfr) <- iso3_current
-
-asfr <- asfr[c("MWI", "ZMB", "ZWE")]
-mics_asfr <- mics_asfr[c("MWI", "ZMB", "ZWE")]
-
-iso3_current <- c("MWI", "ZMB", "ZWE")
+# names(mics_asfr) <- iso3_current
 
 # asfr[["ZWE"]] <- asfr[["ZWE"]] %>%
 #   bind_rows(mics_asfr[["ZWE"]])
