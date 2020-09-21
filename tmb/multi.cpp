@@ -42,7 +42,7 @@ Type objective_function<Type>::operator() ()
 
   DATA_SPARSE_MATRIX(Z_spatial);
   DATA_SPARSE_MATRIX(R_spatial);
-  PARAMETER(rankdef_R_spatial); // rank deficiency of the R_spatial structure matrix
+  DATA_SCALAR(rankdef_R_spatial); // rank deficiency of the R_spatial structure matrix
   
   PARAMETER_VECTOR(u_spatial_str);
   PARAMETER(log_prec_spatial);
@@ -332,72 +332,67 @@ Type objective_function<Type>::operator() ()
 
     nll -= dpois(births_obs_mics, exp(mu_obs_pred_mics), true).sum();  
  
-    REPORT(u_tips_mics_constr);
+    // REPORT(u_tips_mics_constr);
 
   }
 
   if(out_toggle) {
 
-    DATA_SPARSE_MATRIX(A_out);
-    // DATA_SPARSE_MATRIX(A_out_restype);
+    DATA_SPARSE_MATRIX(A_asfr_out);
+    DATA_SPARSE_MATRIX(A_tfr_out);
 
-    vector<Type> births_out(A_out * births);
-    vector<Type> population_out(A_out * pop);
+    vector<Type> births_out(A_asfr_out * births);
+    vector<Type> population_out(A_asfr_out * pop);
     vector<Type> lambda_out(births_out / population_out);
 
-    // vector<Type> births_out_restype(A_out_restype * births);
-    // vector<Type> population_out_restype(A_out_restype * pop);
-    // vector<Type> lambda_out_restype(births_out_restype / population_out_restype);
+    vector<Type> tfr_out(A_tfr_out * lambda_out);
 
     REPORT(lambda_out);
+    REPORT(tfr_out);
     REPORT(births_out);
-
-
-    // REPORT(lambda_out_restype);
-    // REPORT(births_out_restype);
   }
   
-  REPORT(lambda);
-  REPORT(births);
+  // REPORT(lambda);
+  // REPORT(births);
 
-  REPORT(log_prec_spatial);
-  // REPORT(logit_spatial_rho);
+  // REPORT(log_prec_spatial);
+  // // REPORT(logit_spatial_rho);
 
-  REPORT(log_prec_eta1);
-  REPORT(eta1_phi_age);
-  REPORT(eta1_phi_period);
+  // REPORT(log_prec_eta1);
+  // REPORT(eta1_phi_age);
+  // REPORT(eta1_phi_period);
 
-  REPORT(log_prec_eta2);
-  REPORT(eta2_phi_period);
+  // REPORT(log_prec_eta2);
+  // REPORT(eta2_phi_period);
 
-  REPORT(log_prec_eta3);
-  REPORT(eta3_phi_age);
+  // REPORT(log_prec_eta3);
+  // REPORT(eta3_phi_age);
 
-  REPORT(log_prec_country);
+  // REPORT(log_prec_country);
 
-  REPORT(log_prec_omega1);
-  REPORT(omega1_phi_age);
+  // REPORT(log_prec_omega1);
+  // REPORT(omega1_phi_age);
 
-  REPORT(log_prec_omega2);
-  REPORT(omega2_phi_period);
+  // REPORT(log_prec_omega2);
+  // REPORT(omega2_phi_period);
 
-  REPORT(log_prec_rw_age);
-  REPORT(log_prec_rw_period);
-  REPORT(log_prec_rw_tips);
+  // REPORT(log_prec_rw_age);
+  // REPORT(log_prec_rw_period);
+  // REPORT(log_prec_rw_tips);
 
-  REPORT(beta_tips_dummy);
-  // REPORT(beta_urban_dummy);
+  // REPORT(beta_tips_dummy);
+  // // REPORT(beta_urban_dummy);
 
-  REPORT(eta1);
-  REPORT(eta2);
-  REPORT(eta3);
+  // REPORT(eta1);
+  // REPORT(eta2);
+  // REPORT(eta3);
 
-  REPORT(u_tips);
-  REPORT(u_tips_constr);
-  REPORT(u_period);
-  REPORT(u_age);
+  // REPORT(u_tips);
+  // REPORT(u_tips_constr);
+  // REPORT(u_period);
+  // REPORT(u_age);
 
-  REPORT(beta_0);
+  // REPORT(beta_0);
 
 
   return nll;
