@@ -62,12 +62,12 @@ cluster_areas <- assign_cluster_area(clusters, 1)
 
 dat <- clusters_to_surveys(surveys, cluster_areas, single_tips = TRUE)
 
-asfr <- Map(calc_asfr1, dat$ir,
-              y=1:length(dat$ir),
+asfr <- Map(calc_asfr, dat$ir,
               by = list(~country + surveyid + survtype + survyear + area_id),
               tips = dat$tips_surv,
               agegr= list(3:10*5),
               period = list(1995:2017),
+              strata = list(NULL),
               counts = TRUE) %>%
   bind_rows %>%
   type.convert %>%
