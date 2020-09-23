@@ -233,6 +233,7 @@ Type objective_function<Type>::operator() ()
                      + Z_interaction1 * eta1_v * sqrt(1/prec_eta1)
                      + Z_interaction2 * eta2_v * sqrt(1/prec_eta2)
                      + Z_interaction3 * eta3_v * sqrt(1/prec_eta3)
+                     // + X_urban_dummy * beta_urban_dummy          // Urban fixed effect
                      );
 
   
@@ -241,7 +242,7 @@ Type objective_function<Type>::operator() ()
   vector<Type> mu_obs_pred_dhs(X_extract_dhs * (M_obs * log_lambda)
                           + Z_tips_dhs * u_tips_constr * sqrt(1/prec_rw_tips)  // TIPS RW
                           + X_tips_dummy * beta_tips_dummy          // TIPS fixed effect
-                          // + X_urban_dummy * beta_urban_dummy          // TIPS fixed effect
+
                           + log_offset_dhs    
                           );
 
@@ -300,18 +301,22 @@ Type objective_function<Type>::operator() ()
 
   if(out_toggle) {
 
-    DATA_SPARSE_MATRIX(A_out);
+    DATA_SPARSE_MATRIX(A_asfr_out);
+    DATA_SPARSE_MATRIX(A_tfr_out);
     // DATA_SPARSE_MATRIX(A_out_restype);
 
-    vector<Type> births_out(A_out * births);
-    vector<Type> population_out(A_out * pop);
+    vector<Type> births_out(A_asfr_out * births);
+    vector<Type> population_out(A_asfr_out * pop);
     vector<Type> lambda_out(births_out / population_out);
+
+    vector<Type> tfr_out(A_tfr_out * lambda_out);
 
     // vector<Type> births_out_restype(A_out_restype * births);
     // vector<Type> population_out_restype(A_out_restype * pop);
     // vector<Type> lambda_out_restype(births_out_restype / population_out_restype);
 
     REPORT(lambda_out);
+    REPORT(tfr_out);
     REPORT(births_out);
 
 

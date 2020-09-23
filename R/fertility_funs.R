@@ -717,7 +717,7 @@ make_model_frames <- function(iso3_current, population, asfr, mics_asfr,
     # mutate(area_id = factor(iso3_current),
            age_group = factor(age_group, levels = c("15-19", "20-24", "25-29", "30-34", "35-39", "40-44", "45-49")),
            period = factor(period),
-           restype = ifelse(area_id %in% c(
+           urban = ifelse(area_id %in% c(
             filter(areas_long, parent_area_id == "ETH_1_10")$area_id,
             filter(areas_long, str_detect(area_name, "Town"))$area_id,
             filter(areas_long, area_name %in% c("Harari", "Fafen (Jijiga)"))$area_id),
@@ -780,7 +780,7 @@ make_model_frames <- function(iso3_current, population, asfr, mics_asfr,
            tips_f = factor(tips),
            ais_dummy = ifelse(survtype %in% c("MIS", "AIS"), 1, 0),
            #####
-           urban_dummy = ifelse(area_id %in% c(
+           urban = ifelse(area_id %in% c(
              filter(areas_long, parent_area_id == "ETH_1_10")$area_id,
              filter(areas_long, str_detect(area_name, "Town"))$area_id,
              filter(areas_long, area_name %in% c("Harari", "Fafen (Jijiga)"))$area_id),
