@@ -18,7 +18,7 @@ source(here("R/fertility_funs.R"))
 
 iso3_current <-  sort(c("ZMB", "ZWE", "MOZ", "MWI", "SWZ", "TZA"))
 
-lvl_df <- read.csv("input_data/lvl_df.csv") %>%
+lvl_df <- read.csv(here("input_data/lvl_df.csv")) %>%
   filter(iso3 %in% iso3_current)
 
 list2env(make_areas_population(iso3_current, naomi_data_path, full = FALSE, return_list = FALSE), globalenv())
@@ -29,11 +29,13 @@ asfr <- Map(function(iso3_current, level) {
   get_asfr_pred_df(iso3_current, area_level = level, areas_long, project = FALSE)
 }, iso3_current = filter(lvl_df, area_level_name == "district")$iso3, level = filter(lvl_df, area_level_name == "district")$area_level_id)
 
-mics_asfr <- lapply(iso3_current, function(iso3_current) {
-  if(filter(mics_key, iso3 == iso3_current)$mics) {
-    readRDS(here(grep("mics", list.files(paste0("countries/", iso3_current, "/data"), full.names = TRUE), value=TRUE)))
+mics_asfr <- lapply(iso3_current, function(iso3_i) {
+  if(filter(mics_key, iso3 == iso3_i)$mics) {
+    mics_file <- list.files(paste0(here("countries/"), iso3_i, "/data"), full.names = TRUE)
+    mics_file <- grep("mics", mics_file, value=TRUE)
+    readRDS(mics_file)
   } else {
-    mics_asfr <- NULL
+    NULL
   }
 })
 
