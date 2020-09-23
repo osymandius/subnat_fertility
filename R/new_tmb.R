@@ -49,19 +49,28 @@ mics_asfr <- lapply(iso3_current, function(iso3_current) {
 #   bind_rows(mics_asfr[["MOZ"]])
 
 # mics_dat <- readRDS("input_data/mics_extract.rds")
-# # #
-# mics_asfr <- Map(calc_asfr_mics, mics_dat$wm[c(4,5)], y=list(1),
+# 
+# mics_asfr <- Map(calc_asfr, mics_dat$wm[c(2,3)],
 #                  by = list(~area_id + survey_id),
 #                  tips = list(c(0,15)),
 #                  agegr= list(3:10*5),
 #                  period = list(1995:2019),
-#                  counts = TRUE,
-#                  bhdata = mics_dat$bh_df[c(4,5)]) %>%
+#                  clusters = list(~cluster),
+#                  strata = list(NULL),
+#                  id = list("unique_id"),
+#                  dob = list("wdob"),
+#                  intv = list("doi"),
+#                  weight = list("weight"),
+#                  varmethod = list("none"),
+#                  bhdata = mics_dat$bh_df[c(2,3)],
+#                  bvars = list("cdob"),
+#                  counts = TRUE) %>%
 #   bind_rows %>%
 #   type.convert() %>%
 #   separate(col=survey_id, into=c(NA, "survyear", NA), sep=c(3,7), remove = FALSE, convert = TRUE) %>%
 #   filter(period <= survyear) %>%
 #   rename(age_group = agegr)
+
 
 mf <- make_model_frames(iso3_current, population, asfr, mics_asfr,
                         exclude_districts,
