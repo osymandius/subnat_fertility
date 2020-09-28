@@ -59,8 +59,8 @@ Type objective_function<Type>::operator() ()
   DATA_INTEGER(out_toggle);
 
 
-  // DATA_MATRIX(X_urban_dummy);
-  // PARAMETER_VECTOR(beta_urban_dummy);
+  DATA_MATRIX(X_urban_dummy);
+  PARAMETER_VECTOR(beta_urban_dummy);
 
  
   nll -= dnorm(beta_0, Type(0), Type(sqrt(1/0.001)), true);
@@ -81,7 +81,7 @@ Type objective_function<Type>::operator() ()
 
   /////////////////
 
-  // nll -= dnorm(beta_urban_dummy, Type(0), Type(sqrt(1/0.001)), true).sum();
+  nll -= dnorm(beta_urban_dummy, Type(0), Type(sqrt(1/0.001)), true).sum();
 
   ///////////////////
 
@@ -233,7 +233,7 @@ Type objective_function<Type>::operator() ()
                      + Z_interaction1 * eta1_v * sqrt(1/prec_eta1)
                      + Z_interaction2 * eta2_v * sqrt(1/prec_eta2)
                      + Z_interaction3 * eta3_v * sqrt(1/prec_eta3)
-                     // + X_urban_dummy * beta_urban_dummy          // Urban fixed effect
+                     + X_urban_dummy * beta_urban_dummy          // Urban fixed effect
                      );
 
   
@@ -345,7 +345,7 @@ Type objective_function<Type>::operator() ()
   REPORT(log_prec_rw_tips);
 
   REPORT(beta_tips_dummy);
-  // REPORT(beta_urban_dummy);
+  REPORT(beta_urban_dummy);
 
   REPORT(eta1);
   REPORT(eta2);
