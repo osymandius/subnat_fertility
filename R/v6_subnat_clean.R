@@ -17,14 +17,15 @@ library(here)
 # naomi_data_path <- "~/naomi-data"
 
 naomi_data_path <- "~/Imperial College London/HIV Inference Group - WP - Documents/Analytical datasets/naomi-data"
+naomi_git_path <- "~/Documents/GitHub/naomi-data"
 
 
 source(here("R/inputs.R"))
 source(here("R/fertility_funs.R"))
 
 
-iso3_current <- "SWZ"
-# iso3 <- c("LSO", "MOZ", "MWI", "NAM", "TZA", "UGA", "ZMB", "ZWE")
+iso3_current <- "COD"
+iso3 <- c("LSO", "MOZ", "MWI", "NAM", "TZA", "UGA", "ZMB", "ZWE")
 # 
 
 
@@ -36,7 +37,8 @@ dhs_iso3 <- dhs_countries(returnFields=c("CountryName", "DHS_CountryCode")) %>%
   mutate(iso3 = countrycode(CountryName, "country.name", "iso3c"),
          iso3 = ifelse(CountryName == "Eswatini", "SWZ", iso3))
 
-clusters <- readRDS(here("input_data/clusters_2020_05_01.rds")) %>%
+# clusters <- readRDS(here("input_data/clusters_2020_05_01.rds")) %>%
+clusters <- readRDS(paste0(naomi_git_path, "/COD/data/COD_fertility_clusters.rds")) %>%
   mutate(iso3 = survey_id) %>%
   separate(col="iso3", into="iso3", sep=3) %>%
   left_join(dhs_iso3 %>% select(-CountryName), by="iso3") %>%
@@ -44,7 +46,8 @@ clusters <- readRDS(here("input_data/clusters_2020_05_01.rds")) %>%
   mutate(DHS_survey_id = paste0(DHS_CountryCode, surv)) %>%
   separate(surv, into=c(NA, "SurveyType"), sep=-3) %>%
   filter(iso3 == iso3_current, DHS_CountryCode != "OS") %>%
-  filter(!survey_id %in% c("MOZ2009AIS", "TZA2003AIS", "UGA2011AIS"))
+  filter(!survey_id %in% c("MOZ2009AIS", "TZA2003AIS", "UGA2011AIS")) %>%
+  filter(!is.na(geoloc_area_id))
 
 
 ## Get surveys for which we have clusters. Split into country list.
@@ -58,7 +61,7 @@ surveys <- dhs_surveys(surveyIds = unique(clusters$DHS_survey_id)) %>%
   )
 
 ## Needs check to ensure level is < max_level
-cluster_areas <- assign_cluster_area(clusters, 1)
+cluster_areas <- assign_cluster_area(clusters, 3)
 
 dat <- clusters_to_surveys(surveys, cluster_areas, single_tips = TRUE)
 
@@ -68,6 +71,7 @@ asfr <- Map(calc_asfr, dat$ir,
               agegr= list(3:10*5),
               period = list(1995:2017),
               strata = list(NULL),
+              varmethod = list("none"),
               counts = TRUE) %>%
   bind_rows %>%
   type.convert %>%
@@ -77,7 +81,28 @@ asfr <- Map(calc_asfr, dat$ir,
          iso3 = ifelse(country == "Eswatini", "SWZ", iso3)) %>%
   select(-country)
 
-saveRDS(asfr, "countries/SWZ/data/SWZ_asfr_admin1.rds")
+saveRDS(asfr, "countries/COD/data/COD_asfr_admin3.rds")
+
+cluster_areas <- assign_cluster_area(clusters, 1)
+
+dat <- clusters_to_surveys(surveys, cluster_areas, single_tips = FALSE)
+
+asfr <- Map(calc_asfr, dat$ir,
+            by = list(~country + surveyid + survtype + survyear + area_id),
+            tips = dat$tips_surv,
+            agegr= list(3:10*5),
+            period = list(1995:2017),
+            strata = list(NULL),
+            counts = TRUE) %>%
+  bind_rows %>%
+  type.convert %>%
+  filter(period<=survyear) %>%
+  rename(age_group = agegr) %>%
+  mutate(iso3 = countrycode(country, "country.name", "iso3c"),
+         iso3 = ifelse(country == "Eswatini", "SWZ", iso3)) %>%
+  select(-country)
+
+saveRDS(asfr, "countries/COD/data/COD_asfr_plot.rds")
 
 tfr <- Map(calc_tfr, dat$ir,
             by = list(~country + surveyid + survtype + survyear + area_id),
@@ -90,6 +115,8 @@ tfr <- Map(calc_tfr, dat$ir,
   mutate(iso3 = countrycode(country, "country.name", "iso3c"),
          iso3 = ifelse(country == "Eswatini", "SWZ", iso3)) %>%
   select(-country)
+
+saveRDS(tfr, "countries/COD/data/COD_tfr_plot.rds")
 
 mics_data <- read_mics("ZWE")
 mics_asfr <- Map(calc_asfr_mics, mics_data$wm, y=list(1),

@@ -68,8 +68,7 @@ if(boundaries)
         .$area_id
       
       x <- x %>%
-        mutate(iso3 = iso3_code) %>%
-        select(-epp_level)
+        mutate(iso3 = iso3_code)
       
       return(x)
     }) %>% 
@@ -144,7 +143,8 @@ assign_cluster_area <- function(clusters, area_level) {
     rename(area_id = geoloc_area_id) %>%
     left_join(areas_wide %>% select(area_id, paste0("area_id", area_level))) %>%
     select(-area_id) %>%
-    rename(area_id = paste0("area_id", area_level))
+    rename(area_id = paste0("area_id", area_level)) %>%
+    mutate(area_id = factor(area_id))
   
   area_list <- areas %>%
     group_by(survey_id) %>%
@@ -176,10 +176,11 @@ clusters_to_surveys <- function(surveys, cluster_areas, single_tips = TRUE) {
       return(x)}) %>%
       Map(function(ir, surveys) {
         mutate(ir,
-           surveyid = surveys$SurveyId,
-           country = surveys$CountryName,
-           survyear = surveys$SurveyYear,
-           survtype = surveys$SurveyType)
+           surveyid = factor(surveys$SurveyId),
+           country = factor(surveys$CountryName),
+           survyear = factor(surveys$SurveyYear),
+           survtype = factor(surveys$SurveyType)
+        )
       }, ., group_split(surveys, SurveyId))
     
     
