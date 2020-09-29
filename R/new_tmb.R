@@ -29,7 +29,7 @@ exclude_districts= ""
 
 asfr <- Map(function(iso3_current, level) {
   get_asfr_pred_df(iso3_current, area_level = level, areas_long, project = FALSE)
-}, iso3_current = filter(lvl_df, area_level_name == "district")$iso3, level = filter(lvl_df, area_level_name == "district")$area_level_id)
+}, iso3_current = filter(lvl_df, area_level_name == "province")$iso3, level = filter(lvl_df, area_level_name == "province")$area_level_id)
 
 mics_asfr <- lapply(iso3_current, function(iso3_i) {
   if(filter(mics_key, iso3 == iso3_i)$mics) {
@@ -41,16 +41,16 @@ mics_asfr <- lapply(iso3_current, function(iso3_i) {
   }
 })
 
-# names(mics_asfr) <- iso3_current
+names(mics_asfr) <- iso3_current
 
-# asfr[["ZWE"]] <- asfr[["ZWE"]] %>%
-#   bind_rows(mics_asfr[["ZWE"]])
-# 
-# asfr[["SWZ"]] <- asfr[["SWZ"]] %>%
-#   bind_rows(mics_asfr[["SWZ"]])
-# 
-# asfr[["MOZ"]] <- asfr[["MOZ"]] %>%
-#   bind_rows(mics_asfr[["MOZ"]])
+asfr[["ZWE"]] <- asfr[["ZWE"]] %>%
+  bind_rows(mics_asfr[["ZWE"]])
+
+asfr[["SWZ"]] <- asfr[["SWZ"]] %>%
+  bind_rows(mics_asfr[["SWZ"]])
+
+asfr[["MOZ"]] <- asfr[["MOZ"]] %>%
+  bind_rows(mics_asfr[["MOZ"]])
 
 # mics_dat <- readRDS("input_data/mics_extract.rds")
 # 
@@ -80,7 +80,7 @@ mf <- make_model_frames(iso3_current, population, asfr, mics_asfr,
                         exclude_districts,
                         project=FALSE,
                         mics_flag = FALSE,
-                        level = "naomi")
+                        level = "province")
 
 # saveRDS(mf, here(paste0("countries/", iso3_current, "/mods/", iso3_current, "_mf.rds")))
 
@@ -96,7 +96,7 @@ Z$Z_tips_dhs <- sparse.model.matrix(~0 + tips_f, mf$dist$obs %>% filter(ais_dumm
 # Z$Z_tips_ais <- sparse.model.matrix(~0 + tips_f, mf$dist$obs %>% filter(ais_dummy ==1))
 # Z_tips[which(mf$dist$obs$survtype != "DHS"), ] <- 0
 X_tips_dummy <- model.matrix(~0 + tips_dummy, mf$dist$obs %>% filter(ais_dummy == 0))
-X_urban_dummy <- model.matrix(~0 + urban, mf$dist$obs)
+X_urban_dummy <- model.matrix(~0 + urban, mf$mf_model)
 
 ais_join <- mf$dist$obs %>% 
   mutate(col_idx = row_number()) %>%
@@ -124,7 +124,7 @@ if(mf$mics_toggle) {
 }
 
 R <- list()
-R$R_spatial <- make_adjacency_matrix(iso3_current, areas_long, boundaries, exclude_districts, level= "naomi")
+R$R_spatial <- make_adjacency_matrix(iso3_current, areas_long, boundaries, exclude_districts, level= "province")
 # unique(asfr %>% left_join(areas_long) %>% .$area_level)
 R$R_tips <- make_rw_structure_matrix(ncol(Z$Z_tips), 1, adjust_diagonal = TRUE)
 R$R_age <- make_rw_structure_matrix(ncol(Z$Z_age), 1, adjust_diagonal = TRUE)
@@ -133,14 +133,14 @@ R$R_country <- as(diag(1, length(iso3_current)), "dgTMatrix")
 R$R_spatial_iid <- as(diag(1, length(unique(mf$mf_model$area_id))), "dgTMatrix")
 
 # dyn.unload(dynlib(here("tmb/fertility_tmb_dev")))
-compile(here("tmb/14_aug.cpp"))               # Compile the C++ file
-dyn.load(dynlib(here("tmb/14_aug")))
+compile(here("tmb/multi.cpp"))               # Compile the C++ file
+dyn.load(dynlib(here("tmb/multi")))
 
 tmb_int <- list()
 
 tmb_int$data <- list(M_obs = M_obs,
              X_tips_dummy = X_tips_dummy,
-             X_urban_dummy = X_urban_dummy,
+             # X_urban_dummy = X_urban_dummy,
              X_extract_dhs = X_extract_dhs,
              X_extract_ais = X_extract_ais,
              Z_tips = Z$Z_tips,
@@ -152,15 +152,15 @@ tmb_int$data <- list(M_obs = M_obs,
              Z_interaction1 = sparse.model.matrix(~0 + id.interaction1, mf$mf_model),
              Z_interaction2 = sparse.model.matrix(~0 + id.interaction2, mf$mf_model),
              Z_interaction3 = sparse.model.matrix(~0 + id.interaction3, mf$mf_model),
-             # Z_country = Z$Z_country,
-             # Z_omega1 = sparse.model.matrix(~0 + id.omega1, mf$mf_model),
-             # Z_omega2 = sparse.model.matrix(~0 + id.omega2, mf$mf_model),
+             Z_country = Z$Z_country,
+             Z_omega1 = sparse.model.matrix(~0 + id.omega1, mf$mf_model),
+             Z_omega2 = sparse.model.matrix(~0 + id.omega2, mf$mf_model),
              R_tips = R$R_tips,
              R_age = R$R_age,
              R_period = R$R_period,
              R_spatial = R$R_spatial,
              # R_spatial_iid = R$R_spatial_iid,
-             # R_country = R$R_country,
+             R_country = R$R_country,
              rankdef_R_spatial = 1,
              # log_offset = log(mf$dist$obs$pys),
              # births_obs = mf$dist$obs$births,
@@ -200,16 +200,20 @@ tmb_int$par <- list(
   u_age = rep(0, ncol(Z$Z_age)),
   log_prec_rw_age = 0,
   
-  # u_country = rep(0, ncol(Z$Z_country)),
-  # log_prec_country = 0,
+  u_country = rep(0, ncol(Z$Z_country)),
+  log_prec_country = 0,
+
+  omega1 = array(0, c(ncol(Z$Z_country), ncol(Z$Z_age))),
+  log_prec_omega1 = 0,
+  lag_logit_omega1_phi_age = 0,
+
+  omega2 = array(0, c(ncol(Z$Z_country), ncol(Z$Z_period))),
+  log_prec_omega2 = 0,
+  lag_logit_omega2_phi_period = 0,
   
-  # omega1 = array(0, c(ncol(Z$Z_country), ncol(Z$Z_age))),
-  # log_prec_omega1 = 0,
-  # lag_logit_omega1_phi_age = 0,
-  
-  # omega2 = array(0, c(ncol(Z$Z_country), ncol(Z$Z_period))),
-  # log_prec_omega2 = 0,
-  # lag_logit_omega2_phi_period = 0,
+  omega3 = array(0, c(ncol(Z$Z_tips_dhs), ncol(Z$Z_country))),
+  log_prec_omega3 = 0,
+  lag_logit_omega3_phi_period = 0,
 
   u_period = rep(0, ncol(Z$Z_period)),
   log_prec_rw_period = 0,
@@ -255,7 +259,7 @@ if(mf$mics_toggle) {
 
 f <- mcparallel({TMB::MakeADFun(data = tmb_int$data,
                                 parameters = tmb_int$par,
-                                DLL = "14_aug",
+                                DLLtmb/multi.cpp",
                                 silent=0,
                                 checkParameterOrder=FALSE)
 })
@@ -264,7 +268,7 @@ mccollect(f)
 
 obj <-  MakeADFun(data = tmb_int$data,
                   parameters = tmb_int$par,
-                  DLL = "14_aug",
+                  DLLtmb/multi.cpp",
                   random = tmb_int$random,
                   hessian = FALSE)
 

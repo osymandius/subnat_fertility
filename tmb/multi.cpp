@@ -40,6 +40,11 @@ Type objective_function<Type>::operator() ()
   PARAMETER(log_prec_omega2);
   PARAMETER(lag_logit_omega2_phi_period);
 
+  // DATA_SPARSE_MATRIX(Z_omega3);
+  // PARAMETER_ARRAY(omega3);
+  // PARAMETER(log_prec_omega3);
+  // PARAMETER(lag_logit_omega3_phi_tips);
+
   DATA_SPARSE_MATRIX(Z_spatial);
   DATA_SPARSE_MATRIX(R_spatial);
   DATA_SCALAR(rankdef_R_spatial); // rank deficiency of the R_spatial structure matrix
@@ -93,6 +98,17 @@ Type objective_function<Type>::operator() ()
 
   nll -= Type(-0.5) * (u_tips * (R_tips * u_tips)).sum();
   nll -= dnorm(u_tips.sum(), Type(0), Type(0.01) * u_tips.size(), true);
+
+  //
+
+  // nll -= dlgamma(log_prec_omega3, Type(1), Type(20000), true);
+  // Type prec_omega3 = exp(log_prec_omega3);
+
+  // nll -= dnorm(lag_logit_omega3_phi_tips, Type(0), Type(sqrt(1/0.15)), true);
+  // Type omega3_phi_tips = 2*exp(lag_logit_omega3_phi_tips)/(1+exp(lag_logit_omega3_phi_tips))-1;
+  
+  // nll += SEPARABLE(AR1(Type(omega3_phi_tips)), GMRF(R_country))(omega3);
+  // vector<Type> omega3_v(omega3);
 
   /////////////////
 
@@ -273,6 +289,7 @@ Type objective_function<Type>::operator() ()
                      + Z_interaction1 * eta1_v * sqrt(1/prec_eta1)
                      + Z_interaction2 * eta2_v * sqrt(1/prec_eta2)
                      + Z_interaction3 * eta3_v * sqrt(1/prec_eta3)
+                     // + X_urban_dummy * beta_urban_dummy          // Urban fixed effect
                      );
 
   
@@ -281,7 +298,7 @@ Type objective_function<Type>::operator() ()
   vector<Type> mu_obs_pred_dhs(X_extract_dhs * (M_obs * log_lambda)
                           + Z_tips_dhs * u_tips_constr * sqrt(1/prec_rw_tips)  // TIPS RW
                           + X_tips_dummy * beta_tips_dummy          // TIPS fixed effect
-                          // + X_urban_dummy * beta_urban_dummy          // Urban fixed effect
+                          // + Z_omega3 * omega3_v * sqrt(1/prec_omega3)
                           + log_offset_dhs    
                           );
 
@@ -352,47 +369,51 @@ Type objective_function<Type>::operator() ()
     REPORT(births_out);
   }
   
-  // REPORT(lambda);
+  REPORT(lambda);
   // REPORT(births);
 
-  // REPORT(log_prec_spatial);
+  REPORT(log_prec_spatial);
   // // REPORT(logit_spatial_rho);
 
-  // REPORT(log_prec_eta1);
-  // REPORT(eta1_phi_age);
-  // REPORT(eta1_phi_period);
+  REPORT(log_prec_eta1);
+  REPORT(eta1_phi_age);
+  REPORT(eta1_phi_period);
 
-  // REPORT(log_prec_eta2);
-  // REPORT(eta2_phi_period);
+  REPORT(log_prec_eta2);
+  REPORT(eta2_phi_period);
 
-  // REPORT(log_prec_eta3);
-  // REPORT(eta3_phi_age);
+  REPORT(log_prec_eta3);
+  REPORT(eta3_phi_age);
 
-  // REPORT(log_prec_country);
+  REPORT(log_prec_country);
 
-  // REPORT(log_prec_omega1);
-  // REPORT(omega1_phi_age);
+  REPORT(log_prec_omega1);
+  REPORT(omega1_phi_age);
 
-  // REPORT(log_prec_omega2);
-  // REPORT(omega2_phi_period);
+  REPORT(log_prec_omega2);
+  REPORT(omega2_phi_period);
 
-  // REPORT(log_prec_rw_age);
-  // REPORT(log_prec_rw_period);
-  // REPORT(log_prec_rw_tips);
+  // REPORT(log_prec_omega3);
+  // REPORT(omega3_phi_tips);
+  // REPORT(omega3);
 
-  // REPORT(beta_tips_dummy);
+  REPORT(log_prec_rw_age);
+  REPORT(log_prec_rw_period);
+  REPORT(log_prec_rw_tips);
+
+  REPORT(beta_tips_dummy);
   // // REPORT(beta_urban_dummy);
 
-  // REPORT(eta1);
-  // REPORT(eta2);
-  // REPORT(eta3);
+  REPORT(eta1);
+  REPORT(eta2);
+  REPORT(eta3);
 
-  // REPORT(u_tips);
-  // REPORT(u_tips_constr);
-  // REPORT(u_period);
-  // REPORT(u_age);
+  REPORT(u_tips);
+  REPORT(u_tips_constr);
+  REPORT(u_period);
+  REPORT(u_age);
 
-  // REPORT(beta_0);
+  REPORT(beta_0);
 
 
   return nll;

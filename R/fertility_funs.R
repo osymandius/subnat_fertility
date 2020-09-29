@@ -789,6 +789,7 @@ make_model_frames <- function(iso3_current, population, asfr, mics_asfr,
            age_group = factor(age_group, levels(mf_model$age_group)),
            area_id = factor(area_id, levels(mf_model$area_id)),
            period = factor(period, levels(mf_model$period)),
+           id.omega3 = factor(group_indices(., tips, iso3))
     )
   
   mf <- list()
@@ -913,7 +914,7 @@ make_model_frames <- function(iso3_current, population, asfr, mics_asfr,
   return(mf)
 }
 
-tmb_outputs <- function(fit, mf) {
+tmb_outputs <- function(fit, mf, level = "naomi") {
   
   asfr_qtls <- apply(fit$sample$lambda_out, 1, quantile, c(0.025, 0.5, 0.975))
   tfr_qtls <- apply(fit$sample$tfr_out, 1, quantile, c(0.025, 0.5, 0.975))
