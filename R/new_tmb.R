@@ -93,9 +93,11 @@ Z$Z_country <- sparse.model.matrix(~0 + iso3, mf$mf_model)
 M_obs <- sparse.model.matrix(~0 + idx, mf$dist$obs) 
 Z$Z_tips <- sparse.model.matrix(~0 + tips_f, mf$dist$obs)
 Z$Z_tips_dhs <- sparse.model.matrix(~0 + tips_f, mf$dist$obs %>% filter(ais_dummy ==0))
-# Z$Z_tips_ais <- sparse.model.matrix(~0 + tips_f, mf$dist$obs %>% filter(ais_dummy ==1))
-# Z_tips[which(mf$dist$obs$survtype != "DHS"), ] <- 0
-X_tips_dummy <- model.matrix(~0 + tips_dummy, mf$dist$obs %>% filter(ais_dummy == 0))
+
+X_tips_dummy <- model.matrix(~ -1 + tips_dummy * as.factor(iso3) - as.factor(iso3) - tips_dummy,
+                             data = mf$dist$obs %>% filter(ais_dummy == 0))
+
+# X_tips_dummy <- model.matrix(~0 + tips_dummy, mf$dist$obs %>% filter(ais_dummy == 0))
 X_urban_dummy <- model.matrix(~0 + urban, mf$mf_model)
 
 ais_join <- mf$dist$obs %>% 
@@ -169,8 +171,8 @@ tmb_int$data <- list(M_obs = M_obs,
              log_offset_ais = log(filter(mf$dist$obs, ais_dummy ==1)$pys),
              births_obs_ais = filter(mf$dist$obs, ais_dummy ==1)$births,
              pop = mf$mf_model$population,
-             A_asfr_out = mf$out$A_asfr_out,
-             A_tfr_out = mf$out$A_tfr_out,
+             # A_asfr_out = mf$out$A_asfr_out,
+             # A_tfr_out = mf$out$A_tfr_out,
              mics_toggle = mf$mics_toggle,
              out_toggle = mf$out_toggle,
              
@@ -193,7 +195,7 @@ tmb_int$par <- list(
   beta_0 = 0,
 
   beta_tips_dummy = rep(0, ncol(X_tips_dummy)),
-  beta_urban_dummy = rep(0, ncol(X_urban_dummy)),
+  # beta_urban_dummy = rep(0, ncol(X_urban_dummy)),
   u_tips = rep(0, ncol(Z$Z_tips)),
   log_prec_rw_tips = 0,
 
@@ -211,9 +213,9 @@ tmb_int$par <- list(
   log_prec_omega2 = 0,
   lag_logit_omega2_phi_period = 0,
   
-  omega3 = array(0, c(ncol(Z$Z_tips_dhs), ncol(Z$Z_country))),
-  log_prec_omega3 = 0,
-  lag_logit_omega3_phi_period = 0,
+  # omega3 = array(0, c(ncol(Z$Z_tips_dhs), ncol(Z$Z_country))),
+  # log_prec_omega3 = 0,
+  # lag_logit_omega3_phi_period = 0,
 
   u_period = rep(0, ncol(Z$Z_period)),
   log_prec_rw_period = 0,
@@ -240,7 +242,7 @@ tmb_int$par <- list(
 
 
 # "u_spatial_str", "u_spatial_iid", "eta1" , "eta1" "beta_tips_dummy",,"beta_tips_dummy",  "u_tips" "eta1""eta1", "u_tips",  "eta1", "eta2", "eta3""beta_tips_dummy", , "u_spatial_iid", "eta3" , 
-tmb_int$random <- c("beta_0", "u_spatial_str", "u_age", "u_period", "beta_tips_dummy", "beta_urban_dummy", "u_tips", "eta1", "eta2", "eta3")
+tmb_int$random <- c("beta_0", "u_spatial_str", "u_age", "u_period", "beta_tips_dummy", "u_tips", "eta1", "eta2", "eta3", "omega1", "omega2")
 
 if(mf$mics_toggle) {
   tmb_int$data <- c(tmb_int$data, 
@@ -259,7 +261,7 @@ if(mf$mics_toggle) {
 
 f <- mcparallel({TMB::MakeADFun(data = tmb_int$data,
                                 parameters = tmb_int$par,
-                                DLLtmb/multi.cpp",
+                                DLL = "multi",
                                 silent=0,
                                 checkParameterOrder=FALSE)
 })
@@ -268,7 +270,7 @@ mccollect(f)
 
 obj <-  MakeADFun(data = tmb_int$data,
                   parameters = tmb_int$par,
-                  DLLtmb/multi.cpp",
+                  DLL = "multi",
                   random = tmb_int$random,
                   hessian = FALSE)
 
@@ -286,7 +288,7 @@ fit <- sample_tmb(fit, random_only=TRUE)
 
 
 
-qtls1 <- apply(fit$sample$lambda_out, 1, quantile, c(0.025, 0.5, 0.975))
+qtls1 <- apply(fit$sample$lambda, 1, quantile, c(0.025, 0.5, 0.975))
 
 asfr_plot <- lapply(iso3_current, function(x) {
   readRDS(here(paste0("countries/", x, "/data/", x, "_asfr_plot.rds")))
@@ -314,26 +316,34 @@ tmb_results <- mf$out$mf_out %>%
     left_join(areas_long) %>%
     arrange(iso3)
 
-tfr_result <- tmb_results %>%
-  group_by(area_id, period) %>%
+fit1 <- readRDS("~/Downloads/multi_admin1.rds")
+fit2 <- readRDS("~/Downloads/multi_admin1_tips_country.rds")
+fit3 <- readRDS("~/Downloads/multi_admin1_tips_beta_country.rds")
+
+qtls1 <- apply(fit1$sample$lambda, 1, quantile, 0.5)
+qtls2 <- apply(fit2$sample$lambda, 1, quantile, 0.5)
+qtls3 <- apply(fit3$sample$lambda, 1, quantile, 0.5)
+
+mf$mf_model %>%
+  mutate(median = qtls1,
+         source = "Regular") %>%
+  bind_rows(mf$mf_model %>%
+              mutate(median = qtls2,
+                     source = "TIPS RW x country")) %>%
+  bind_rows(mf$mf_model %>%
+              mutate(median = qtls3,
+                     source = "TIPS beta x country")) %>%
+  type.convert() %>%
+  group_by(area_id, period, source) %>%
   summarise(median = 5*sum(median)) %>%
-  left_join(areas_long)
-
-tfr_result <- tfr_result %>%
-  arrange(iso3) %>%
-  group_by(iso3) %>%
-  group_split()
-
-tmb_results <- tmb_results %>%
-  group_split(iso3)
-
-tfr_plot <- tfr_plot %>%
-  arrange(iso3) %>%
-  group_split(iso3)
-
-asfr_plot <- asfr_plot %>%
-  arrange(iso3) %>%
-  group_split(iso3)
+  left_join(areas_long) %>%
+  filter(iso3 == "SWZ") %>%
+  ggplot(aes(x=period, y=median)) +
+    geom_line(aes(group=source, color=source)) +
+    # geom_point(data = tfr_plot %>% filter(iso3 == "SWZ"), aes(y=tfr)) +
+    facet_wrap(~area_id)
+    
+beta <- apply(fit3$sample$beta_tips_dummy,  1, quantile, 0.5)
 
 asfr_plots <- Map(function(tmb_results, asfr_plot) {
   
