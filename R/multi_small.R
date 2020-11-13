@@ -31,9 +31,7 @@ asfr <- Map(function(iso3_current, level) {
 }, iso3_current = filter(lvl_df, area_level_name == "province")$iso3, level = 0)
 # filter(lvl_df, area_level_name == "province")$area_level_id)
 
-
-
-mf <- make_model_frames(iso3_current, population, asfr, mics_asfr,
+mf <- make_model_frames(iso3_current, population, asfr, mics_asfr = NULL,
                         exclude_districts,
                         project=FALSE,
                         mics_flag = FALSE,
@@ -99,6 +97,16 @@ fit$sdreport <- sdreport(fit$obj, fit$par)
 class(fit) <- "naomi_fit"  # this is hacky...
 fit <- sample_tmb(fit, random_only=FALSE)
 
+qtls <-  apply(fit$sample$lambda, 1, quantile, c(0.025, 0.5, 0.975))
+
+tmb_results <- mf$mf_model %>%
+  mutate(lower = qtls[1,],
+         median = qtls[2,],
+         upper = qtls[3,],
+         source = "tmb") %>%
+  type.convert() %>%
+  left_join(areas_long)
+
 fit_prior <- fitdistr(fit$sample$log_prec_country, "normal")
 
 data.frame(x = as.numeric(fit$sample$log_prec_country)) %>%
@@ -129,59 +137,73 @@ mf <- make_model_frames(iso3_current, population, asfr, mics_asfr=NULL,
 Z <- list()
 Z$Z_country <- sparse.model.matrix(~0 + iso3, mf$mf_model)
 
-# ?????
+Z$Z_country <- as(matrix(rep(1, nrow(mf$mf_model)), ncol=1), "dgCMatrix")
 
-# M_obs <- sparse.model.matrix(~0 + idx, mf$dist$obs) 
-# 
-# R <- list()
-# R$R_country <- as(diag(1, length(iso3_current)), "dgTMatrix")
-# 
-# # dyn.unload(dynlib(here("tmb/fertility_tmb_dev")))
-# compile(here("tmb/multi_small_example.cpp"))               # Compile the C++ file
-# dyn.load(dynlib(here("tmb/multi_small_example")))
-# 
-# tmb_int <- list()
-# 
-# tmb_int$data <- list(M_obs = M_obs,
-#                      
-#                      Z_country = Z$Z_country,
-#                      R_country = R$R_country,
-#                      log_offset = log(mf$dist$obs$pys),
-#                      births_obs = mf$dist$obs$births,
-#                      pop = mf$mf_model$population
-# )
-# 
-# tmb_int$par <- list(
-#   beta_0 = 0,
-#   u_country = rep(0, ncol(Z$Z_country)),
-#   log_prec_country = 0
-# )
-# 
-# tmb_int$random <- c("beta_0", "u_country")
-# 
-# 
-# 
-# f <- mcparallel({TMB::MakeADFun(data = tmb_int$data,
-#                                 parameters = tmb_int$par,
-#                                 DLL = "multi_small_example",
-#                                 silent=0,
-#                                 checkParameterOrder=FALSE)
-# })
-# 
-# mccollect(f)
-# 
-# obj <-  MakeADFun(data = tmb_int$data,
-#                   parameters = tmb_int$par,
-#                   DLL = "multi_small_example",
-#                   random = tmb_int$random,
-#                   hessian = FALSE)
-# 
-# f <- nlminb(obj$par, obj$fn, obj$gr)
-# f$par.fixed <- f$par
-# f$par.full <- obj$env$last.par
-# 
-# fit <- c(f, obj = list(obj))
-# fit$sdreport <- sdreport(fit$obj, fit$par)
-# 
-# class(fit) <- "naomi_fit"  # this is hacky...
-# fit <- sample_tmb(fit, random_only=FALSE)
+M_obs <- sparse.model.matrix(~0 + idx, mf$dist$obs)
+
+R <- list()
+R$R_country <- as(diag(1, length(iso3_current)), "dgTMatrix")
+
+# dyn.unload(dynlib(here("tmb/fertility_tmb_dev")))
+compile(here("tmb/multi_small_example_eb.cpp"))               # Compile the C++ file
+dyn.load(dynlib(here("tmb/multi_small_example_eb")))
+
+tmb_int <- list()
+
+tmb_int$data <- list(M_obs = M_obs,
+
+                     Z_country = Z$Z_country,
+                     R_country = R$R_country,
+                     log_offset = log(mf$dist$obs$pys),
+                     births_obs = mf$dist$obs$births,
+                     pop = mf$mf_model$population
+)
+
+tmb_int$par <- list(
+  beta_0 = 0,
+  u_country = rep(0, ncol(Z$Z_country)),
+  log_prec_country = 0
+)
+
+tmb_int$random <- c("beta_0", "u_country")
+
+
+
+f <- mcparallel({TMB::MakeADFun(data = tmb_int$data,
+                                parameters = tmb_int$par,
+                                DLL = "multi_small_example_eb",
+                                silent=0,
+                                checkParameterOrder=FALSE)
+})
+
+mccollect(f)
+
+obj <-  MakeADFun(data = tmb_int$data,
+                  parameters = tmb_int$par,
+                  DLL = "multi_small_example_eb",
+                  random = tmb_int$random,
+                  hessian = FALSE)
+
+f <- nlminb(obj$par, obj$fn, obj$gr)
+f$par.fixed <- f$par
+f$par.full <- obj$env$last.par
+
+fit <- c(f, obj = list(obj))
+fit$sdreport <- sdreport(fit$obj, fit$par)
+
+class(fit) <- "naomi_fit"  # this is hacky...
+fit <- sample_tmb(fit, random_only=FALSE)
+
+qtls <-  apply(fit$sample$lambda, 1, quantile, c(0.025, 0.5, 0.975))
+
+tmb_results_single <- mf$mf_model %>%
+  mutate(lower = qtls[1,],
+         median = qtls[2,],
+         upper = qtls[3,],
+         source = "tmb") %>%
+  type.convert() %>%
+  left_join(areas_long)
+
+unique(filter(tmb_results, iso3 == "ZWE")$median)
+unique(tmb_results_single$median)
+

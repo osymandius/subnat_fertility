@@ -28,7 +28,7 @@ Type objective_function<Type>::operator() ()
  
   nll -= dnorm(beta_0, Type(0), Type(sqrt(1/0.001)), true);
   
-  nll -= dnorm(log_prec_country, Type(3.91), Type(0.554), true);
+  nll -= dnorm(log_prec_country, Type(3.90463909), Type(0.53202466), true);
   Type prec_country = exp(log_prec_country); 
 
   nll -= Type(-0.5) * (u_country * (R_country * u_country)).sum();
