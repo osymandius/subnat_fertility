@@ -701,11 +701,21 @@ make_model_frames <- function(iso3_current, population, asfr, mics_asfr,
   }) %>% bind_rows
   
   if(level == "naomi") {
-  ## Make model frame
+    model_area_id <- unique(area_aggregation$model_area_id)
+  } else if(level == "province") {
+    model_area_id <- Map(function(iso3_current, level) {
+        filter(areas_long, area_level == level, iso3 == iso3_current)$area_id
+    }, iso3_current = filter(lvl_df, area_level_name == "province")$iso3, level = filter(lvl_df, area_level_name == "province")$area_level_id) %>%
+      unlist %>%
+      as.character()
+  } else if(level == "national") {
+    model_area_id <- filter(areas_long, area_level == 0, iso3 == iso3_current)$area_id
+  }
+  
   mf_model <- crossing(period = 1995:max_year,
                  age_group = c("15-19", "20-24", "25-29", "30-34", "35-39", "40-44", "45-49"),
                  # area_id = unique(asfr$area_id)) %>%
-                 area_id = unique(area_aggregation$model_area_id)) %>%
+                 area_id = model_area_id) %>%
                  # area_id = iso3_current) %>%
     left_join(
       population %>%
@@ -713,7 +723,7 @@ make_model_frames <- function(iso3_current, population, asfr, mics_asfr,
       by = c("period", "age_group", "area_id")
     ) %>%
     # mutate(area_id = factor(area_id),
-    mutate(area_id = factor(area_id, levels = unique(area_aggregation$model_area_id)),
+    mutate(area_id = factor(area_id, levels = model_area_id),
     # mutate(area_id = factor(iso3_current),
            age_group = factor(age_group, levels = c("15-19", "20-24", "25-29", "30-34", "35-39", "40-44", "45-49")),
            period = factor(period),
@@ -730,75 +740,107 @@ make_model_frames <- function(iso3_current, population, asfr, mics_asfr,
            id.interaction3 = factor(group_indices(., age_group, area_id)),
            id.omega1 = factor(group_indices(., age_group, iso3)),
            id.omega2 = factor(group_indices(., period, iso3))
-    ) 
-   # droplevels()
-  } else if(level == "province") {
-    
-    mf_model <- Map(function(iso3_current, level) {
-                  crossing(period = 1995:max_year,
-                  age_group = c("15-19", "20-24", "25-29", "30-34", "35-39", "40-44", "45-49"),
-                  area_id = filter(areas_long, area_level == level, iso3 == iso3_current)$area_id)
-      }, iso3_current = filter(lvl_df, area_level_name == "province")$iso3, level = filter(lvl_df, area_level_name == "province")$area_level_id) %>%
-      bind_rows() %>%
-      # area_id = iso3_current) %>%
-      left_join(
-        population %>%
-        dplyr::select(iso3, area_id, period, age_group, population),
-        by = c("period", "age_group", "area_id")
-      ) %>%
-      mutate(area_id = factor(area_id),
-             # mutate(area_id = factor(iso3_current),
-             age_group = factor(age_group, levels = c("15-19", "20-24", "25-29", "30-34", "35-39", "40-44", "45-49")),
-             period = factor(period),
-             # restype = ifelse(area_id %in% c(
-             #  filter(areas_long, parent_area_id == "ETH_1_10")$area_id,
-             #  filter(areas_long, str_detect(area_name, "Town"))$area_id,
-             #  filter(areas_long, area_name %in% c("Harari", "Fafen (Jijiga)"))$area_id),
-             #  1, 0)
-      ) %>%
-      arrange(period, area_id, age_group) %>%
-      mutate(idx = factor(row_number()),
-             id.interaction1 = factor(group_indices(., age_group, period, iso3)),
-             id.interaction2 = factor(group_indices(., period, area_id)),
-             id.interaction3 = factor(group_indices(., age_group, area_id)),
-             id.omega1 = factor(group_indices(., age_group, iso3)),
-             id.omega2 = factor(group_indices(., period, iso3))
-      ) 
-      # droplevels()
-  } else if (level == "national") {
-    
-    mf_model <- Map(function(iso3_current, level) {
-      crossing(period = 1995:max_year,
-               age_group = c("15-19", "20-24", "25-29", "30-34", "35-39", "40-44", "45-49"),
-               area_id = filter(areas_long, area_level == 0, iso3 == iso3_current)$area_id)
-    }, iso3_current = filter(lvl_df, area_level_name == "province")$iso3, level = 0) %>%
-      bind_rows() %>%
-      # area_id = iso3_current) %>%
-      left_join(
-        population %>%
-          dplyr::select(iso3, area_id, period, age_group, population),
-        by = c("period", "age_group", "area_id")
-      ) %>%
-      mutate(area_id = factor(area_id),
-             # mutate(area_id = factor(iso3_current),
-             age_group = factor(age_group, levels = c("15-19", "20-24", "25-29", "30-34", "35-39", "40-44", "45-49")),
-             period = factor(period),
-             # restype = ifelse(area_id %in% c(
-             #  filter(areas_long, parent_area_id == "ETH_1_10")$area_id,
-             #  filter(areas_long, str_detect(area_name, "Town"))$area_id,
-             #  filter(areas_long, area_name %in% c("Harari", "Fafen (Jijiga)"))$area_id),
-             #  1, 0)
-      ) %>%
-      arrange(period, area_id, age_group) %>%
-      mutate(idx = factor(row_number()),
-             id.interaction1 = factor(group_indices(., age_group, period, iso3)),
-             id.interaction2 = factor(group_indices(., period, area_id)),
-             id.interaction3 = factor(group_indices(., age_group, area_id)),
-             id.omega1 = factor(group_indices(., age_group, iso3)),
-             id.omega2 = factor(group_indices(., period, iso3))
-      )
-    
-  }
+    )
+  
+  # if(level == "naomi") {
+  # ## Make model frame
+  # mf_model <- crossing(period = 1995:max_year,
+  #                age_group = c("15-19", "20-24", "25-29", "30-34", "35-39", "40-44", "45-49"),
+  #                # area_id = unique(asfr$area_id)) %>%
+  #                area_id = unique(area_aggregation$model_area_id)) %>%
+  #                # area_id = iso3_current) %>%
+  #   left_join(
+  #     population %>%
+  #     dplyr::select(iso3, area_id, period, age_group, population),
+  #     by = c("period", "age_group", "area_id")
+  #   ) %>%
+  #   # mutate(area_id = factor(area_id),
+  #   mutate(area_id = factor(area_id, levels = unique(area_aggregation$model_area_id)),
+  #   # mutate(area_id = factor(iso3_current),
+  #          age_group = factor(age_group, levels = c("15-19", "20-24", "25-29", "30-34", "35-39", "40-44", "45-49")),
+  #          period = factor(period),
+  #          urban = ifelse(area_id %in% c(
+  #           filter(areas_long, parent_area_id == "ETH_1_10")$area_id,
+  #           filter(areas_long, str_detect(area_name, "Town"))$area_id,
+  #           filter(areas_long, area_name %in% c("Harari", "Fafen (Jijiga)"))$area_id),
+  #           1, 0)
+  #   ) %>%
+  #   arrange(period, area_id, age_group) %>%
+  #   mutate(idx = factor(row_number()),
+  #          id.interaction1 = factor(group_indices(., age_group, period, iso3)),
+  #          id.interaction2 = factor(group_indices(., period, area_id)),
+  #          id.interaction3 = factor(group_indices(., age_group, area_id)),
+  #          id.omega1 = factor(group_indices(., age_group, iso3)),
+  #          id.omega2 = factor(group_indices(., period, iso3))
+  #   ) 
+  #  # droplevels()
+  # } else if(level == "province") {
+  #   
+  #   mf_model <- Map(function(iso3_current, level) {
+  #                 crossing(period = 1995:max_year,
+  #                 age_group = c("15-19", "20-24", "25-29", "30-34", "35-39", "40-44", "45-49"),
+  #                 area_id = filter(areas_long, area_level == level, iso3 == iso3_current)$area_id)
+  #     }, iso3_current = filter(lvl_df, area_level_name == "province")$iso3, level = filter(lvl_df, area_level_name == "province")$area_level_id) %>%
+  #     bind_rows() %>%
+  #     # area_id = iso3_current) %>%
+  #     left_join(
+  #       population %>%
+  #       dplyr::select(iso3, area_id, period, age_group, population),
+  #       by = c("period", "age_group", "area_id")
+  #     ) %>%
+  #     mutate(area_id = factor(area_id),
+  #            # mutate(area_id = factor(iso3_current),
+  #            age_group = factor(age_group, levels = c("15-19", "20-24", "25-29", "30-34", "35-39", "40-44", "45-49")),
+  #            period = factor(period),
+  #            # restype = ifelse(area_id %in% c(
+  #            #  filter(areas_long, parent_area_id == "ETH_1_10")$area_id,
+  #            #  filter(areas_long, str_detect(area_name, "Town"))$area_id,
+  #            #  filter(areas_long, area_name %in% c("Harari", "Fafen (Jijiga)"))$area_id),
+  #            #  1, 0)
+  #     ) %>%
+  #     arrange(period, area_id, age_group) %>%
+  #     mutate(idx = factor(row_number()),
+  #            id.interaction1 = factor(group_indices(., age_group, period, iso3)),
+  #            id.interaction2 = factor(group_indices(., period, area_id)),
+  #            id.interaction3 = factor(group_indices(., age_group, area_id)),
+  #            id.omega1 = factor(group_indices(., age_group, iso3)),
+  #            id.omega2 = factor(group_indices(., period, iso3))
+  #     ) 
+  #     # droplevels()
+  # } else if (level == "national") {
+  #   
+  #   mf_model <- Map(function(iso3_current, level) {
+  #     crossing(period = 1995:max_year,
+  #              age_group = c("15-19", "20-24", "25-29", "30-34", "35-39", "40-44", "45-49"),
+  #              area_id = filter(areas_long, area_level == 0, iso3 == iso3_current)$area_id)
+  #   }, iso3_current = filter(lvl_df, area_level_name == "province")$iso3, level = 0) %>%
+  #     bind_rows() %>%
+  #     # area_id = iso3_current) %>%
+  #     left_join(
+  #       population %>%
+  #         dplyr::select(iso3, area_id, period, age_group, population),
+  #       by = c("period", "age_group", "area_id")
+  #     ) %>%
+  #     mutate(area_id = factor(area_id),
+  #            # mutate(area_id = factor(iso3_current),
+  #            age_group = factor(age_group, levels = c("15-19", "20-24", "25-29", "30-34", "35-39", "40-44", "45-49")),
+  #            period = factor(period),
+  #            # restype = ifelse(area_id %in% c(
+  #            #  filter(areas_long, parent_area_id == "ETH_1_10")$area_id,
+  #            #  filter(areas_long, str_detect(area_name, "Town"))$area_id,
+  #            #  filter(areas_long, area_name %in% c("Harari", "Fafen (Jijiga)"))$area_id),
+  #            #  1, 0)
+  #     ) %>%
+  #     arrange(period, area_id, age_group) %>%
+  #     mutate(idx = factor(row_number()),
+  #            id.interaction1 = factor(group_indices(., age_group, period, iso3)),
+  #            id.interaction2 = factor(group_indices(., period, area_id)),
+  #            id.interaction3 = factor(group_indices(., age_group, area_id)),
+  #            id.omega1 = factor(group_indices(., age_group, iso3)),
+  #            id.omega2 = factor(group_indices(., period, iso3))
+  #     )
+  #   
+  # }
   
   obs <- asfr %>%
     mutate(period = factor(period, levels(mf_model$period))) %>%
@@ -831,12 +873,12 @@ make_model_frames <- function(iso3_current, population, asfr, mics_asfr,
   if(level == "naomi") {
     
     age_aggregation <- data.frame(
-      "age_group" = filter(get_age_groups(), age_group_id %in% 4:10)$age_group,
-      "model_age_group" = filter(get_age_groups(), age_group_id %in% 4:10)$age_group
+      "age_group" = filter(get_age_groups(), age_group_start %in% 15:45, age_group_span == 5)$age_group_label,
+      "model_age_group" = filter(get_age_groups(), age_group_start %in% 15:45, age_group_span == 5)$age_group_label
     ) %>%
       bind_rows(data.frame(
         "age_group" = "15-49",
-        "model_age_group" = filter(get_age_groups(), age_group_id %in% 4:10)$age_group
+        "model_age_group" = filter(get_age_groups(), age_group_start %in% 15:45, age_group_span == 5)$age_group_label
       ))
 
     asfr_out <- crossing(
