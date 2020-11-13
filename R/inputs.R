@@ -26,16 +26,12 @@ areas_long <- lapply(files, "[[", "areas") %>%
   lapply(read_sf) %>% 
   lapply(function(x) {
     
-    iso3_code <- x %>%
-      filter(area_level == 0) %>%
-      select(area_id) %>%
-      unique %>%
-      .$area_id
+    iso3_code <- x$area_id[x$area_level ==0]
     
     x <- x %>%
       mutate(iso3 = iso3_code) %>%
       st_drop_geometry() %>%
-      select(c("iso3", "area_id", "area_name", "area_level", "parent_area_id", "naomi_level"))
+      dplyr::select(c("iso3", "area_id", "area_name", "area_level", "parent_area_id", "naomi_level"))
     
     return(x)
   }) %>% 
@@ -63,12 +59,13 @@ if(boundaries)
       
       iso3_code <- x %>%
         filter(area_level == 0) %>%
-        select(area_id) %>%
+        dplyr::select(area_id) %>%
         unique %>%
         .$area_id
       
       x <- x %>%
-        mutate(iso3 = iso3_code)
+        mutate(iso3 = iso3_code) %>%
+        dplyr::select(-epp_level)
       
       return(x)
     }) %>% 
@@ -81,7 +78,7 @@ if(population)
     lapply(left_join, areas_long) %>%
     bind_rows %>%
     mutate(period = year_labels(naomi:::calendar_quarter_to_quarter_id(calendar_quarter))) %>%
-    select(iso3, "area_id" , "area_name", "source", "sex", "age_group", "population", "period") %>%
+    dplyr::select(iso3, "area_id" , "area_name", "source", "sex", "age_group", "population", "period") %>%
     arrange(iso3)
 
 
@@ -141,8 +138,8 @@ assign_cluster_area <- function(clusters, area_level) {
   
   areas <- clusters %>%
     rename(area_id = geoloc_area_id) %>%
-    left_join(areas_wide %>% select(area_id, paste0("area_id", area_level))) %>%
-    select(-area_id) %>%
+    left_join(areas_wide %>% dplyr::select(area_id, paste0("area_id", area_level))) %>%
+    dplyr::select(-area_id) %>%
     rename(area_id = paste0("area_id", area_level)) %>%
     mutate(area_id = factor(area_id))
   
@@ -190,10 +187,10 @@ clusters_to_surveys <- function(surveys, cluster_areas, single_tips = TRUE) {
     #   lapply(unique) %>% 
     #   bind_rows %>% 
     #   left_join(clusters %>% 
-    #               select(survey_id, DHS_survey_id) %>% 
+    #               dplyr::select(survey_id, DHS_survey_id) %>% 
     #               unique, 
     #             by=c("surveyid" = "DHS_survey_id")) %>% 
-    #   select(-surveyid) %>% 
+    #   dplyr::select(-surveyid) %>% 
     #   .$survey_id
     
     names(ir) <- names(cluster_areas)
@@ -269,15 +266,15 @@ read_mics <- function(iso3_current, path_to_MICS = "~/Imperial College London/HI
     colnames(hh_extract) <- tolower(colnames(hh_extract))
     
     surv_year_id <- hh_extract %>%
-      select(starts_with("hh")) %>%
-      select(ends_with("y")) %>%
+      dplyr::select(starts_with("hh")) %>%
+      dplyr::select(ends_with("y")) %>%
       colnames
     
     surv_year <- hh_extract %>%
-      select(surv_year_id) %>%
+      dplyr::select(surv_year_id) %>%
       count(year = get(surv_year_id)) %>%
       slice(which.max(n)) %>%
-      select(year) %>%
+      dplyr::select(year) %>%
       as.integer()
     
     surv_round <- filter(check, year == surv_year)$round
@@ -300,7 +297,7 @@ read_mics <- function(iso3_current, path_to_MICS = "~/Imperial College London/HI
       stop(paste(nrow(filter(prov_labels, is.na(area_id))), "province labels have not been matched with area ids"))
     
     hh_extract <- hh_extract %>%
-      left_join(prov_labels %>% select(province, area_id))
+      left_join(prov_labels %>% dplyr::select(province, area_id))
     
     ##### WM
     
@@ -366,15 +363,15 @@ read_mics <- function(iso3_current, path_to_MICS = "~/Imperial College London/HI
   wm <- Map(function(wm, hh) {
     
     wm %>% 
-      left_join(hh %>% select(cluster, hh_number, area_id))
+      left_join(hh %>% dplyr::select(cluster, hh_number, area_id))
     
   }, wm, hh)
   
   bh_df <- Map(function(bh, wm) {
     wm %>%
-      select(cluster, hh_number, line_number, unique_id) %>%
-      left_join(bh %>% select(cluster, hh_number, line_number, cdob)) %>%
-      select(unique_id, cdob) %>%
+      dplyr::select(cluster, hh_number, line_number, unique_id) %>%
+      left_join(bh %>% dplyr::select(cluster, hh_number, line_number, cdob)) %>%
+      dplyr::select(unique_id, cdob) %>%
       filter(!is.na(cdob))
   }, bh, wm)
   
